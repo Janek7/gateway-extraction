@@ -12,6 +12,7 @@ print(dataset.GetSentencesWithIdsAndNerTagLabels(doc_id))  # [[('A', 0, 'B-Actor
 # relations
 
 relations = dataset.GetRelations(doc_id)
+print(relations.keys())
 flow_relations, same_gateway_relations = relations[FLOW], relations[SAME_GATEWAY]
 
 print(" flow relations ".center(50, '*'))
