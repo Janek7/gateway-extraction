@@ -1,7 +1,12 @@
-import logging
-from typing import List, Tuple, Optional, Dict
 from petreader.labels import *
 from PetReader import pet_reader
+from petbenchmarks.benchmarks import BenchmarkApproach
+from petbenchmarks.tokenclassification import TokenClassificationBenchmark
+from petbenchmarks.relationsextraction import RelationsExtractionBenchmark
+import logging
+import json
+import os
+from typing import List, Tuple, Optional, Dict
 from labels import *
 
 logger = logging.getLogger('baseline')
@@ -9,12 +14,16 @@ logger = logging.getLogger('baseline')
 
 class Baseline:
 
-    def __init__(self, keywords: str = LITERATURE, output_format: str = BENCHMARK):
+    def __init__(self, approach_name: str = None, keywords: str = LITERATURE, output_format: str = BENCHMARK):
         """
         creates new instance of the baseline approach
+        :param approach_name: description of approach to use in result folder name; if not set use key word variant
         :param keywords: flag/variant which keywords to use, available: literature; gold; own
         :param output_format:
         """
+        self.approach_name = approach_name
+        if not self.approach_name:
+            self.approach_name = f"baseline_{keywords}"
         self.keywords = keywords
         self.output_format = output_format
         self._xor_keywords = None
@@ -27,13 +36,51 @@ class Baseline:
         if self.output_format not in [PET, BENCHMARK]:
             raise ValueError(f"Output format must be {PET} or {BENCHMARK}")
 
-    def eval_all_documents(self):
-        pass
+    def evaluate_documents(self, doc_names: List[str] = None) -> None:
+        """
+        run extraction and evaluation with petbenchmarks
+        :param doc_names: list of document names to evaluate, use all as default value
+        :return: nothing, results are written to .json file
+        """
+        if not doc_names:
+            doc_names = pet_reader.document_names
+        logger.info(f"Start processing of {len(doc_names)} documents ...")
 
-    def process_document(self, doc_id: int, output_format: str = None) -> Tuple[List, List, List, List]:
+        # prepare evaluation structures to fill
+        tcb = TokenClassificationBenchmark()
+        process_elements = tcb.GetEmptyPredictionsDict()
+        reb = RelationsExtractionBenchmark()
+        relations = reb.GetEmptyPredictionsDict()
+
+        # process all documents
+        for i, doc_name in enumerate(doc_names):
+            if i % 5 == 0:
+                logger.info(f"Finished processing of {i} documents.")
+            xor_gateways, and_gateways, xor_flows, and_flows = self.process_document(doc_name, output_format=BENCHMARK)
+            process_elements[doc_name][XOR_GATEWAY].extend(xor_gateways)
+            process_elements[doc_name][AND_GATEWAY].extend(and_gateways)
+            relations[doc_name][FLOW].extend(xor_flows)
+            relations[doc_name][FLOW].extend(and_flows)
+
+        # save results as json
+        folder = f'/data/results/{self.approach_name}/'
+        logger.info(f"Save results to {folder}")
+        process_elements_filename = os.path.join(folder, 'process_elements.json')
+        relations_filename = os.path.join(folder, 'relations.json')
+        with open(process_elements_filename, 'w') as file:
+            json.dump(process_elements, file)
+        with open(relations_filename, 'w') as file:
+            json.dump(relations, file)
+
+        # run evaluation
+        logger.info(f"Run evaluation")
+        BenchmarkApproach(approach_name=self.approach_name, predictions_file_or_folder=process_elements_filename)
+        BenchmarkApproach(approach_name=self.approach_name, predictions_file_or_folder=relations_filename)
+
+    def process_document(self, doc_name: str, output_format: str = None) -> Tuple[List, List, List, List]:
         """
         extracts and returns gateways and related flow relations for given document
-        :param doc_id: document id
+        :param doc_name: document name
         :param output_format: optional output_format - by default self.output_format is used
                               parameter is introduced for necessary control in eval_all_documents
         :return: return_xor_gateways, return_and_gateways, xor_flow_relations, and_flow_relations
@@ -44,16 +91,16 @@ class Baseline:
             self.output_format = output_format
 
         # prepare document
-        doc_sentences = pet_reader.get_doc_sentences(doc_id)
-        doc_activities_enriched = pet_reader.get_index_enriched_activities(doc_id)
+        doc_sentences = pet_reader.get_doc_sentences(doc_name)
+        doc_activities_enriched = pet_reader.get_index_enriched_activities(doc_name)
 
         # extract concurrent gateways and related flow relations
         and_gateways_pet, and_gateways_benchmark = baseline.extract_gateways(doc_sentences, AND_GATEWAY)
-        and_flow_relations = self.extract_concurrent_flow_relations(doc_activities_enriched, and_gateways_pet)
+        and_flows = self.extract_concurrent_flows(doc_activities_enriched, and_gateways_pet)
 
         # extract exclusive gateways and related flow relations
         xor_gateways_pet, xor_gateways_benchmark = self.extract_gateways(doc_sentences, XOR_GATEWAY)
-        xor_flow_relations = [] # TODO: self.extract_exclusive_flow_relations(doc_activities_enriched, xor_gateways_pet)
+        xor_flows = []  # TODO: self.extract_exclusive_flow_relations(doc_activities_enriched, xor_gateways_pet)
 
         if self.output_format == PET:
             xor_gateways = xor_gateways_pet
@@ -64,7 +111,7 @@ class Baseline:
         # overwrite again with saved value (constructor value)
         self.output_format = output_format_saved
 
-        return xor_gateways, and_gateways, xor_flow_relations, and_flow_relations
+        return xor_gateways, and_gateways, xor_flows, and_flows
 
     def extract_gateways(self, sentence_list: List[str], gateway_type: str) \
             -> Tuple[List[List[Tuple[str, int, str]]], Optional[List[List[str]]]]:
@@ -137,8 +184,8 @@ class Baseline:
         elif self.output_format == BENCHMARK:
             return pet_gateways, benchmark_gateways
 
-    def extract_exclusive_flow_relations(self, doc_activity_tokens: List[List[Tuple[str, int]]],
-                                         extracted_gateways: List[List[Tuple[str, int, str]]]) -> List[List]:
+    def extract_exclusive_flows(self, doc_activity_tokens: List[List[Tuple[str, int]]],
+                                extracted_gateways: List[List[Tuple[str, int, str]]]) -> List[List]:
         """
         ?
         :param doc_activity_tokens: list of activity tokens (word, idx) for each sentence
@@ -148,8 +195,8 @@ class Baseline:
         """
         raise NotImplementedError("XOR flow relation extraction not implemented yet")
 
-    def extract_concurrent_flow_relations(self, doc_activity_tokens: List[List[Tuple[str, int]]],
-                                          extracted_gateways: List[List[Tuple[str, int, str]]]) -> List[Dict]:
+    def extract_concurrent_flows(self, doc_activity_tokens: List[List[Tuple[str, int]]],
+                                 extracted_gateways: List[List[Tuple[str, int, str]]]) -> List[Dict]:
         """
         extract flow relations for already found AND gateways following the logic:
         - for every gateway, to extract parallel branches, add relation to next activity after and before, because
@@ -334,12 +381,18 @@ class Baseline:
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    baseline = Baseline(keywords=LITERATURE, output_format=BENCHMARK)
-    doc_id = 0
+    baseline = Baseline(approach_name='baseline_literature', keywords=LITERATURE, output_format=BENCHMARK)
+    baseline.evaluate_documents()
 
-    xor_gateways, and_gateways, xor_flow_relations, and_flow_relations = baseline.process_document(doc_id)
-    for gateway in and_gateways:
-        print(gateway)
+    if False:
+        doc_name = 'doc-1.1'
 
-    for flow_relation in and_flow_relations:
-        print(flow_relation)
+        xor_gateways, and_gateways, xor_flows, and_flows = baseline.process_document(doc_name)
+        for gateway in and_gateways:
+            print(gateway)
+
+        for gateway in xor_gateways:
+            print(gateway)
+
+        for flow_relation in and_flows:
+            print(flow_relation)

@@ -29,5 +29,5 @@ pet_relations[doc_name][USES].append({SOURCE_ENTITY: activity_,
 
 print('elements')
 process_elements_filename = '/results_frameworks/raw/Kruz_process_elements.json'
-BenchmarkApproach(tested_approach_name='Kruz-elements',
+BenchmarkApproach(approach_name='Kruz-elements',
                   predictions_file_or_folder=process_elements_filename)

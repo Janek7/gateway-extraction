@@ -27,38 +27,41 @@ class PetReader:
     def and_key_words_gold(self) -> List[str]:
         return self._and_key_words_gold
 
+    @property
+    def document_names(self) -> List[str]:
+        return self._token_dataset.GetDocumentNames()
+
     @staticmethod
-    def get_doc_text(doc) -> str:
+    def get_document_number(doc_name):
+        return PetReader._relations_dataset.GetDocumentNumber(doc_name)
+
+    @staticmethod
+    def get_doc_text(doc_name: str) -> str:
         """
         return text of a document
-        :param doc: doc id (int) or doc name (str)
+        :param doc_name: doc name
         :return: doc text
         """
-        if isinstance(doc, int):
-            doc_name = PetReader._token_dataset.GetDocumentName(doc)
-        else:
-            doc_name = doc
         return PetReader._token_dataset.GetDocumentText(doc_name)
 
     @staticmethod
-    def get_doc_sentences(doc) -> List[str]:
+    def get_doc_sentences(doc_name: str) -> List[str]:
         """
         return text of a document as list of sentences
-        :param doc: doc id (int) or doc name (str)
+        :param doc_name: doc name
         :return: list of sentences
         """
-        return [sentence.strip() for sentence in PetReader.get_doc_text(doc).split(".") if sentence.strip() != ""]
+        return [sentence.strip() for sentence in PetReader.get_doc_text(doc_name).split(".") if sentence.strip() != ""]
 
-    @staticmethod
-    def get_index_enriched_activities(doc_id: int) -> List[List[Tuple[str, int]]]:
+    def get_index_enriched_activities(self, doc_name: str) -> List[List[Tuple[str, int]]]:
         """
         Return activities of a document. Tokens get enriched with a position resulting in a tuple
         :param doc_id: document id as integer
         :return: list of activities (represented as tuple) for each sentence
         """
-        doc_name = PetReader._token_dataset.GetDocumentName(doc_id)
         doc_activities = PetReader._token_dataset.GetDocumentActivities(doc_name)
-        doc_sentence_ner_labels = PetReader._relations_dataset.GetSentencesWithIdsAndNerTagLabels(doc_id)
+        doc_sentence_ner_labels = PetReader._relations_dataset.GetSentencesWithIdsAndNerTagLabels(
+            self.get_document_number(doc_name))
 
         doc_activity_tokens = []
         for i, (tokens, activities) in enumerate(zip(doc_sentence_ner_labels, doc_activities)):
