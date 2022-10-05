@@ -21,6 +21,51 @@ class Baseline:
         self._and_keywords = None
         self._set_keywords()
 
+        # check string parameters for valid values
+        if self.keywords not in [LITERATURE, GOLD, OWN]:
+            raise ValueError(f"Key words must be {LITERATURE} or {GOLD}")
+        if self.output_format not in [PET, BENCHMARK]:
+            raise ValueError(f"Output format must be {PET} or {BENCHMARK}")
+
+    def eval_all_documents(self):
+        pass
+
+    def process_document(self, doc_id: int, output_format: str = None) -> Tuple[List, List, List, List]:
+        """
+        extracts and returns gateways and related flow relations for given document
+        :param doc_id: document id
+        :param output_format: optional output_format - by default self.output_format is used
+                              parameter is introduced for necessary control in eval_all_documents
+        :return: return_xor_gateways, return_and_gateways, xor_flow_relations, and_flow_relations
+        """
+        # temporary overwrite output_format in object
+        output_format_saved = self.output_format
+        if output_format:
+            self.output_format = output_format
+
+        # prepare document
+        doc_sentences = pet_reader.get_doc_sentences(doc_id)
+        doc_activities_enriched = pet_reader.get_index_enriched_activities(doc_id)
+
+        # extract concurrent gateways and related flow relations
+        and_gateways_pet, and_gateways_benchmark = baseline.extract_gateways(doc_sentences, AND_GATEWAY)
+        and_flow_relations = self.extract_concurrent_flow_relations(doc_activities_enriched, and_gateways_pet)
+
+        # extract exclusive gateways and related flow relations
+        xor_gateways_pet, xor_gateways_benchmark = self.extract_gateways(doc_sentences, XOR_GATEWAY)
+        xor_flow_relations = [] # TODO: self.extract_exclusive_flow_relations(doc_activities_enriched, xor_gateways_pet)
+
+        if self.output_format == PET:
+            xor_gateways = xor_gateways_pet
+            and_gateways = and_gateways_pet
+        elif self.output_format == BENCHMARK:
+            xor_gateways = xor_gateways_benchmark
+            and_gateways = and_gateways_benchmark
+        # overwrite again with saved value (constructor value)
+        self.output_format = output_format_saved
+
+        return xor_gateways, and_gateways, xor_flow_relations, and_flow_relations
+
     def extract_gateways(self, sentence_list: List[str], gateway_type: str) \
             -> Tuple[List[List[Tuple[str, int, str]]], Optional[List[List[str]]]]:
         """
@@ -91,8 +136,6 @@ class Baseline:
             return pet_gateways, None
         elif self.output_format == BENCHMARK:
             return pet_gateways, benchmark_gateways
-        else:
-            raise ValueError(f"Output format must be {PET} or {BENCHMARK}")
 
     def extract_exclusive_flow_relations(self, doc_activity_tokens: List[List[Tuple[str, int]]],
                                          extracted_gateways: List[List[Tuple[str, int, str]]]) -> List[List]:
@@ -257,9 +300,6 @@ class Baseline:
             else:
                 return {TARGET_ENTITY: entity}
 
-        else:
-            raise ValueError(f"Output format of flow relation dictionaries must be {PET} or {BENCHMARK}")
-
     @staticmethod
     def _merge_dicts(source_dict, target_dict):
         return {**source_dict, **target_dict}
@@ -285,9 +325,6 @@ class Baseline:
         elif self.keywords == OWN:
             raise NotImplementedError("Own keywords not implemented yet")
 
-        else:
-            raise ValueError(f"Key words must be {LITERATURE} or {GOLD}")
-
         self._xor_keywords.sort()
         self._and_keywords.sort()
         logger.info(f"Loaded {len(self._xor_keywords)} XOR and {len(self._and_keywords)} AND keywords")
@@ -300,14 +337,9 @@ if __name__ == '__main__':
     baseline = Baseline(keywords=LITERATURE, output_format=BENCHMARK)
     doc_id = 0
 
-    and_gateways_full, and_gateways_benchmark = baseline.extract_gateways(pet_reader.get_doc_sentences(doc_id),
-                                                                          AND_GATEWAY)
-    for gateway in and_gateways_benchmark:
+    xor_gateways, and_gateways, xor_flow_relations, and_flow_relations = baseline.process_document(doc_id)
+    for gateway in and_gateways:
         print(gateway)
-
-    and_flow_relations = baseline.extract_concurrent_flow_relations(
-        doc_activity_tokens=pet_reader.get_index_enriched_activities(doc_id),
-        extracted_gateways=and_gateways_full)
 
     for flow_relation in and_flow_relations:
         print(flow_relation)
