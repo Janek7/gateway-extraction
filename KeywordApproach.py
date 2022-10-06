@@ -12,18 +12,18 @@ from labels import *
 logger = logging.getLogger('baseline')
 
 
-class Baseline:
+class KeywordApproach:
 
     def __init__(self, approach_name: str = None, keywords: str = LITERATURE, output_format: str = BENCHMARK):
         """
-        creates new instance of the baseline approach
+        creates new instance of the basic keyword approach
         :param approach_name: description of approach to use in result folder name; if not set use key word variant
         :param keywords: flag/variant which keywords to use, available: literature; gold; own
         :param output_format:
         """
         self.approach_name = approach_name
         if not self.approach_name:
-            self.approach_name = f"baseline_{keywords}"
+            self.approach_name = f"keywords_{keywords}"
         self.keywords = keywords
         self.output_format = output_format
         self._xor_keywords = None
@@ -381,18 +381,24 @@ class Baseline:
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    baseline = Baseline(approach_name='baseline_literature', keywords=LITERATURE, output_format=BENCHMARK)
-    baseline.evaluate_documents()
+    keyword_approach = KeywordApproach(approach_name='baseline_literature', keywords=LITERATURE,
+                                       output_format=BENCHMARK)
 
-    if False:
-        doc_name = 'doc-1.1'
+    # keyword_approach.evaluate_documents()
 
-        xor_gateways, and_gateways, xor_flows, and_flows = baseline.process_document(doc_name)
+    if True:
+        doc_name = 'doc-1.1'  # bike manufacturing example
+
+        xor_gateways, and_gateways, xor_flows, and_flows = keyword_approach.process_document(doc_name)
+
+        print(" Concurrent gateways ".center(50, '-'))
         for gateway in and_gateways:
             print(gateway)
 
+        print(" Exclusive gateways ".center(50, '-'))
         for gateway in xor_gateways:
             print(gateway)
 
+        print(" Flows involving concurrent gateways ".center(50, '-'))
         for flow_relation in and_flows:
             print(flow_relation)
