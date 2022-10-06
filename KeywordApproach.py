@@ -18,8 +18,8 @@ class KeywordApproach:
         """
         creates new instance of the basic keyword approach
         :param approach_name: description of approach to use in result folder name; if not set use key word variant
-        :param keywords: flag/variant which keywords to use, available: literature; gold; own
-        :param output_format:
+        :param keywords: flag/variant which keywords to use; available: literature, gold, own
+        :param output_format: output format of extracted element and flows; available: benchmark, pet
         """
         self.approach_name = approach_name
         if not self.approach_name:
@@ -214,7 +214,6 @@ class KeywordApproach:
         ?
         :param doc_activity_tokens: list of activity tokens (word, idx) for each sentence
         :param extracted_gateways: list of own extracted gateway for each sentence
-
         :return: list of flow relations in source/target dict representation
         """
         raise NotImplementedError("XOR flow relation extraction not implemented yet")
@@ -226,12 +225,12 @@ class KeywordApproach:
         - for every gateway, to extract parallel branches, add relation to next activity after and before, because
           that's the pattern how AND key phrases are usually used (oriented by rules of Ferreira et al. 2017)
         - for each case, check over borders if not found in same sentence
-        - to extract the flow relation that points to the gateway merge point, take the second before
+        - to extract the flow relation that points to the gateway split point, take the second before
+        - to extract the flow relation that points to the gateway merge point, take the second following
         - assumption: only one parallel gateway per sentence
 
         :param doc_activity_tokens: list of activity tokens (word, idx) for each sentence
         :param extracted_gateways: list of own extracted gateway for each sentence
-
         :return: list of flow relations in source/target dict representation
         """
         relations = []
@@ -242,12 +241,14 @@ class KeywordApproach:
                 gateway_lead_token = gateways[0]
                 gateway_entity = [g[0] for g in gateways]
 
-                # 1) Find related activities (previous and following are concurrent activities; second previous the one before the gateway)
+                # 1) Find related activities (previous and following are concurrent activities; second previous the one
+                # before the gateway)
                 previous_activity = self._get_previous_activity(s_idx, gateway_lead_token[1], doc_activity_tokens)
                 second_previous_activity = self._get_previous_activity(s_idx, gateway_lead_token[1],
                                                                        doc_activity_tokens, skip_first=True)
                 following_activity = self._get_following_activity(s_idx, gateway_lead_token[1], doc_activity_tokens)
-
+                second_following_activity = self._get_following_activity(s_idx, gateway_lead_token[1],
+                                                                         doc_activity_tokens, skip_first=True)
                 # 2) Get representations for flow object dictionaries
                 gateway_source_rep = self._get_pet_flow_rep(s_idx, gateway_lead_token[1], AND_GATEWAY, gateway_entity,
                                                             source=True)
@@ -255,16 +256,29 @@ class KeywordApproach:
                                                             source=False)
                 previous_activity_target_rep = self._get_pet_flow_rep(previous_activity[0], previous_activity[1],
                                                                       ACTIVITY, previous_activity[2], source=False)
+                previous_activity_source_rep = self._get_pet_flow_rep(previous_activity[0], previous_activity[1],
+                                                                      ACTIVITY, previous_activity[2], source=True)
                 second_previous_activity_target_rep = self._get_pet_flow_rep(second_previous_activity[0],
                                                                              second_previous_activity[1], ACTIVITY,
                                                                              second_previous_activity[2], source=True)
                 following_activity_target_rep = self._get_pet_flow_rep(following_activity[0], following_activity[1],
                                                                        ACTIVITY, following_activity[2], source=False)
+                following_activity_source_rep = self._get_pet_flow_rep(following_activity[0], following_activity[1],
+                                                                       ACTIVITY, following_activity[2], source=True)
+                second_following_activity_target_rep = self._get_pet_flow_rep(second_following_activity[0],
+                                                                              second_following_activity[1], ACTIVITY,
+                                                                              second_following_activity[2],
+                                                                              source=False)
 
-                # 3) Create relations (second previous -> gateway; gateway -> previous; gateway -> following)
+                # 3) Create relations
+                # a) flow to gateway: second previous -> gateway
                 relations.append(self._merge_dicts(second_previous_activity_target_rep, gateway_target_rep))
+                # b) split into concurrent gateway branches: gateway -> previous; gateway -> following
                 relations.append(self._merge_dicts(gateway_source_rep, previous_activity_target_rep))
                 relations.append(self._merge_dicts(gateway_source_rep, following_activity_target_rep))
+                # c) merge branches together: previous -> second following; following -> second following
+                relations.append(self._merge_dicts(previous_activity_source_rep, second_following_activity_target_rep))
+                relations.append(self._merge_dicts(following_activity_source_rep, second_following_activity_target_rep))
 
         return relations
 
@@ -289,6 +303,8 @@ class KeywordApproach:
         logger.info(f"{len(doc_flows)} doc flows")
         return doc_flows
 
+    # HINT: the two following methods follow the same logic, just in different search direction
+
     def _get_previous_activity(self, sentence_idx: int, token_idx: int,
                                doc_activity_tokens: List[List[Tuple[str, int]]], skip_first: bool = False,
                                one_already_found: bool = False) -> Optional[Tuple[int, int, str]]:
@@ -299,7 +315,6 @@ class KeywordApproach:
         :param doc_activity_tokens: list of activity lists (describes whole document)
         :param skip_first: True if searching for the second previous activity, False (default) when searching for the previous activity
         :param one_already_found: flag if one activity was already found and skipped for return in course of search for the second previous
-
         :returns: triple of (sentence idx, token_idx, token) if found, else None
         """
         # search for activities left to the token in target sentence if token is given else in the whole
@@ -308,35 +323,37 @@ class KeywordApproach:
         else:
             previous_activities_sentence = [a_t for a_t in doc_activity_tokens[sentence_idx]]
 
+        # if activities were found, take the last one
         if previous_activities_sentence:
             # return when just searching the first last activity OR when one was already found before
             previous_activity = previous_activities_sentence[-1]
-            # A) base case: activity found
+            # 1a) base case: activity found
             if not skip_first or one_already_found:
                 return (sentence_idx, previous_activity[1], previous_activity[0])
-            # B) recursive case: continue search for second previous activity at index of previous activity
+            # 2a) recursive case: continue search for second previous activity at index of previous activity
             else:
                 return self._get_previous_activity(sentence_idx, previous_activity[1], doc_activity_tokens,
                                                    one_already_found=True)
-        # B) recursive case: continue search for previous activity in previous sentence
         else:
             next_sentence_idx = sentence_idx - 1
-            # no sentences any more to search
+            # 1b) base case: no sentences any more to search
             if next_sentence_idx == -1:
                 return None
-            # otherwise search recursively the previous sentence
+            # 2b) recursive case: continue search for previous activity in previous sentence
             else:
                 return self._get_previous_activity(next_sentence_idx, None, doc_activity_tokens,
                                                    skip_first=skip_first, one_already_found=one_already_found)
 
     def _get_following_activity(self, sentence_idx: int, token_idx: int,
-                                doc_activity_tokens: List[List[Tuple[str, int]]]) -> Optional[Tuple[int, int, str]]:
+                                doc_activity_tokens: List[List[Tuple[str, int]]], skip_first: bool = False,
+                                one_already_found: bool = False) -> Optional[Tuple[int, int, str]]:
         """
         search recursive for the next following activity from a start point defined by sentence_idx and token_idx
         :param sentence_idx: sentence index where to start the search
         :param token_idx: token index where to stat the search
         :param doc_activity_tokens: list of activity lists (describes whole document)
-
+        :param skip_first: True if searching for the second following activity, False (default) when searching for the following activity
+        :param one_already_found: flag if one activity was already found and skipped for return in course of search for the second following
         :returns: triple of (sentence idx, token_idx, token) or None if none was found
         """
         # search for activities right to the token in target sentence if token is given else in the whole
@@ -345,18 +362,27 @@ class KeywordApproach:
         else:
             following_activities_sentence = [a_t for a_t in doc_activity_tokens[sentence_idx]]
 
-        # if activities were found, take the last one
+        # if activities were found, take the first one
         if following_activities_sentence:
-            a_t = following_activities_sentence[-1]
-            return (sentence_idx, a_t[1], a_t[0])
+            # return when just searching the first following activity OR when one was already found before
+            following_activity = following_activities_sentence[0]
+            # 1a) base case: activity found
+            if not skip_first or one_already_found:
+                return (sentence_idx, following_activity[1], following_activity[0])
+            # 2a) recursive case: continue search for second following activity at index of following activity
+            else:
+                return self._get_following_activity(sentence_idx, following_activity[1], doc_activity_tokens,
+                                                    one_already_found=True)
+
         else:
             next_sentence_idx = sentence_idx + 1
-            # no sentences any more to search
+            # 1b) base case: no sentences any more to search
             if next_sentence_idx == len(doc_activity_tokens):
                 return None
-            # otherwise search recursively the following sentence
+            # 2b) recursive case: continue search for following activity in following sentence
             else:
-                return self._get_following_activity(next_sentence_idx, None, doc_activity_tokens)
+                return self._get_following_activity(next_sentence_idx, None, doc_activity_tokens,
+                                                    skip_first=skip_first, one_already_found=one_already_found)
 
     def _get_pet_flow_rep(self, sentence_idx: int, token_idx: int, entity_type: str, entity: List[str],
                           source: bool = True) -> Dict:
