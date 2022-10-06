@@ -77,13 +77,13 @@ class KeywordApproach:
         BenchmarkApproach(approach_name=self.approach_name, predictions_file_or_folder=process_elements_filename)
         BenchmarkApproach(approach_name=self.approach_name, predictions_file_or_folder=relations_filename)
 
-    def process_document(self, doc_name: str, output_format: str = None) -> Tuple[List, List, List, List]:
+    def process_document(self, doc_name: str, output_format: str = None) -> Tuple[List, List, List, List, List]:
         """
         extracts and returns gateways and related flow relations for given document
         :param doc_name: document name
         :param output_format: optional output_format - by default self.output_format is used
                               parameter is introduced for necessary control in eval_all_documents
-        :return: return_xor_gateways, return_and_gateways, xor_flow_relations, and_flow_relations
+        :return: xor_gateways, and_gateways, xor_flows, and_flows, doc_flows
         """
         # temporary overwrite output_format in object
         output_format_saved = self.output_format
@@ -95,12 +95,16 @@ class KeywordApproach:
         doc_activities_enriched = pet_reader.get_index_enriched_activities(doc_name)
 
         # extract concurrent gateways and related flow relations
-        and_gateways_pet, and_gateways_benchmark = baseline.extract_gateways(doc_sentences, AND_GATEWAY)
-        and_flows = self.extract_concurrent_flows(doc_activities_enriched, and_gateways_pet)
+        and_gateways_pet, and_gateways_benchmark = self._extract_gateways(doc_sentences, AND_GATEWAY)
+        and_flows = self._extract_concurrent_flows(doc_activities_enriched, and_gateways_pet)
 
         # extract exclusive gateways and related flow relations
-        xor_gateways_pet, xor_gateways_benchmark = self.extract_gateways(doc_sentences, XOR_GATEWAY)
+        xor_gateways_pet, xor_gateways_benchmark = self._extract_gateways(doc_sentences, XOR_GATEWAY)
         xor_flows = []  # TODO: self.extract_exclusive_flow_relations(doc_activities_enriched, xor_gateways_pet)
+
+        # extract flow relations of gold activities and remove the ones involved in gateway flows
+        gold_activity_flows = self._extract_gold_activity_flows(doc_activities_enriched)
+        doc_flows = self._merge_flows(gold_activity_flows, xor_flows, and_flows)
 
         if self.output_format == PET:
             xor_gateways = xor_gateways_pet
@@ -111,9 +115,9 @@ class KeywordApproach:
         # overwrite again with saved value (constructor value)
         self.output_format = output_format_saved
 
-        return xor_gateways, and_gateways, xor_flows, and_flows
+        return xor_gateways, and_gateways, xor_flows, and_flows, doc_flows
 
-    def extract_gateways(self, sentence_list: List[str], gateway_type: str) \
+    def _extract_gateways(self, sentence_list: List[str], gateway_type: str) \
             -> Tuple[List[List[Tuple[str, int, str]]], Optional[List[List[str]]]]:
         """
         extracts gateways in a key-word-based manner given a document structured in a list of sentences
@@ -184,8 +188,28 @@ class KeywordApproach:
         elif self.output_format == BENCHMARK:
             return pet_gateways, benchmark_gateways
 
-    def extract_exclusive_flows(self, doc_activity_tokens: List[List[Tuple[str, int]]],
-                                extracted_gateways: List[List[Tuple[str, int, str]]]) -> List[List]:
+    def _extract_gold_activity_flows(self, doc_activity_tokens: List[List[Tuple[str, int]]]) -> List[Dict]:
+        """
+        Creates simple flows by order of activities
+        :param doc_activity_tokens: list of activity tokens (word, idx) for each sentence
+        :return: list of flows represented as dicts
+        """
+        activities_flattened = [(i, activity) for i, sentence_activities in enumerate(doc_activity_tokens)
+                                for activity in sentence_activities]
+        flow_relations = []
+        for i in range(len(activities_flattened) - 1):
+            s_idx_1, a1 = activities_flattened[i]
+            s_idx_2, a2 = activities_flattened[i + 1]
+            if self.output_format == BENCHMARK:
+                flow_relations.append({SOURCE_ENTITY: a1[0], TARGET_ENTITY: a2[0]})
+            elif self.output_format == PET:
+                a1 = self._get_pet_flow_rep(s_idx_1, a1[1], ACTIVITY, a1[0], source=True)
+                a2 = self._get_pet_flow_rep(s_idx_2, a2[1], ACTIVITY, a2[0], source=False)
+                flow_relations.append(self._merge_dicts(a1, a2))
+        return flow_relations
+
+    def _extract_exclusive_flows(self, doc_activity_tokens: List[List[Tuple[str, int]]],
+                                 extracted_gateways: List[List[Tuple[str, int, str]]]) -> List[List]:
         """
         ?
         :param doc_activity_tokens: list of activity tokens (word, idx) for each sentence
@@ -195,8 +219,8 @@ class KeywordApproach:
         """
         raise NotImplementedError("XOR flow relation extraction not implemented yet")
 
-    def extract_concurrent_flows(self, doc_activity_tokens: List[List[Tuple[str, int]]],
-                                 extracted_gateways: List[List[Tuple[str, int, str]]]) -> List[Dict]:
+    def _extract_concurrent_flows(self, doc_activity_tokens: List[List[Tuple[str, int]]],
+                                  extracted_gateways: List[List[Tuple[str, int, str]]]) -> List[Dict]:
         """
         extract flow relations for already found AND gateways following the logic:
         - for every gateway, to extract parallel branches, add relation to next activity after and before, because
@@ -225,16 +249,16 @@ class KeywordApproach:
                 following_activity = self._get_following_activity(s_idx, gateway_lead_token[1], doc_activity_tokens)
 
                 # 2) Get representations for flow object dictionaries
-                gateway_source_rep = self._get_relation_rep(s_idx, gateway_lead_token[1], AND_GATEWAY, gateway_entity,
+                gateway_source_rep = self._get_pet_flow_rep(s_idx, gateway_lead_token[1], AND_GATEWAY, gateway_entity,
                                                             source=True)
-                gateway_target_rep = self._get_relation_rep(s_idx, gateway_lead_token[1], AND_GATEWAY, gateway_entity,
+                gateway_target_rep = self._get_pet_flow_rep(s_idx, gateway_lead_token[1], AND_GATEWAY, gateway_entity,
                                                             source=False)
-                previous_activity_target_rep = self._get_relation_rep(previous_activity[0], previous_activity[1],
+                previous_activity_target_rep = self._get_pet_flow_rep(previous_activity[0], previous_activity[1],
                                                                       ACTIVITY, previous_activity[2], source=False)
-                second_previous_activity_target_rep = self._get_relation_rep(second_previous_activity[0],
+                second_previous_activity_target_rep = self._get_pet_flow_rep(second_previous_activity[0],
                                                                              second_previous_activity[1], ACTIVITY,
                                                                              second_previous_activity[2], source=True)
-                following_activity_target_rep = self._get_relation_rep(following_activity[0], following_activity[1],
+                following_activity_target_rep = self._get_pet_flow_rep(following_activity[0], following_activity[1],
                                                                        ACTIVITY, following_activity[2], source=False)
 
                 # 3) Create relations (second previous -> gateway; gateway -> previous; gateway -> following)
@@ -243,6 +267,27 @@ class KeywordApproach:
                 relations.append(self._merge_dicts(gateway_source_rep, following_activity_target_rep))
 
         return relations
+
+    @staticmethod
+    def _merge_flows(gold_activity_flows: List[Dict], xor_flows: List[Dict], and_flows: List[Dict]) -> List[Dict]:
+        """
+        merge gold activity flows and flows surrounding gateways into a list of flows for the whole document
+        -> gold activity flows are filtered if a gateway flow is involved into an activity
+        :param gold_activity_flows: list of flows between gold activities
+        :param xor_flows: list of flows involved in XOR gateways
+        :param and_flows: list of flows involved in AND gateways
+        :return: list of flows describing the whole document
+        """
+        gateway_flows = xor_flows + and_flows
+        logger.info(f"{len(gateway_flows)} gateway flows")
+        logger.info(f"{len(gold_activity_flows)} gold activity flows")
+        gateway_flows_source_entities = [flow[SOURCE_ENTITY] for flow in gateway_flows]
+        doc_flows = gateway_flows.copy()
+        for flow in gold_activity_flows:
+            if not flow[SOURCE_ENTITY] in gateway_flows_source_entities:
+                doc_flows.append(flow)
+        logger.info(f"{len(doc_flows)} doc flows")
+        return doc_flows
 
     def _get_previous_activity(self, sentence_idx: int, token_idx: int,
                                doc_activity_tokens: List[List[Tuple[str, int]]], skip_first: bool = False,
@@ -313,7 +358,7 @@ class KeywordApproach:
             else:
                 return self._get_following_activity(next_sentence_idx, None, doc_activity_tokens)
 
-    def _get_relation_rep(self, sentence_idx: int, token_idx: int, entity_type: str, entity: List[str],
+    def _get_pet_flow_rep(self, sentence_idx: int, token_idx: int, entity_type: str, entity: List[str],
                           source: bool = True) -> Dict:
         """
         return the dict representation of an entity for usage as part of a flow relation
@@ -389,7 +434,7 @@ if __name__ == '__main__':
     if True:
         doc_name = 'doc-1.1'  # bike manufacturing example
 
-        xor_gateways, and_gateways, xor_flows, and_flows = keyword_approach.process_document(doc_name)
+        xor_gateways, and_gateways, xor_flows, and_flows, doc_flows = keyword_approach.process_document(doc_name)
 
         print(" Concurrent gateways ".center(50, '-'))
         for gateway in and_gateways:
@@ -399,6 +444,10 @@ if __name__ == '__main__':
         for gateway in xor_gateways:
             print(gateway)
 
-        print(" Flows involving concurrent gateways ".center(50, '-'))
+        print(" Flow relations involving concurrent gateways ".center(50, '-'))
         for flow_relation in and_flows:
+            print(flow_relation)
+
+        print(" Flow relations of the whole document ".center(50, '-'))
+        for flow_relation in doc_flows:
             print(flow_relation)
