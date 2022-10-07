@@ -28,7 +28,9 @@ class KeywordApproach:
         self.output_format = output_format
         self._xor_keywords = None
         self._and_keywords = None
-        self._set_keywords()
+        self._contradictory_gateways = None
+        self._read_and_set_keywords()
+        self._read_contradictory_gateways()
 
         # check string parameters for valid values
         if self.keywords not in [LITERATURE, GOLD, OWN]:
@@ -209,8 +211,6 @@ class KeywordApproach:
                 flow_relations.append(self._merge_dicts(a1, a2))
         return flow_relations
 
-    contradictory_gateways = [(['if'], ['otherwise']), (['if'], ['else'])]
-
     def _extract_exclusive_flows(self, doc_activity_tokens: List[List[Tuple[str, int]]],
                                  extracted_gateways: List[List[Tuple[str, int, str]]]) -> Tuple[List[Dict], List[Dict]]:
         """
@@ -251,7 +251,7 @@ class KeywordApproach:
         for i in range(len(gateways) - 1):
             g1, g2 = gateways[i], gateways[i + 1]
             # check for every pair of following gateways if it fits to a gateway pair of contradictory key words
-            for pattern_gateway_1, pattern_gateway_2 in KeywordApproach.contradictory_gateways:
+            for pattern_gateway_1, pattern_gateway_2 in self._contradictory_gateways:
                 if g1[3] == pattern_gateway_1 and g2[3] == pattern_gateway_2:
 
                     # 1) find related activities
@@ -504,7 +504,7 @@ class KeywordApproach:
     def _merge_dicts(source_dict, target_dict):
         return {**source_dict, **target_dict}
 
-    def _set_keywords(self) -> None:
+    def _read_and_set_keywords(self) -> None:
         """
         load and set key word lists based on passed variant
         :return:
@@ -512,11 +512,11 @@ class KeywordApproach:
         logger.info(f"Load keywords '{self.keywords}' ...")
         if self.keywords == LITERATURE:
             # based on key words proposals of Ferreira et al. 2017
-            with open('data/keywords/literature_xor.txt') as f:
-                self._xor_keywords = f.read().splitlines()
+            with open('data/keywords/literature_xor.txt') as file:
+                self._xor_keywords = file.read().splitlines()
 
-            with open('data/keywords/literature_and.txt') as f:
-                self._and_keywords = f.read().splitlines()
+            with open('data/keywords/literature_and.txt') as file:
+                self._and_keywords = file.read().splitlines()
 
         elif self.keywords == GOLD:
             self._xor_keywords = pet_reader.xor_key_words_gold
@@ -531,12 +531,20 @@ class KeywordApproach:
         logger.info(f"Used XOR keywords: {self._xor_keywords}")
         logger.info(f"Used AND keywords: {self._and_keywords}")
 
+    def _read_contradictory_gateways(self):
+        """
+        read pairs of contradictory exclusive gateway key words from file
+        :return:
+        """
+        with open('data/keywords/contradictory_gateways.txt') as file:
+            self._contradictory_gateways = [tuple(line.rstrip().split(";")) for line in file.readlines()]
+
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     keyword_approach = KeywordApproach(approach_name='baseline_literature', keywords=LITERATURE,
                                        output_format=BENCHMARK)
-
+    exit()
     # keyword_approach.evaluate_documents()
 
     # 'doc-1.1' for and gateway
