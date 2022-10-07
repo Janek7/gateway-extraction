@@ -520,7 +520,7 @@ class KeywordApproach:
         read pairs of contradictory exclusive gateway key words from file
         :return:
         """
-        with open('data/keywords/contradictory_gateways.txt') as file:
+        with open('data/keywords/contradictory_gateways_gold.txt') as file:
             self._contradictory_gateways = [tuple(line.rstrip().split(";")) for line in file.readlines()]
 
 

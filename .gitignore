@@ -1,3 +1,4 @@
 .idea
 .ipynb_checkpoints
-test.py
+test*.py
+check_for_contradictory_key_words.ipynb

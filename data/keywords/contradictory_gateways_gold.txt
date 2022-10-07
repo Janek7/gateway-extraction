@@ -1,13 +1,7 @@
-if;if
-if;if not
-if;otherwise
-if;else
-in case; in case
-in case;in case of
-in case of; in case
-in case of;in case of
 either;in case of
 sometimes;sometimes
+if;otherwise
+if;if
 for;for
 in case of;otherwise
 in case;in case
