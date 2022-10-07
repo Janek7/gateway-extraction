@@ -9,7 +9,7 @@ import os
 from typing import List, Tuple, Optional, Dict
 from labels import *
 
-logger = logging.getLogger('baseline')
+logger = logging.getLogger('keyword approach')
 
 
 class KeywordApproach:
@@ -320,47 +320,31 @@ class KeywordApproach:
 
                 # 1) Find related activities (previous and following are concurrent activities; second previous the one
                 # before the gateway)
-                previous_activity = self._get_previous_activity(s_idx, gateway_lead_token[1], doc_activity_tokens)
-                second_previous_activity = self._get_previous_activity(s_idx, gateway_lead_token[1],
-                                                                       doc_activity_tokens, skip_first=True)
-                following_activity = self._get_following_activity(s_idx, gateway_lead_token[1], doc_activity_tokens)
-                second_following_activity = self._get_following_activity(s_idx, gateway_lead_token[1],
-                                                                         doc_activity_tokens, skip_first=True)
+                pa = self._get_previous_activity(s_idx, gateway_lead_token[1], doc_activity_tokens)
+                ppa = self._get_previous_activity(s_idx, gateway_lead_token[1], doc_activity_tokens, skip_first=True)
+                fa = self._get_following_activity(s_idx, gateway_lead_token[1], doc_activity_tokens)
+                ffa = self._get_following_activity(s_idx, gateway_lead_token[1], doc_activity_tokens, skip_first=True)
                 # 2) Get representations for flow object dictionaries
-                gateway_source_rep = self._get_pet_relation_rep(s_idx, gateway_lead_token[1], AND_GATEWAY,
-                                                                gateway_entity,
-                                                                source=True)
-                gateway_target_rep = self._get_pet_relation_rep(s_idx, gateway_lead_token[1], AND_GATEWAY,
-                                                                gateway_entity,
-                                                                source=False)
-                previous_activity_target_rep = self._get_pet_relation_rep(previous_activity[0], previous_activity[1],
-                                                                          ACTIVITY, previous_activity[2], source=False)
-                previous_activity_source_rep = self._get_pet_relation_rep(previous_activity[0], previous_activity[1],
-                                                                          ACTIVITY, previous_activity[2], source=True)
-                second_previous_activity_target_rep = self._get_pet_relation_rep(second_previous_activity[0],
-                                                                                 second_previous_activity[1], ACTIVITY,
-                                                                                 second_previous_activity[2],
-                                                                                 source=True)
-                following_activity_target_rep = self._get_pet_relation_rep(following_activity[0], following_activity[1],
-                                                                           ACTIVITY, following_activity[2],
-                                                                           source=False)
-                following_activity_source_rep = self._get_pet_relation_rep(following_activity[0], following_activity[1],
-                                                                           ACTIVITY, following_activity[2], source=True)
-                second_following_activity_target_rep = self._get_pet_relation_rep(second_following_activity[0],
-                                                                                  second_following_activity[1],
-                                                                                  ACTIVITY,
-                                                                                  second_following_activity[2],
-                                                                                  source=False)
+                g_source = self._get_pet_relation_rep(s_idx, gateway_lead_token[1], AND_GATEWAY, gateway_entity,
+                                                      source=True)
+                g_target = self._get_pet_relation_rep(s_idx, gateway_lead_token[1], AND_GATEWAY, gateway_entity,
+                                                      source=False)
+                pa_target = self._get_pet_relation_rep(pa[0], pa[1], ACTIVITY, pa[2], source=False)
+                pa_source = self._get_pet_relation_rep(pa[0], pa[1], ACTIVITY, pa[2], source=True)
+                ppa_source = self._get_pet_relation_rep(ppa[0], ppa[1], ACTIVITY, ppa[2], source=True)
+                fa_target = self._get_pet_relation_rep(fa[0], fa[1], ACTIVITY, fa[2], source=False)
+                fa_source = self._get_pet_relation_rep(fa[0], fa[1], ACTIVITY, fa[2], source=True)
+                ffa_target = self._get_pet_relation_rep(ffa[0], ffa[1], ACTIVITY, ffa[2], source=False)
 
                 # 3) Create relations
                 # a) flow to gateway: second previous -> gateway
-                relations.append(self._merge_dicts(second_previous_activity_target_rep, gateway_target_rep))
+                relations.append(self._merge_dicts(ppa_source, g_target))
                 # b) split into concurrent gateway branches: gateway -> previous; gateway -> following
-                relations.append(self._merge_dicts(gateway_source_rep, previous_activity_target_rep))
-                relations.append(self._merge_dicts(gateway_source_rep, following_activity_target_rep))
+                relations.append(self._merge_dicts(g_source, pa_target))
+                relations.append(self._merge_dicts(g_source, fa_target))
                 # c) merge branches together: previous -> second following; following -> second following
-                relations.append(self._merge_dicts(previous_activity_source_rep, second_following_activity_target_rep))
-                relations.append(self._merge_dicts(following_activity_source_rep, second_following_activity_target_rep))
+                relations.append(self._merge_dicts(pa_source, ffa_target))
+                relations.append(self._merge_dicts(fa_source, ffa_target))
 
         return relations
 
@@ -542,9 +526,8 @@ class KeywordApproach:
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    keyword_approach = KeywordApproach(approach_name='baseline_literature', keywords=LITERATURE,
+    keyword_approach = KeywordApproach(approach_name='key_words_literature', keywords=LITERATURE,
                                        output_format=BENCHMARK)
-    exit()
     # keyword_approach.evaluate_documents()
 
     # 'doc-1.1' for and gateway
