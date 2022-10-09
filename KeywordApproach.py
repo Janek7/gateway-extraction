@@ -260,7 +260,7 @@ class KeywordApproach:
                     fa_g2 = self._get_following_activity(g2[0], g2[1], doc_activity_tokens)
                     # check if fol. activities of g1 and g2 are equal -> if yes, the first branch is without activity
                     if fa_g1 == fa_g2:
-                        fa_g1 = None
+                        fa_g1 = 'empty branch'
                     ffa_g2 = self._get_following_activity(g2[0], g2[1], doc_activity_tokens, skip_first=True)
 
                     # 2) get dictionary representations
@@ -268,27 +268,37 @@ class KeywordApproach:
                     g1_target = self._get_pet_relation_rep(g1[0], g1[1], XOR_GATEWAY, g1[2], source=False)
                     g2_source = self._get_pet_relation_rep(g2[0], g2[1], XOR_GATEWAY, g2[2], source=True)
                     g2_target = self._get_pet_relation_rep(g2[0], g2[1], XOR_GATEWAY, g2[2], source=False)
-                    pa_g1_source = self._get_pet_relation_rep(pa_g1[0], pa_g1[1], ACTIVITY, pa_g1[2], source=True)
-                    if fa_g1:
+                    if pa_g1:  # could be None if at document start
+                        pa_g1_source = self._get_pet_relation_rep(pa_g1[0], pa_g1[1], ACTIVITY, pa_g1[2], source=True)
+                    if fa_g1 != 'empty branch' and fa_g1:  # could be set in 1) manually to empty branch or document end
                         fa_g1_source = self._get_pet_relation_rep(fa_g1[0], fa_g1[1], ACTIVITY, fa_g1[2], source=True)
                         fa_g1_target = self._get_pet_relation_rep(fa_g1[0], fa_g1[1], ACTIVITY, fa_g1[2], source=False)
-                    fa_g2_source = self._get_pet_relation_rep(fa_g2[0], fa_g2[1], ACTIVITY, fa_g2[2], source=True)
-                    fa_g2_target = self._get_pet_relation_rep(fa_g2[0], fa_g2[1], ACTIVITY, fa_g2[2], source=False)
-                    ffa_g2_target = self._get_pet_relation_rep(ffa_g2[0], ffa_g2[1], ACTIVITY, ffa_g2[2], source=False)
+                    if fa_g2:  # could be None if at document end
+                        fa_g2_source = self._get_pet_relation_rep(fa_g2[0], fa_g2[1], ACTIVITY, fa_g2[2], source=True)
+                        fa_g2_target = self._get_pet_relation_rep(fa_g2[0], fa_g2[1], ACTIVITY, fa_g2[2], source=False)
+                    if ffa_g2:  # could be None if at document end
+                        ffa_g2_target = self._get_pet_relation_rep(ffa_g2[0], ffa_g2[1], ACTIVITY, ffa_g2[2],
+                                                                   source=False)
 
-                    # 3.1) connect elements to sequence flows
-                    # a) previous activity to first gateway -> split point
-                    sequence_flows.append(self._merge_dicts(pa_g1_source, g1_target))
-                    # b) gateway 1 to fol. activity and fol. activity to activity after gateway (second fol. of g2)
-                    # if None directly there because of empty branch
-                    if fa_g1:
+                        # C.1) connect elements to sequence flows
+                        # a) previous activity to first gateway -> split point (if not None because of document start)
+                    if pa_g1:
+                        sequence_flows.append(self._merge_dicts(pa_g1_source, g1_target))
+                        # b) gateway 1 to following activity and following activity to activity after gateway (second
+                        # following of g2)
+                        # if None because of empty branch then directly there
+                    if fa_g1:  # could be None if at document end
                         sequence_flows.append(self._merge_dicts(g1_source, fa_g1_target))
-                        sequence_flows.append(self._merge_dicts(fa_g1_source, ffa_g2_target))
-                    else:
+                        if ffa_g2:  # could be None if at document end
+                            sequence_flows.append(self._merge_dicts(fa_g1_source, ffa_g2_target))
+                    elif fa_g1 != 'empty branch' and ffa_g2:  # could be None if at document end
                         sequence_flows.append(self._merge_dicts(g1_source, ffa_g2_target))
-                    # c) gateway 2 to fol. activity and fol. activity to activity after gateway (second fol. of g2)
-                    sequence_flows.append(self._merge_dicts(g2_source, fa_g2_target))
-                    sequence_flows.append(self._merge_dicts(fa_g2_source, ffa_g2_target))
+                        # c) gateway 2 to following activity and following activity to activity after gateway (second
+                        # following of g2)
+                    if fa_g2:  # could be None if at document end
+                        sequence_flows.append(self._merge_dicts(g2_source, fa_g2_target))
+                    if ffa_g2:  # could be None if at document end
+                        sequence_flows.append(self._merge_dicts(fa_g2_source, ffa_g2_target))
 
                     # 3.2) same gateway flows
                     same_gateway_relations.append(self._merge_dicts(g1_source, g2_target))
@@ -329,22 +339,31 @@ class KeywordApproach:
                                                       source=True)
                 g_target = self._get_pet_relation_rep(s_idx, gateway_lead_token[1], AND_GATEWAY, gateway_entity,
                                                       source=False)
-                pa_target = self._get_pet_relation_rep(pa[0], pa[1], ACTIVITY, pa[2], source=False)
-                pa_source = self._get_pet_relation_rep(pa[0], pa[1], ACTIVITY, pa[2], source=True)
-                ppa_source = self._get_pet_relation_rep(ppa[0], ppa[1], ACTIVITY, ppa[2], source=True)
-                fa_target = self._get_pet_relation_rep(fa[0], fa[1], ACTIVITY, fa[2], source=False)
-                fa_source = self._get_pet_relation_rep(fa[0], fa[1], ACTIVITY, fa[2], source=True)
-                ffa_target = self._get_pet_relation_rep(ffa[0], ffa[1], ACTIVITY, ffa[2], source=False)
+                if pa:  # could be None if at document start
+                    pa_target = self._get_pet_relation_rep(pa[0], pa[1], ACTIVITY, pa[2], source=False)
+                    pa_source = self._get_pet_relation_rep(pa[0], pa[1], ACTIVITY, pa[2], source=True)
+                if ppa:  # could be None if at document start
+                    ppa_source = self._get_pet_relation_rep(ppa[0], ppa[1], ACTIVITY, ppa[2], source=True)
+                if fa:  # could be None if at document end
+                    fa_target = self._get_pet_relation_rep(fa[0], fa[1], ACTIVITY, fa[2], source=False)
+                    fa_source = self._get_pet_relation_rep(fa[0], fa[1], ACTIVITY, fa[2], source=True)
+                if ffa:  # could be None if at document end
+                    ffa_target = self._get_pet_relation_rep(ffa[0], ffa[1], ACTIVITY, ffa[2], source=False)
 
-                # 3) Create relations
-                # a) flow to gateway: second previous -> gateway
-                relations.append(self._merge_dicts(ppa_source, g_target))
-                # b) split into concurrent gateway branches: gateway -> previous; gateway -> following
-                relations.append(self._merge_dicts(g_source, pa_target))
-                relations.append(self._merge_dicts(g_source, fa_target))
-                # c) merge branches together: previous -> second following; following -> second following
-                relations.append(self._merge_dicts(pa_source, ffa_target))
-                relations.append(self._merge_dicts(fa_source, ffa_target))
+                    # 3) Create relations
+                    # a) flow to gateway: second previous -> gateway
+                if ppa:  # could be None if at document start
+                    relations.append(self._merge_dicts(ppa_source, g_target))
+                    # b) split into concurrent gateway branches: gateway -> previous; gateway -> following
+                    # following two None checks (probably) wont never be False, but for safety included
+                if pa:  # could be None if at document start
+                    relations.append(self._merge_dicts(g_source, pa_target))
+                if fa:  # could be None if at document end
+                    relations.append(self._merge_dicts(g_source, fa_target))
+                    # c) merge branches together: previous -> second following; following -> second following
+                if ffa:  # could be None if at document end
+                    relations.append(self._merge_dicts(pa_source, ffa_target))
+                    relations.append(self._merge_dicts(fa_source, ffa_target))
 
         return relations
 
