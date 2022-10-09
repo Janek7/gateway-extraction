@@ -14,17 +14,20 @@ logger = logging.getLogger('keyword approach')
 
 class KeywordApproach:
 
-    def __init__(self, approach_name: str = None, keywords: str = LITERATURE, output_format: str = BENCHMARK):
+    def __init__(self, approach_name: str = None, keywords: str = LITERATURE, same_xor_gateway_threshold: int = 1,
+                 output_format: str = BENCHMARK):
         """
         creates new instance of the basic keyword approach
         :param approach_name: description of approach to use in result folder name; if not set use key word variant
         :param keywords: flag/variant which keywords to use; available: literature, gold, own
+        :param same_xor_gateway_threshold: threshold to recognize subsequent (contradictory xor) gateways as same
         :param output_format: output format of extracted element and flows; available: benchmark, pet
         """
         self.approach_name = approach_name
         if not self.approach_name:
             self.approach_name = f"keywords_{keywords}"
         self.keywords = keywords
+        self._same_xor_gateway_threshold = same_xor_gateway_threshold
         self.output_format = output_format
         self._xor_keywords = None
         self._and_keywords = None
@@ -249,7 +252,13 @@ class KeywordApproach:
         gateways = preprocess_gateways(extracted_gateways)
 
         for i in range(len(gateways) - 1):
+
+            # RULE 1): check for every pair of following gateways if it fits to a gateway constellation with
+            # contradictory key words. Gateways must be in range of same_xor_gateway_threshold sentences, otherwise they
+            # would be seen as separate ones
             g1, g2 = gateways[i], gateways[i + 1]
+            if abs(g2[0] - g1[0]) <= self._same_xor_gateway_threshold:
+                continue
             # check for every pair of following gateways if it fits to a gateway pair of contradictory key words
             for pattern_gateway_1, pattern_gateway_2 in self._contradictory_gateways:
                 if g1[3] == pattern_gateway_1 and g2[3] == pattern_gateway_2:
@@ -546,7 +555,7 @@ class KeywordApproach:
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     keyword_approach = KeywordApproach(approach_name='key_words_literature', keywords=LITERATURE,
-                                       output_format=BENCHMARK)
+                                       same_xor_gateway_threshold=1, output_format=BENCHMARK)
     # keyword_approach.evaluate_documents()
 
     # 'doc-1.1' for and gateway
