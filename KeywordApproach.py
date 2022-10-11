@@ -257,7 +257,8 @@ class KeywordApproach:
             # contradictory key words. Gateways must be in range of same_xor_gateway_threshold sentences, otherwise they
             # would be seen as separate ones
             g1, g2 = gateways[i], gateways[i + 1]
-            if abs(g2[0] - g1[0]) <= self._same_xor_gateway_threshold:
+            # if sentence distances is larger than threshold, reject possible pair
+            if abs(g2[0] - g1[0]) > self._same_xor_gateway_threshold:
                 continue
             # check for every pair of following gateways if it fits to a gateway pair of contradictory key words
             for pattern_gateway_1, pattern_gateway_2 in self._contradictory_gateways:
@@ -389,6 +390,8 @@ class KeywordApproach:
         gateway_flows = xor_flows + and_flows
         logger.info(f"{len(gateway_flows)} gateway flows")
         logger.info(f"{len(gold_activity_flows)} gold activity flows")
+        print("xor", xor_flows)
+        print("and", and_flows)
         gateway_flows_source_entities = [flow[SOURCE_ENTITY] for flow in gateway_flows]
         doc_flows = gateway_flows.copy()
         for flow in gold_activity_flows:
@@ -549,7 +552,7 @@ class KeywordApproach:
         :return:
         """
         with open('data/keywords/contradictory_gateways_gold.txt') as file:
-            self._contradictory_gateways = [tuple(line.rstrip().split(";")) for line in file.readlines()]
+            self._contradictory_gateways = [[x.split(" ") for x in l.strip().split(";")] for l in file.readlines()]
 
 
 if __name__ == '__main__':
