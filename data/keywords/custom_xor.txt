@@ -2,4 +2,4 @@ candidates to remove from literature xor:
 - for, or
 
 candidates to remove from gold xor:
-- whereas (hints more to and gateways)
+- whereas (hints more to concurrent gateways)
