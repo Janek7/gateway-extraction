@@ -225,31 +225,7 @@ class KeywordApproach:
         sequence_flows = []
         same_gateway_relations = []
 
-        # helper method only for this method
-        def preprocess_gateways(extracted_gateways):
-            """
-            flatten gateways but keep sentence index; merge multiple gateway tokens into one gateway
-            :param extracted_gateways: gateways in PET format
-            :return: flattened gateway list filled with (sentence_idx, start_token_idx, ['Word', 'List'], ['word', 'list'])
-            """
-            gateways = []
-            for sentence_idx, sentence_gateways in enumerate(extracted_gateways):
-                sentence_gateways_already_included = []
-                for i, gateway in enumerate(sentence_gateways):
-                    if gateway not in sentence_gateways_already_included:
-                        gateway_tokens = [gateway[0]]
-                        start_token_idx = gateway[1]
-                        # append further tokens of same gateway ('I-' marked)
-                        I_index = i + 1
-                        while I_index < len(sentence_gateways) and sentence_gateways[I_index][2].startswith('I-'):
-                            gateway_tokens.append(sentence_gateways[I_index][0])
-                            sentence_gateways_already_included.append(sentence_gateways[I_index])
-                            I_index += 1
-                        gateway_tokens_lower = [t.lower() for t in gateway_tokens]
-                        gateways.append((sentence_idx, start_token_idx, gateway_tokens, gateway_tokens_lower))
-            return gateways
-
-        gateways = preprocess_gateways(extracted_gateways)
+        gateways = self._preprocess_extracted_gateways(extracted_gateways)
         gateways_involved = []  # list for gateways already involved into sequence flows
 
         # RULE 1): check for every pair of following gateways if it fits to a gateway constellation with
@@ -276,21 +252,20 @@ class KeywordApproach:
                     ffa_g2 = self._get_following_activity(g2[0], g2[1], doc_activity_tokens, skip_first=True)
 
                     # B) get dictionary representations
-                    g1_source = self._get_pet_relation_rep(g1[0], g1[1], XOR_GATEWAY, g1[2], source=True)
-                    g1_target = self._get_pet_relation_rep(g1[0], g1[1], XOR_GATEWAY, g1[2], source=False)
-                    g2_source = self._get_pet_relation_rep(g2[0], g2[1], XOR_GATEWAY, g2[2], source=True)
-                    g2_target = self._get_pet_relation_rep(g2[0], g2[1], XOR_GATEWAY, g2[2], source=False)
+                    g1_source = self._get_pet_entity_relation_rep(g1, XOR_GATEWAY, source=True)
+                    g1_target = self._get_pet_entity_relation_rep(g1, XOR_GATEWAY, source=False)
+                    g2_source = self._get_pet_entity_relation_rep(g2, XOR_GATEWAY, source=True)
+                    g2_target = self._get_pet_entity_relation_rep(g2, XOR_GATEWAY, source=False)
                     if pa_g1:  # could be None if at document start
-                        pa_g1_source = self._get_pet_relation_rep(pa_g1[0], pa_g1[1], ACTIVITY, pa_g1[2], source=True)
+                        pa_g1_source = self._get_pet_entity_relation_rep(pa_g1, ACTIVITY, source=True)
                     if fa_g1 != 'empty branch' and fa_g1:  # could be set in 1) manually to empty branch or document end
-                        fa_g1_source = self._get_pet_relation_rep(fa_g1[0], fa_g1[1], ACTIVITY, fa_g1[2], source=True)
-                        fa_g1_target = self._get_pet_relation_rep(fa_g1[0], fa_g1[1], ACTIVITY, fa_g1[2], source=False)
+                        fa_g1_source = self._get_pet_entity_relation_rep(fa_g1, ACTIVITY, source=True)
+                        fa_g1_target = self._get_pet_entity_relation_rep(fa_g1, ACTIVITY, source=False)
                     if fa_g2:  # could be None if at document end
-                        fa_g2_source = self._get_pet_relation_rep(fa_g2[0], fa_g2[1], ACTIVITY, fa_g2[2], source=True)
-                        fa_g2_target = self._get_pet_relation_rep(fa_g2[0], fa_g2[1], ACTIVITY, fa_g2[2], source=False)
+                        fa_g2_source = self._get_pet_entity_relation_rep(fa_g2, ACTIVITY, source=True)
+                        fa_g2_target = self._get_pet_entity_relation_rep(fa_g2, ACTIVITY, source=False)
                     if ffa_g2:  # could be None if at document end
-                        ffa_g2_target = self._get_pet_relation_rep(ffa_g2[0], ffa_g2[1], ACTIVITY, ffa_g2[2],
-                                                                   source=False)
+                        ffa_g2_target = self._get_pet_entity_relation_rep(ffa_g2, ACTIVITY, source=False)
 
                     # C.1) connect elements to sequence flows
                     # 1) previous activity to first gateway -> split point (if not None because of document start)
@@ -327,18 +302,18 @@ class KeywordApproach:
                 if pa and fa:  # check if existence because of document end/start
                     if pa[0] == g[0] and fa[0] == g[0]:  # check if in same sentence
                         # B) get dict representations
-                        g_source = self._get_pet_relation_rep(g[0], g[1], XOR_GATEWAY, g[2], source=True)
-                        g_target = self._get_pet_relation_rep(g[0], g[1], XOR_GATEWAY, g[2], source=False)
+                        g_source = self._get_pet_entity_relation_rep(g, XOR_GATEWAY, source=True)
+                        g_target = self._get_pet_entity_relation_rep(g, XOR_GATEWAY, source=False)
                         if pa:  # could be None if at document start
-                            pa_source = self._get_pet_relation_rep(pa[0], pa[1], ACTIVITY, pa[2], source=True)
-                            pa_target = self._get_pet_relation_rep(pa[0], pa[1], ACTIVITY, pa[2], source=False)
+                            pa_source = self._get_pet_entity_relation_rep(pa, ACTIVITY, source=True)
+                            pa_target = self._get_pet_entity_relation_rep(pa, ACTIVITY, source=False)
                         if fa:  # could be None if at document end
-                            fa_source = self._get_pet_relation_rep(fa[0], fa[1], ACTIVITY, fa[2], source=True)
-                            fa_target = self._get_pet_relation_rep(fa[0], fa[1], ACTIVITY, fa[2], source=False)
+                            fa_source = self._get_pet_entity_relation_rep(fa, ACTIVITY, source=True)
+                            fa_target = self._get_pet_entity_relation_rep(fa, ACTIVITY, source=False)
                         if ppa:  # could be None if at document start
-                            ppa_source = self._get_pet_relation_rep(ppa[0], ppa[1], ACTIVITY, ppa[2], source=True)
+                            ppa_source = self._get_pet_entity_relation_rep(ppa, ACTIVITY, source=True)
                         if ffa:  # could be None if at document end
-                            ffa_target = self._get_pet_relation_rep(ffa[0], ffa[1], ACTIVITY, ffa[2], source=False)
+                            ffa_target = self._get_pet_entity_relation_rep(ffa, ACTIVITY, source=False)
 
                         if pa is None or fa is None:
                             # if not surrounding activities are given, do not wire anything; TODO: maybe drop gateway
@@ -378,18 +353,18 @@ class KeywordApproach:
                 gateways_involved.append(g)
 
                 # C) get dict representations
-                g_source = self._get_pet_relation_rep(g[0], g[1], XOR_GATEWAY, g[2], source=True)
-                g_target = self._get_pet_relation_rep(g[0], g[1], XOR_GATEWAY, g[2], source=False)
+                g_source = self._get_pet_entity_relation_rep(g, XOR_GATEWAY, source=True)
+                g_target = self._get_pet_entity_relation_rep(g, XOR_GATEWAY, source=False)
                 if pa:  # could be None if at document start
-                    pa_source = self._get_pet_relation_rep(pa[0], pa[1], ACTIVITY, pa[2], source=True)
-                    pa_target = self._get_pet_relation_rep(pa[0], pa[1], ACTIVITY, pa[2], source=False)
+                    pa_source = self._get_pet_entity_relation_rep(pa, ACTIVITY, source=True)
+                    pa_target = self._get_pet_entity_relation_rep(pa, ACTIVITY, source=False)
                 if fa:  # could be None if at document end
-                    fa_source = self._get_pet_relation_rep(fa[0], fa[1], ACTIVITY, fa[2], source=True)
-                    fa_target = self._get_pet_relation_rep(fa[0], fa[1], ACTIVITY, fa[2], source=False)
+                    fa_source = self._get_pet_entity_relation_rep(fa, ACTIVITY, source=True)
+                    fa_target = self._get_pet_entity_relation_rep(fa, ACTIVITY, source=False)
                 if ppa:  # could be None if at document start
-                    ppa_source = self._get_pet_relation_rep(ppa[0], ppa[1], ACTIVITY, ppa[2], source=True)
+                    ppa_source = self._get_pet_entity_relation_rep(ppa, ACTIVITY, source=True)
                 if ffa:  # could be None if at document end
-                    ffa_target = self._get_pet_relation_rep(ffa[0], ffa[1], ACTIVITY, ffa[2], source=False)
+                    ffa_target = self._get_pet_entity_relation_rep(ffa, ACTIVITY, source=False)
 
                 # D) connect elements to sequence flows
                 if case == 'activity after gateway':
@@ -413,8 +388,8 @@ class KeywordApproach:
                     if fa:  # could be None if at document end
                         sequence_flows.append(self._merge_dicts(g_source, fa_target))
                         sequence_flows.append(self._merge_dicts(pa_source, fa_target))
-
-        sequence_flows.sort(key=lambda flow: flow['source-head-sentence-ID'])
+        if self.output_format == PET:
+            sequence_flows.sort(key=lambda flow: flow['source-head-sentence-ID'])
         return sequence_flows, same_gateway_relations
 
     def _extract_concurrent_flows(self, doc_activity_tokens: List[List[Tuple[str, int]]],
@@ -426,7 +401,6 @@ class KeywordApproach:
         - for each case, check over borders if not found in same sentence
         - to extract the flow relation that points to the gateway split point, take the second before
         - to extract the flow relation that points to the gateway merge point, take the second following
-        - assumption: only one parallel gateway per sentence
 
         :param doc_activity_tokens: list of activity tokens (word, idx) for each sentence
         :param extracted_gateways: list of own extracted gateway for each sentence
@@ -434,50 +408,68 @@ class KeywordApproach:
         """
         relations = []
 
-        for s_idx, gateways in enumerate(extracted_gateways):
-            if gateways:
-                # assume only one gateway
-                gateway_lead_token = gateways[0]
-                gateway_entity = [g[0] for g in gateways]
+        for g in self._preprocess_extracted_gateways(extracted_gateways):
 
-                # 1) Find related activities (previous and following are concurrent activities; second previous the one
-                # before the gateway)
-                pa = self._get_previous_activity(s_idx, gateway_lead_token[1], doc_activity_tokens)
-                ppa = self._get_previous_activity(s_idx, gateway_lead_token[1], doc_activity_tokens, skip_first=True)
-                fa = self._get_following_activity(s_idx, gateway_lead_token[1], doc_activity_tokens)
-                ffa = self._get_following_activity(s_idx, gateway_lead_token[1], doc_activity_tokens, skip_first=True)
-                # 2) Get representations for flow object dictionaries
-                g_source = self._get_pet_relation_rep(s_idx, gateway_lead_token[1], AND_GATEWAY, gateway_entity,
-                                                      source=True)
-                g_target = self._get_pet_relation_rep(s_idx, gateway_lead_token[1], AND_GATEWAY, gateway_entity,
-                                                      source=False)
-                if pa:  # could be None if at document start
-                    pa_target = self._get_pet_relation_rep(pa[0], pa[1], ACTIVITY, pa[2], source=False)
-                    pa_source = self._get_pet_relation_rep(pa[0], pa[1], ACTIVITY, pa[2], source=True)
-                if ppa:  # could be None if at document start
-                    ppa_source = self._get_pet_relation_rep(ppa[0], ppa[1], ACTIVITY, ppa[2], source=True)
-                if fa:  # could be None if at document end
-                    fa_target = self._get_pet_relation_rep(fa[0], fa[1], ACTIVITY, fa[2], source=False)
-                    fa_source = self._get_pet_relation_rep(fa[0], fa[1], ACTIVITY, fa[2], source=True)
-                if ffa:  # could be None if at document end
-                    ffa_target = self._get_pet_relation_rep(ffa[0], ffa[1], ACTIVITY, ffa[2], source=False)
+            # 1) Find related activities (previous and following are concurrent activities; second previous the one
+            # before the gateway)
+            pa = self._get_previous_activity(g[0], g[1], doc_activity_tokens)
+            ppa = self._get_previous_activity(g[0], g[1], doc_activity_tokens, skip_first=True)
+            fa = self._get_following_activity(g[0], g[1], doc_activity_tokens)
+            ffa = self._get_following_activity(g[0], g[1], doc_activity_tokens, skip_first=True)
+            # 2) Get representations for flow object dictionaries
+            g_source = self._get_pet_entity_relation_rep(g, AND_GATEWAY, source=True)
+            g_target = self._get_pet_entity_relation_rep(g, AND_GATEWAY, source=False)
+            if pa:  # could be None if at document start
+                pa_target = self._get_pet_entity_relation_rep(pa, ACTIVITY, source=False)
+                pa_source = self._get_pet_entity_relation_rep(pa, ACTIVITY, source=True)
+            if ppa:  # could be None if at document start
+                ppa_source = self._get_pet_entity_relation_rep(ppa, ACTIVITY, source=True)
+            if fa:  # could be None if at document end
+                fa_target = self._get_pet_entity_relation_rep(fa, ACTIVITY, source=False)
+                fa_source = self._get_pet_entity_relation_rep(fa, ACTIVITY, source=True)
+            if ffa:  # could be None if at document end
+                ffa_target = self._get_pet_entity_relation_rep(ffa, ACTIVITY, source=False)
 
-                # 3) Create relations
-                # a) flow to gateway: second previous -> gateway
-                if ppa:  # could be None if at document start
-                    relations.append(self._merge_dicts(ppa_source, g_target))
-                # b) split into concurrent gateway branches: gateway -> previous; gateway -> following
-                # following two None checks (probably) wont never be False, but for safety included
-                if pa:  # could be None if at document start
-                    relations.append(self._merge_dicts(g_source, pa_target))
-                if fa:  # could be None if at document end
-                    relations.append(self._merge_dicts(g_source, fa_target))
-                # c) merge branches together: previous -> second following; following -> second following
-                if ffa:  # could be None if at document end
-                    relations.append(self._merge_dicts(pa_source, ffa_target))
-                    relations.append(self._merge_dicts(fa_source, ffa_target))
+            # 3) Create relations
+            # a) flow to gateway: second previous -> gateway
+            if ppa:  # could be None if at document start
+                relations.append(self._merge_dicts(ppa_source, g_target))
+            # b) split into concurrent gateway branches: gateway -> previous; gateway -> following
+            # following two None checks (probably) wont never be False, but for safety included
+            if pa:  # could be None if at document start
+                relations.append(self._merge_dicts(g_source, pa_target))
+            if fa:  # could be None if at document end
+                relations.append(self._merge_dicts(g_source, fa_target))
+            # c) merge branches together: previous -> second following; following -> second following
+            if ffa:  # could be None if at document end
+                relations.append(self._merge_dicts(pa_source, ffa_target))
+                relations.append(self._merge_dicts(fa_source, ffa_target))
 
         return relations
+
+    @staticmethod
+    def _preprocess_extracted_gateways(extracted_gateways):
+        """
+        flatten gateways but keep sentence index; merge multiple gateway tokens into one gateway
+        :param extracted_gateways: gateways in PET format
+        :return: flattened gateway list filled with (sentence_idx, start_token_idx, ['Word', 'List'], ['word', 'list'])
+        """
+        gateways = []
+        for sentence_idx, sentence_gateways in enumerate(extracted_gateways):
+            sentence_gateways_already_included = []
+            for i, gateway in enumerate(sentence_gateways):
+                if gateway not in sentence_gateways_already_included:
+                    gateway_tokens = [gateway[0]]
+                    start_token_idx = gateway[1]
+                    # append further tokens of same gateway ('I-' marked)
+                    I_index = i + 1
+                    while I_index < len(sentence_gateways) and sentence_gateways[I_index][2].startswith('I-'):
+                        gateway_tokens.append(sentence_gateways[I_index][0])
+                        sentence_gateways_already_included.append(sentence_gateways[I_index])
+                        I_index += 1
+                    gateway_tokens_lower = [t.lower() for t in gateway_tokens]
+                    gateways.append((sentence_idx, start_token_idx, gateway_tokens, gateway_tokens_lower))
+        return gateways
 
     @staticmethod
     def _merge_flows(gold_activity_flows: List[Dict], xor_flows: List[Dict], and_flows: List[Dict]) -> List[Dict]:
@@ -583,6 +575,19 @@ class KeywordApproach:
                 return self._get_following_activity(next_sentence_idx, None, doc_activity_tokens,
                                                     skip_first=skip_first, one_already_found=one_already_found)
 
+    def _get_pet_entity_relation_rep(self, entity: Tuple[int, int, List[str], Optional[List[str]]], entity_type: str,
+                                     source: bool = True):
+        """
+        return the dict representation of an entity for usage as part of a relation
+        dict structure depends on the output format of the baseline (as in PET or simpler for benchmark library)
+        :param entity: process entity as tuple -> sentence idx, token idx, ['Word', 'List'], optional(['word', 'List'])
+                       last element of tuple is optional (is passed for gateways, for activities not)
+        :param entity_type: entity type according to PET labels
+        :param source: flag if it is source or target entity in the relation
+        :return: Dictionary in format based on the output format
+        """
+        return self._get_pet_relation_rep(entity[0], entity[1], entity_type, entity[2], source=source)
+
     def _get_pet_relation_rep(self, sentence_idx: int, token_idx: int, entity_type: str, entity: List[str],
                               source: bool = True) -> Dict:
         """
@@ -592,7 +597,7 @@ class KeywordApproach:
         :param token_idx: token/word index
         :param entity_type: entity type according to PET labels
         :param entity: entity as list of single words
-        :param source: flag if the
+        :param source: flag if it is source or target entity in the relation
         :return: Dictionary in format based on the output format
         """
         if self.output_format == PET:
@@ -660,7 +665,7 @@ class KeywordApproach:
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     keyword_approach = KeywordApproach(approach_name='key_words_literature', keywords=LITERATURE,
-                                       same_xor_gateway_threshold=1, output_format=BENCHMARK)
+                                       same_xor_gateway_threshold=1, output_format=PET)
     # keyword_approach.evaluate_documents()
 
     # 'doc-1.1' for and gateway
@@ -668,7 +673,7 @@ if __name__ == '__main__':
     # 'doc-10.2' for or gateway in sentence
     # 'doc-9.5' for single exclusive gateway and two exclusive gateways with each two branches -> Presentation candidate
     if True:
-        doc_name = 'doc-10.2'
+        doc_name = 'doc-9.5'
 
         xor_gateways, and_gateways, doc_flows, same_gateway_relations = keyword_approach.process_document(doc_name)
 
