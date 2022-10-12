@@ -6,7 +6,7 @@ from petbenchmarks.relationsextraction import RelationsExtractionBenchmark
 import logging
 import json
 import os
-from typing import List, Tuple, Optional, Dict
+from typing import List, Tuple, Optional, Dict, Union
 from labels import *
 
 logger = logging.getLogger('keyword approach')
@@ -124,8 +124,7 @@ class KeywordApproach:
         return xor_gateways, and_gateways, doc_flows, same_gateway_relations
 
     def _extract_gateways(self, sentence_list: List[str], gateway_type: str) \
-            -> Tuple[List[List[Tuple[str, int, str]]],
-                     Optional[List[List[str]]]]:
+            -> Tuple[List[List[Tuple[str, int, str]]], Optional[List[List[str]]]]:
         """
         extracts gateways in a key-word-based manner given a document structured in a list of sentences
         if two phrases would match to a token (e.g. 'in the meantime' and 'meantime'), the longer phrase is extracted
@@ -195,6 +194,32 @@ class KeywordApproach:
         elif self.output_format == BENCHMARK:
             return pet_gateways, benchmark_gateways
 
+    def _preprocess_extracted_gateways(self, extracted_gateways: List[List[Tuple[str, int, str]]], gateway_type: str) \
+            -> List[Dict]:
+        """
+        flatten gateways but keep sentence index; merge multiple gateway tokens into one gateway
+        :param extracted_gateways: gateways in PET format (token, index, tag)
+        :param gateway_type: type of gateway
+        :return: flattened gateway list with entity dictionaries; for format see self._get_entity_dict documentation
+        """
+        gateways = []
+        for sentence_idx, sentence_gateways in enumerate(extracted_gateways):
+            sentence_gateways_already_included = []
+            for i, gateway in enumerate(sentence_gateways):
+                if gateway not in sentence_gateways_already_included:
+                    gateway_tokens = [gateway[0]]
+                    start_token_idx = gateway[1]
+                    # append further tokens of same gateway ('I-' marked)
+                    I_index = i + 1
+                    while I_index < len(sentence_gateways) and sentence_gateways[I_index][2].startswith('I-'):
+                        gateway_tokens.append(sentence_gateways[I_index][0])
+                        sentence_gateways_already_included.append(sentence_gateways[I_index])
+                        I_index += 1
+                    gateway_tokens_lower = [t.lower() for t in gateway_tokens]
+                    gateway_tuple = (sentence_idx, start_token_idx, gateway_tokens, gateway_tokens_lower)
+                    gateways.append(self._get_entity_dict(gateway_tuple, gateway_type))
+        return gateways
+
     def _extract_gold_activity_flows(self, doc_activity_tokens: List[List[Tuple[str, int]]]) -> List[Dict]:
         """
         Creates simple flows by order of activities
@@ -245,8 +270,8 @@ class KeywordApproach:
                     gateways_involved.append(g2[ELEMENT])
 
                     # A) find related activities
-                    _, pa_g1, fa_g1, _ = self._get_surrounding_activities(g1[ELEMENT], doc_activity_tokens)
-                    _, _, fa_g2, ffa_g2 = self._get_surrounding_activities(g2[ELEMENT], doc_activity_tokens)
+                    _, pa_g1, fa_g1, _ = self._get_surrounding_activities(g1, doc_activity_tokens)
+                    _, _, fa_g2, ffa_g2 = self._get_surrounding_activities(g2, doc_activity_tokens)
 
                     # B.1) connect elements to sequence flows
                     # check if fol. activities of g1 and g2 are equal -> if yes, the first branch is without activity
@@ -277,7 +302,7 @@ class KeywordApproach:
         for g in gateways:
             if g[ELEMENT] not in gateways_involved and g[ELEMENT][3] == ['or']:
                 # A) find surrounding activities
-                ppa, pa, fa, ffa = self._get_surrounding_activities(g[ELEMENT], doc_activity_tokens)
+                ppa, pa, fa, ffa = self._get_surrounding_activities(g, doc_activity_tokens)
 
                 if pa[ELEMENT] and fa[ELEMENT]:  # check if exist because of document end/start
                     if pa[ELEMENT][0] == g[ELEMENT][0] and fa[ELEMENT][0] == g[ELEMENT][0]:  # check if in same sentence
@@ -304,7 +329,7 @@ class KeywordApproach:
         for g in gateways:
             if g[ELEMENT] not in gateways_involved and g[ELEMENT][3] != ['or']:
                 # A) Prepare elements for flow connections
-                ppa, pa, fa, ffa = self._get_surrounding_activities(g[ELEMENT], doc_activity_tokens)
+                ppa, pa, fa, ffa = self._get_surrounding_activities(g, doc_activity_tokens)
 
                 # B) check if activity is before or after the gateway in the sentence (assumption: both is not included)
                 if pa[ELEMENT][0] != g[ELEMENT][0] and fa[ELEMENT][0] == g[ELEMENT][0]:
@@ -360,7 +385,7 @@ class KeywordApproach:
 
         for g in self._preprocess_extracted_gateways(extracted_gateways, AND_GATEWAY):
             # 1) Find surrounding activities
-            ppa, pa, fa, ffa = self._get_surrounding_activities(g[ELEMENT], doc_activity_tokens)
+            ppa, pa, fa, ffa = self._get_surrounding_activities(g, doc_activity_tokens)
 
             # 2) Create relations
             # a) flow to gateway: second previous -> gateway
@@ -378,32 +403,6 @@ class KeywordApproach:
                 relations.append(self._merge_flow(fa, ffa))
 
         return relations
-
-    def _preprocess_extracted_gateways(self, extracted_gateways: List[List[str]], gateway_type: str) -> List[Dict]:
-        """
-        flatten gateways but keep sentence index; merge multiple gateway tokens into one gateway
-        :param extracted_gateways: gateways in PET format
-        :param gateway_type: type of gateway
-        :return: flattened gateway list filled dict for each gateway: dict structure: tuple of (sentence_idx,
-        start_token_idx, ['Word', 'List'], ['word', 'list']), source representation, target representation
-        """
-        gateways = []
-        for sentence_idx, sentence_gateways in enumerate(extracted_gateways):
-            sentence_gateways_already_included = []
-            for i, gateway in enumerate(sentence_gateways):
-                if gateway not in sentence_gateways_already_included:
-                    gateway_tokens = [gateway[0]]
-                    start_token_idx = gateway[1]
-                    # append further tokens of same gateway ('I-' marked)
-                    I_index = i + 1
-                    while I_index < len(sentence_gateways) and sentence_gateways[I_index][2].startswith('I-'):
-                        gateway_tokens.append(sentence_gateways[I_index][0])
-                        sentence_gateways_already_included.append(sentence_gateways[I_index])
-                        I_index += 1
-                    gateway_tokens_lower = [t.lower() for t in gateway_tokens]
-                    gateway_tuple = (sentence_idx, start_token_idx, gateway_tokens, gateway_tokens_lower)
-                    gateways.append(self._get_entity_dict(gateway_tuple, gateway_type))
-        return gateways
 
     @staticmethod
     def _merge_flows(gold_activity_flows: List[Dict], xor_flows: List[Dict], and_flows: List[Dict]) -> List[Dict]:
@@ -428,34 +427,23 @@ class KeywordApproach:
         logger.info(f"{len(doc_flows)} doc flows")
         return doc_flows
 
-    def _get_surrounding_activities(self, gateway: Tuple[int, int, List[str], List[str]],
-                                    doc_activity_tokens: List[List[Tuple[str, int]]]):
+    def _get_surrounding_activities(self, gateway: 'see _get_entity_dict documentation',
+                                    doc_activity_tokens: List[List[Tuple[str, int]]]) -> Tuple[Dict, Dict, Dict, Dict]:
         """
         searches for all surrounding activities of a gateway (previous, second previous, following, second following)
-        :param gateway: gateway
+        :param gateway: gateway as entity dict
         :param doc_activity_tokens: list of activity lists (describes whole document)
         :return: for activities; each as dictionary
         """
-        g = gateway
+        g = gateway[ELEMENT]
         # 1) get surrounding activities (previous, second previous, following, second following)
         pa = self._get_previous_activity(g[0], g[1], doc_activity_tokens)
         ppa = self._get_previous_activity(g[0], g[1], doc_activity_tokens, skip_first=True)
         fa = self._get_following_activity(g[0], g[1], doc_activity_tokens)
         ffa = self._get_following_activity(g[0], g[1], doc_activity_tokens, skip_first=True)
 
-        # 2) Get representations for flow object dictionaries
-        def prepare_result(activity: Tuple[int, int, str]):
-            """
-            :param activity: activity represented as tuple of (sentence idx, token idx, token)
-            :return: the result for one activity -> dict of activity itself and its representations for flow connections
-            """
-            return {
-                'element': activity,
-                'source': self._get_pet_entity_relation_rep(activity, ACTIVITY, source=True) if activity else None,
-                'target': self._get_pet_entity_relation_rep(activity, ACTIVITY, source=False) if activity else None
-            }
-
-        return prepare_result(ppa), prepare_result(pa), prepare_result(fa), prepare_result(ffa)
+        return self._get_entity_dict(ppa, ACTIVITY), self._get_entity_dict(pa, ACTIVITY), \
+               self._get_entity_dict(fa, ACTIVITY), self._get_entity_dict(ffa, ACTIVITY)
 
     # HINT: the two following methods follow the same logic, just in different search direction
 
@@ -595,18 +583,20 @@ class KeywordApproach:
         """
         return {**source[SOURCE], **target[TARGET]}
 
-    def _get_entity_dict(self, entity, entity_type):
+    def _get_entity_dict(self, entity: Tuple[int, int, List[str], Optional[List[str]]], entity_type: str) -> Dict:
         """
         create entity dictionary including the entity itself and its source and target repr. dicts for flow connections
-        :param entity: entity (activity or gateway) in form of tuple (sentenc idx, token idx, [word, list])
+        :param entity: entity (activity or gateway) in form of tuple
         :param entity_type: entity type
-        :return: dict
+        :return: dict with structure
+            element: Tuple[int, int, List[str], Optional[List[str]]]
+            source/target: dict -> structure based on self.output_format
         """
         return {
-                'element': entity,
-                'source': self._get_pet_entity_relation_rep(entity, entity_type, source=True) if entity else None,
-                'target': self._get_pet_entity_relation_rep(entity, entity_type, source=False) if entity else None
-            }
+            'element': entity,  # tuple (sentence idx, token idx, [word, list])
+            'source': self._get_pet_entity_relation_rep(entity, entity_type, source=True) if entity else None,
+            'target': self._get_pet_entity_relation_rep(entity, entity_type, source=False) if entity else None
+        }
 
     def _read_and_set_keywords(self) -> None:
         """
