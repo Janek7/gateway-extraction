@@ -124,12 +124,12 @@ class KeywordApproach:
 
         return xor_gateways, and_gateways, doc_flows, same_gateway_relations
 
-    def _extract_gateways(self, sentence_list: List[str], gateway_type: str) \
+    def _extract_gateways(self, sentence_list: List[List[str]], gateway_type: str) \
             -> Tuple[List[List[Tuple[str, int, str]]], Optional[List[List[str]]]]:
         """
         extracts gateways in a key-word-based manner given a document structured in a list of sentences
         if two phrases would match to a token (e.g. 'in the meantime' and 'meantime'), the longer phrase is extracted
-        :param sentence_list: document represented as list of sentences
+        :param sentence_list: document represented as list of sentences (each sentence is a list of tokens)
         :param gateway_type: gateway type to extract ('XOR Gateway' or 'AND Gateway')
 
         :return: return a tuple: (first output is necessary even if output format is BENCHMARK, because positional
@@ -150,11 +150,11 @@ class KeywordApproach:
         # 1) extract gateways
         pet_gateways = []  # for PET representation
         benchmark_gateways = []  # for BENCHMARK representation
-        for s_idx, sentence in enumerate(sentence_list):
+        for s_idx, tokens in enumerate(sentence_list):
             sentence_gateways = []  # for PET representation
-            sentence_to_search = f" {sentence.lower()} "  # lowercase and wrap with spaces for search of key words
-            tokens = sentence.split(" ")
-            tokens_lower = sentence.lower().split(" ")
+            tokens_lower = [t.lower() for t in tokens]
+            # create sentence string to search (multi-word) key phrases
+            sentence_to_search = f" {' '.join(tokens_lower).lower()} "
             tokens_already_matched_with_key_phrase = []
 
             # iterate over key phrases
@@ -340,14 +340,21 @@ class KeywordApproach:
             if g[ELEMENT] not in gateways_involved and g[ELEMENT][3] != ['or']:
                 # A) Prepare elements for flow connections
                 ppa, pa, fa, ffa = self._get_surrounding_activities(g, doc_activity_tokens)
+                print("ppa", ppa)
+                print("pa", pa)
+                print("fa", fa)
+                print("ffa", ffa)
+                # B) check if activity is before or after the gateway in the sentence (assumption: both not in the same)
+                # and if both surrounding activities exist
+                #
 
-                # B) check if activity is before or after the gateway in the sentence (assumption: both is not included)
                 if pa[ELEMENT][0] != g[ELEMENT][0] and fa[ELEMENT][0] == g[ELEMENT][0]:
                     case = 'activity after gateway'
                 elif pa[ELEMENT][0] == g[ELEMENT][0] and fa[ELEMENT][0] != g[ELEMENT][0]:
                     case = 'activity before gateway'
                 else:
-                    continue  # if no activity in same sentence, do not wire anything; TODO: maybe drop gateway again
+                    # if no activity in same sentence, do not wire anything; TODO: maybe drop gateway again
+                    continue
                 gateways_involved.append(g[ELEMENT])
 
                 # C) connect elements to sequence flows
@@ -750,7 +757,7 @@ if __name__ == '__main__':
     # 'doc-10.2' for or gateway in sentence
     # 'doc-9.5' for single exclusive gateway and two exclusive gateways with each two branches -> presentation candidate
     if True:
-        doc_name = 'doc-3.2'
+        doc_name = 'doc-1.3'
 
         xor_gateways, and_gateways, doc_flows, same_gateway_relations = keyword_approach.process_document(doc_name)
 

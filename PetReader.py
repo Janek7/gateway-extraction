@@ -31,27 +31,25 @@ class PetReader:
     def document_names(self) -> List[str]:
         return self._token_dataset.GetDocumentNames()
 
-    @staticmethod
-    def get_document_number(doc_name):
-        return PetReader._relations_dataset.GetDocumentNumber(doc_name)
+    def get_document_number(self, doc_name):
+        return self._relations_dataset.GetDocumentNumber(doc_name)
 
-    @staticmethod
-    def get_doc_text(doc_name: str) -> str:
+    def get_doc_text(self, doc_name: str) -> str:
         """
         return text of a document
         :param doc_name: doc name
         :return: doc text
         """
-        return PetReader._token_dataset.GetDocumentText(doc_name)
+        return self._token_dataset.GetDocumentText(doc_name)
 
-    @staticmethod
-    def get_doc_sentences(doc_name: str) -> List[str]:
+    def get_doc_sentences(self, doc_name: str) -> List[List[str]]:
         """
-        return text of a document as list of sentences
+        return text of a document as list of samples/sentences
         :param doc_name: doc name
         :return: list of sentences
         """
-        return [sentence.strip() for sentence in PetReader.get_doc_text(doc_name).split(".") if sentence.strip() != ""]
+        return [self._token_dataset.GetTokens(sample)
+                for sample in self._token_dataset.get_n_sample_of_a_document(doc_name)]
 
     def get_index_enriched_activities(self, doc_name: str) -> List[List[Tuple[str, int]]]:
         """
