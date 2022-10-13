@@ -264,8 +264,10 @@ class KeywordApproach:
                 continue
             # check for every pair of following gateways if it fits to a gateway pair of contradictory key words
             # and check that first gateway is at the beginning of a sentence
+            # and check if gateways already matched another pair; possible because of partly same phrase
             for pattern_gateway_1, pattern_gateway_2 in self._contradictory_gateways:
-                if g1[ELEMENT][3] == pattern_gateway_1 and g2[ELEMENT][3] == pattern_gateway_2 and g1[ELEMENT][1] == 0:
+                if g1[ELEMENT][3] == pattern_gateway_1 and g2[ELEMENT][3] == pattern_gateway_2 and g1[ELEMENT][1] == 0\
+                        and g1[ELEMENT] not in gateways_involved and g2[ELEMENT] not in gateways_involved:
                     gateways_involved.append(g1[ELEMENT])
                     gateways_involved.append(g2[ELEMENT])
 
@@ -628,10 +630,12 @@ class KeywordApproach:
     def _read_contradictory_gateways(self):
         """
         read pairs of contradictory exclusive gateway key words from file
+        sort to prefer longer matching phrases during search
         :return:
         """
         with open('data/keywords/contradictory_gateways_gold.txt') as file:
             self._contradictory_gateways = [[x.split(" ") for x in l.strip().split(";")] for l in file.readlines()]
+            self._contradictory_gateways.sort(key=lambda pair: len(pair[0]) + len(pair[1]), reverse=True)
 
 
 if __name__ == '__main__':
