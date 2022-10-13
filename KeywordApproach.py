@@ -62,8 +62,7 @@ class KeywordApproach:
         for i, doc_name in enumerate(doc_names):
             if i % 5 == 0:
                 logger.info(f"Finished processing of {i} documents.")
-            xor_gateways, and_gateways, doc_flows, same_gateway_relations = self.process_document(doc_name,
-                                                                                                  output_format=BENCHMARK)
+            xor_gateways, and_gateways, doc_flows, same_gateway_relations = self.process_document(doc_name)
             process_elements[doc_name][XOR_GATEWAY].extend(xor_gateways)
             process_elements[doc_name][AND_GATEWAY].extend(and_gateways)
             relations[doc_name][FLOW].extend(doc_flows)
@@ -84,59 +83,64 @@ class KeywordApproach:
         BenchmarkApproach(approach_name=self.approach_name, predictions_file_or_folder=process_elements_filename)
         BenchmarkApproach(approach_name=self.approach_name, predictions_file_or_folder=relations_filename)
 
-    def process_document(self, doc_name: str, output_format: str = None) -> Tuple[List, List, List, List]:
+    def process_document(self, doc_name: str) -> Tuple[List, List, List, List]:
         """
         extracts and returns gateways and related flow relations for given document
         :param doc_name: document name
-        :param output_format: optional output_format - by default self.output_format is used
-                              parameter is introduced for necessary control in eval_all_documents
         :return: xor_gateways, and_gateways, doc_flows, same_gateway_relations
         """
-        # temporary overwrite output_format in object
-        output_format_saved = self.output_format
-        if output_format:
-            self.output_format = output_format
 
         # prepare document
         doc_sentences = pet_reader.get_doc_sentences(doc_name)
         doc_activities_enriched = pet_reader.get_index_enriched_activities(doc_name)
 
         # extract concurrent gateways and related flow relations
-        and_gateways_pet, and_gateways_benchmark = self._extract_gateways(doc_sentences, AND_GATEWAY)
-        and_flows = self._extract_concurrent_flows(doc_activities_enriched, and_gateways_pet)
+        and_gateways = self._extract_gateways(doc_sentences, AND_GATEWAY)
+        and_flows = self._extract_concurrent_flows(doc_activities_enriched, and_gateways)
 
         # extract exclusive gateways and related flow relations
-        xor_gateways_pet, xor_gateways_benchmark = self._extract_gateways(doc_sentences, XOR_GATEWAY)
-        xor_flows, same_gateway_relations = self._extract_exclusive_flows(doc_activities_enriched, xor_gateways_pet)
+        xor_gateways = self._extract_gateways(doc_sentences, XOR_GATEWAY)
+        xor_flows, same_gateway_relations = self._extract_exclusive_flows(doc_activities_enriched, xor_gateways)
 
         # extract flow relations of gold activities and remove the ones involved in gateway flows
         gold_activity_flows = self._extract_gold_activity_flows(doc_activities_enriched)
         doc_flows = self._merge_flows(gold_activity_flows, xor_flows, and_flows)
 
-        if self.output_format == PET:
-            xor_gateways = xor_gateways_pet
-            and_gateways = and_gateways_pet
-        elif self.output_format == BENCHMARK:
-            xor_gateways = xor_gateways_benchmark
-            and_gateways = and_gateways_benchmark
-        # overwrite again with saved value (constructor value)
-        self.output_format = output_format_saved
+        # change format of outputs to BENCHMARK if necessary
+        if self.output_format == BENCHMARK:
+            # transform gateway entities to simpler benchmark format
+            def gateways_to_benchmark(gateways):
+                results = []
+                for sentence_gateways in gateways:
+                    i = 0
+                    while i < len(sentence_gateways):
+                        gateway_tokens = [sentence_gateways[i][0]]
+                        i += 1
+                        while i < len(sentence_gateways) and sentence_gateways[i][2].startswith('I-'):
+                            gateway_tokens.append(sentence_gateways[i][0])
+                            i += 1
+                        results.append(gateway_tokens)
+                return results
+            xor_gateways = gateways_to_benchmark(xor_gateways)
+            and_gateways = gateways_to_benchmark(and_gateways)
+
+            # transform relation dictionaries to simpler benchmark format
+            relations_to_benchmark = lambda relations: [{SOURCE_ENTITY: r[SOURCE_ENTITY],
+                                                         TARGET_ENTITY: r[TARGET_ENTITY]} for r in relations]
+            doc_flows = relations_to_benchmark(doc_flows)
+            same_gateway_relations = relations_to_benchmark(same_gateway_relations)
 
         return xor_gateways, and_gateways, doc_flows, same_gateway_relations
 
-    def _extract_gateways(self, sentence_list: List[List[str]], gateway_type: str) \
-            -> Tuple[List[List[Tuple[str, int, str]]], Optional[List[List[str]]]]:
+    def _extract_gateways(self, sentence_list: List[List[str]], gateway_type: str) -> List[List[Tuple[str, int, str]]]:
         """
         extracts gateways in a key-word-based manner given a document structured in a list of sentences
         if two phrases would match to a token (e.g. 'in the meantime' and 'meantime'), the longer phrase is extracted
         :param sentence_list: document represented as list of sentences (each sentence is a list of tokens)
         :param gateway_type: gateway type to extract ('XOR Gateway' or 'AND Gateway')
 
-        :return: return a tuple: (first output is necessary even if output format is BENCHMARK, because positional
-                                  information are necessary for flow extraction algorithm)
-            1) a two dimensional list -> list of tuples (word, position in sentence, tag) for each sentence this
-            produces the same structure as sentences and their tokens and NER labels are annotated in PET dataset
-            2) if output format is BENCHMARK, return a list of gateways (each a list again); if not None
+        :return: a two dimensional list -> list of tuples (word, position in sentence, tag) for each sentence this
+                 produces the same structure as sentences and their tokens and NER labels are annotated in PET dataset
         """
         if gateway_type == XOR_GATEWAY:
             key_words = self._xor_keywords
@@ -148,10 +152,9 @@ class KeywordApproach:
         key_words.sort(key=lambda key_word_phrase: len(key_word_phrase.split(" ")), reverse=True)
 
         # 1) extract gateways
-        pet_gateways = []  # for PET representation
-        benchmark_gateways = []  # for BENCHMARK representation
+        gateways = []
         for s_idx, tokens in enumerate(sentence_list):
-            sentence_gateways = []  # for PET representation
+            sentence_gateways = []
             tokens_lower = [t.lower() for t in tokens]
             # create sentence string to search (multi-word) key phrases
             sentence_to_search = f" {' '.join(tokens_lower).lower()} "
@@ -184,16 +187,11 @@ class KeywordApproach:
                                 # append tuples with extract information as in PET
                                 sentence_gateways.append((tokens[t_idx + i], t_idx + i, f"{prefix}-{gateway_type}"))
                                 tokens_already_matched_with_key_phrase.append(t_idx + i)
-                            if self.output_format == BENCHMARK:
-                                benchmark_gateways.append([tokens[t_idx + i] for i, x in enumerate(key_phrase_tokens)])
 
             sentence_gateways.sort(key=lambda gateway_triple: gateway_triple[1])
-            pet_gateways.append(sentence_gateways)
+            gateways.append(sentence_gateways)
 
-        if self.output_format == PET:
-            return pet_gateways, None
-        elif self.output_format == BENCHMARK:
-            return pet_gateways, benchmark_gateways
+        return gateways
 
     def _preprocess_extracted_gateways(self, extracted_gateways: List[List[Tuple[str, int, str]]], gateway_type: str) \
             -> List[Dict]:
@@ -233,12 +231,9 @@ class KeywordApproach:
         for i in range(len(activities_flattened) - 1):
             s_idx_1, a1 = activities_flattened[i]
             s_idx_2, a2 = activities_flattened[i + 1]
-            if self.output_format == BENCHMARK:
-                flow_relations.append({SOURCE_ENTITY: a1[0], TARGET_ENTITY: a2[0]})
-            elif self.output_format == PET:
-                a1 = self._get_pet_relation_rep(s_idx_1, a1[1], ACTIVITY, a1[0], source=True)
-                a2 = self._get_pet_relation_rep(s_idx_2, a2[1], ACTIVITY, a2[0], source=False)
-                flow_relations.append({**a1, **a2})
+            a1 = self._get_pet_relation_rep(s_idx_1, a1[1], ACTIVITY, a1[0], source=True)
+            a2 = self._get_pet_relation_rep(s_idx_2, a2[1], ACTIVITY, a2[0], source=False)
+            flow_relations.append({**a1, **a2})
         return flow_relations
 
     def _extract_exclusive_flows(self, doc_activity_tokens: List[List[Tuple[str, int]]],
@@ -464,9 +459,7 @@ class KeywordApproach:
         for flow in gold_activity_flows:
             if not flow[SOURCE_ENTITY] in gateway_flows_source_entities:
                 doc_flows.append(flow)
-
-        if self.output_format == PET:
-            doc_flows.sort(key=lambda flow: (flow[SOURCE_SENTENCE_ID], flow[SOURCE_HEAD_TOKEN_ID]))
+        doc_flows.sort(key=lambda flow: (flow[SOURCE_SENTENCE_ID], flow[SOURCE_HEAD_TOKEN_ID]))
 
         def get_gateway_frames(flow):
             """
@@ -527,8 +520,7 @@ class KeywordApproach:
         doc_flows = doc_flows_unique
 
         # sort for easier debugging by order in text
-        if self.output_format == PET:
-            doc_flows.sort(key=lambda flow: (flow[SOURCE_SENTENCE_ID], flow[SOURCE_HEAD_TOKEN_ID]))
+        doc_flows.sort(key=lambda flow: (flow[SOURCE_SENTENCE_ID], flow[SOURCE_HEAD_TOKEN_ID]))
 
         # clear gateway frames of processed doc for next processing
         self._processed_doc_gateway_frames.clear()
@@ -651,7 +643,6 @@ class KeywordApproach:
                               source: bool = True) -> Dict:
         """
         return the dict representation of an entity for usage as part of a relation
-        dict structure depends on the output format of the baseline (as in PET or simpler for benchmark library)
         :param sentence_idx: sentence index
         :param token_idx: token/word index
         :param entity_type: entity type according to PET labels
@@ -659,27 +650,20 @@ class KeywordApproach:
         :param source: flag if it is source or target entity in the relation
         :return: Dictionary in format based on the output format
         """
-        if self.output_format == PET:
-            if source:
-                return {
-                    SOURCE_SENTENCE_ID: sentence_idx,
-                    SOURCE_HEAD_TOKEN_ID: token_idx,
-                    SOURCE_ENTITY_TYPE: entity_type,
-                    SOURCE_ENTITY: entity
-                }
-            else:
-                return {
-                    TARGET_SENTENCE_ID: sentence_idx,
-                    TARGET_HEAD_TOKEN_ID: token_idx,
-                    TARGET_ENTITY_TYPE: entity_type,
-                    TARGET_ENTITY: entity
-                }
-
-        elif self.output_format == BENCHMARK:
-            if source:
-                return {SOURCE_ENTITY: entity}
-            else:
-                return {TARGET_ENTITY: entity}
+        if source:
+            return {
+                SOURCE_SENTENCE_ID: sentence_idx,
+                SOURCE_HEAD_TOKEN_ID: token_idx,
+                SOURCE_ENTITY_TYPE: entity_type,
+                SOURCE_ENTITY: entity
+            }
+        else:
+            return {
+                TARGET_SENTENCE_ID: sentence_idx,
+                TARGET_HEAD_TOKEN_ID: token_idx,
+                TARGET_ENTITY_TYPE: entity_type,
+                TARGET_ENTITY: entity
+            }
 
     @staticmethod
     def _merge_flow(source, target):
@@ -698,7 +682,7 @@ class KeywordApproach:
         :param entity_type: entity type
         :return: dict with structure
             element: Tuple[int, int, List[str], Optional[List[str]]]
-            source/target: dict -> structure based on self.output_format
+            source/target: dict -> structure based on flow relation dict from PET
         """
         return {
             'element': entity,  # tuple (sentence idx, token idx, [word, list])
@@ -761,7 +745,7 @@ class KeywordApproach:
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     keyword_approach = KeywordApproach(approach_name='key_words_literature', keywords=LITERATURE,
-                                       same_xor_gateway_threshold=1, output_format=PET)
+                                       same_xor_gateway_threshold=1, output_format=BENCHMARK)
     # keyword_approach.evaluate_documents()
 
     # 'doc-1.1' for and gateway
