@@ -34,6 +34,7 @@ class KeywordApproach:
         self._contradictory_gateways = None
         self._read_and_set_keywords()
         self._read_contradictory_gateways()
+        self._processed_doc_gateway_frames = []
 
         # check string parameters for valid values
         if self.keywords not in [LITERATURE, GOLD, OWN]:
@@ -266,7 +267,7 @@ class KeywordApproach:
             # and check that first gateway is at the beginning of a sentence
             # and check if gateways already matched another pair; possible because of partly same phrase
             for pattern_gateway_1, pattern_gateway_2 in self._contradictory_gateways:
-                if g1[ELEMENT][3] == pattern_gateway_1 and g2[ELEMENT][3] == pattern_gateway_2 and g1[ELEMENT][1] == 0\
+                if g1[ELEMENT][3] == pattern_gateway_1 and g2[ELEMENT][3] == pattern_gateway_2 and g1[ELEMENT][1] == 0 \
                         and g1[ELEMENT] not in gateways_involved and g2[ELEMENT] not in gateways_involved:
                     gateways_involved.append(g1[ELEMENT])
                     gateways_involved.append(g2[ELEMENT])
@@ -300,6 +301,10 @@ class KeywordApproach:
                     # B.2) same gateway flows
                     same_gateway_relations.append(self._merge_flow(g1, g2))
 
+                    # log gateway frame for later usage in flow merging of whole document
+                    self._log_gateway_frame(g1[ELEMENT][0], g1[ELEMENT][1], g1,
+                                            fa_g2[ELEMENT][0], fa_g2[ELEMENT][1], fa_g2)
+
         # RULE 2): exclusive actions of common pattern "... <activity> ... or ... <activity> ..."
         for g in gateways:
             if g[ELEMENT] not in gateways_involved and g[ELEMENT][3] == ['or']:
@@ -314,7 +319,7 @@ class KeywordApproach:
                             continue
                         gateways_involved.append(g[ELEMENT])
 
-                        # C) connect elements to sequence flows
+                        # B) connect elements to sequence flows
                         # 1) second previous activity to gateway -> split point
                         if ppa:  # (if not None because of document start)
                             sequence_flows.append(self._merge_flow(ppa, g))
@@ -325,6 +330,9 @@ class KeywordApproach:
                         if ffa:  # (if not None because of document end)
                             sequence_flows.append(self._merge_flow(pa, ffa))
                             sequence_flows.append(self._merge_flow(fa, ffa))
+
+                        # log gateway frame for later usage in flow merging of whole document
+                        self._log_gateway_frame(pa[ELEMENT][0], pa[ELEMENT][1], g, fa[ELEMENT][0], fa[ELEMENT][1], fa)
 
         # RULE 3): single-branch gateways: the gateway is related to an activity in the same sentence (order is arbitrary)
         # Assumptiosn: multi-branch gateways are already recognized by rule 1 before; only one activity for the gateway
@@ -354,6 +362,9 @@ class KeywordApproach:
                         sequence_flows.append(self._merge_flow(g, ffa))
                         sequence_flows.append(self._merge_flow(fa, ffa))
 
+                    # log gateway frame for later usage in flow merging of whole document
+                    self._log_gateway_frame(g[ELEMENT][0], g[ELEMENT][1], g, fa[ELEMENT][0], fa[ELEMENT][1], fa)
+
                 elif case == 'activity before gateway':
                     # 1) second previous activity to gateway -> split point
                     if ppa[ELEMENT]:  # could be None if at document start
@@ -365,8 +376,11 @@ class KeywordApproach:
                         sequence_flows.append(self._merge_flow(g, fa))
                         sequence_flows.append(self._merge_flow(pa, fa))
 
-        if self.output_format == PET:
-            sequence_flows.sort(key=lambda flow: flow[SOURCE_SENTENCE_ID])
+                    # log gateway frame for later usage in flow merging of whole document
+                    closing = fa if fa is not None else g
+                    self._log_gateway_frame(pa[ELEMENT][0], pa[ELEMENT][1], g,
+                                            g[ELEMENT][0], g[ELEMENT][1], pa)
+
         return sequence_flows, same_gateway_relations
 
     def _extract_concurrent_flows(self, doc_activity_tokens: List[List[Tuple[str, int]]],
@@ -404,10 +418,12 @@ class KeywordApproach:
                 relations.append(self._merge_flow(pa, ffa))
                 relations.append(self._merge_flow(fa, ffa))
 
+            # log gateway frame for later usage in flow merging of whole document
+            self._log_gateway_frame(pa[ELEMENT][0], pa[ELEMENT][1], g, fa[ELEMENT][0], fa[ELEMENT][1], fa)
+
         return relations
 
-    @staticmethod
-    def _merge_flows(gold_activity_flows: List[Dict], xor_flows: List[Dict], and_flows: List[Dict]) -> List[Dict]:
+    def _merge_flows(self, gold_activity_flows: List[Dict], xor_flows: List[Dict], and_flows: List[Dict]) -> List[Dict]:
         """
         merge gold activity flows and flows surrounding gateways into a list of flows for the whole document
         -> gold activity flows are filtered if a gateway flow is involved into an activity
@@ -416,16 +432,90 @@ class KeywordApproach:
         :param and_flows: list of flows involved in AND gateways
         :return: list of flows describing the whole document
         """
+        print(" Merging start ".center(100, '-'))
         gateway_flows = xor_flows + and_flows
         logger.info(f"{len(gateway_flows)} gateway flows")
         logger.info(f"{len(gold_activity_flows)} gold activity flows")
-        print("xor", xor_flows)
-        print("and", and_flows)
+
+        print('-' * 50)
+
         gateway_flows_source_entities = [flow[SOURCE_ENTITY] for flow in gateway_flows]
+        # 1) gateway flows as basis
         doc_flows = gateway_flows.copy()
+
+        # 2) check if flow from this entity to another entity exists already in the gateway flows
+        # -> prefer flows to gateways than to gold activities
         for flow in gold_activity_flows:
             if not flow[SOURCE_ENTITY] in gateway_flows_source_entities:
                 doc_flows.append(flow)
+
+        if self.output_format == PET:
+            doc_flows.sort(key=lambda flow: (flow[SOURCE_SENTENCE_ID], flow[SOURCE_HEAD_TOKEN_ID]))
+
+        def get_gateway_frames(flow):
+            """
+            return a tuple that contains the gateway frames of source and target entity if they are in one, if not None
+            :param flow: flow dict in PET format
+            :return: tuple of gateway frame indices
+            """
+            source_entity_gateway_frame = None
+            target_entity_gateway_frame = None
+
+            for i, gateway_frame in enumerate(self._processed_doc_gateway_frames):
+
+                if (flow[SOURCE_SENTENCE_ID] == gateway_frame[START_SENTENCE_IDX]
+                    and flow[SOURCE_HEAD_TOKEN_ID] >= gateway_frame[START_TOKEN_ID]) or \
+                        (flow[SOURCE_SENTENCE_ID] > gateway_frame[START_SENTENCE_IDX]
+                         and flow[SOURCE_SENTENCE_ID] < gateway_frame[END_SENTENCE_IDX]) or \
+                        (flow[SOURCE_SENTENCE_ID] == gateway_frame[END_SENTENCE_IDX]
+                         and flow[SOURCE_HEAD_TOKEN_ID] <= gateway_frame[END_TOKEN_ID]):
+                    if not source_entity_gateway_frame:
+                        source_entity_gateway_frame = i
+
+                if (flow[TARGET_SENTENCE_ID] == gateway_frame[START_SENTENCE_IDX]
+                    and flow[TARGET_HEAD_TOKEN_ID] >= gateway_frame[START_TOKEN_ID]) or \
+                        (flow[TARGET_SENTENCE_ID] > gateway_frame[START_SENTENCE_IDX]
+                         and flow[TARGET_SENTENCE_ID] < gateway_frame[END_SENTENCE_IDX]) or \
+                        (flow[TARGET_SENTENCE_ID] == gateway_frame[END_SENTENCE_IDX]
+                         and flow[TARGET_HEAD_TOKEN_ID] <= gateway_frame[END_TOKEN_ID]):
+                    if not target_entity_gateway_frame:
+                        target_entity_gateway_frame = i
+
+            return source_entity_gateway_frame, target_entity_gateway_frame
+
+        # 3) check if target of this flows is inside a detected gateway frame
+        # -> if yes, redirect flow to gateway start / split point
+        flows_to_remove = []
+        flows_to_add = []
+        for flow in doc_flows:
+            source_entity_gf, target_entity_gf = get_gateway_frames(flow)
+            # check if source and target are not part of the same gateway and the target entity is part of a gateway
+            if source_entity_gf != target_entity_gf and target_entity_gf is not None:
+                # if the flow target is not the start entity of the gateway (i.e. split point), then rewire
+                if flow[TARGET_ENTITY] !=self._processed_doc_gateway_frames[target_entity_gf][START_ENTITY][ELEMENT][2]:
+                    flows_to_remove.append(flow)
+                    # create new flow between source of current flow and start entity of gateway (split point)
+                    flows_to_add.append({**{k: v for k, v in flow.items() if k.startswith("source-")},
+                                         **self._processed_doc_gateway_frames[target_entity_gf][START_ENTITY][TARGET]})
+
+        # add/remove new/wrong wired flows after gateway frame check
+        doc_flows.extend(flows_to_add)
+        for flow in flows_to_remove:
+            doc_flows.remove(flow)
+
+        # filtered doc flows for duplicates
+        doc_flows_unique = []
+        for flow in doc_flows:
+            if flow not in doc_flows_unique:
+                doc_flows_unique.append(flow)
+        doc_flows = doc_flows_unique
+
+        # sort for easier debugging by order in text
+        if self.output_format == PET:
+            doc_flows.sort(key=lambda flow: (flow[SOURCE_SENTENCE_ID], flow[SOURCE_HEAD_TOKEN_ID]))
+
+        # clear gateway frames of processed doc for next processing
+        self._processed_doc_gateway_frames.clear()
         logger.info(f"{len(doc_flows)} doc flows")
         return doc_flows
 
@@ -600,6 +690,17 @@ class KeywordApproach:
             'target': self._get_pet_entity_relation_rep(entity, entity_type, source=False) if entity else None
         }
 
+    def _log_gateway_frame(self, start_sentence_idx: int, start_token_idx: int, start_entity: Dict,
+                           end_sentence_idx: int, end_token_idx: int, end_entity: Dict) -> None:
+        self._processed_doc_gateway_frames.append({
+            START_SENTENCE_IDX: start_sentence_idx,
+            START_TOKEN_ID: start_token_idx,
+            START_ENTITY: start_entity,
+            END_SENTENCE_IDX: end_sentence_idx,
+            END_TOKEN_ID: end_token_idx,
+            END_ENTITY: end_entity,
+        })
+
     def _read_and_set_keywords(self) -> None:
         """
         load and set key word lists based on passed variant
@@ -645,11 +746,11 @@ if __name__ == '__main__':
     # keyword_approach.evaluate_documents()
 
     # 'doc-1.1' for and gateway
-    # 'doc-3.2' for exclusive gateway with two branches and overlapping concurrent gateway!!
+    # 'doc-3.2' for exclusive gateway with two branches and overlapping concurrent gateway -> presentation candidate
     # 'doc-10.2' for or gateway in sentence
-    # 'doc-9.5' for single exclusive gateway and two exclusive gateways with each two branches -> Presentation candidate
+    # 'doc-9.5' for single exclusive gateway and two exclusive gateways with each two branches -> presentation candidate
     if True:
-        doc_name = 'doc-9.5'
+        doc_name = 'doc-3.2'
 
         xor_gateways, and_gateways, doc_flows, same_gateway_relations = keyword_approach.process_document(doc_name)
 
@@ -661,7 +762,7 @@ if __name__ == '__main__':
         for gateway in xor_gateways:
             print(gateway)
 
-        print(" Flow relations of the whole document ".center(50, '-'))
+        print(f" Flow relations ({len(doc_flows)}) of the whole document ".center(50, '-'))
         for flow_relation in doc_flows:
             print(flow_relation)
 
