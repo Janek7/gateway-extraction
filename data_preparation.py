@@ -4,17 +4,20 @@ from petreader.labels import *
 from labels import *
 from PetReader import pet_reader
 import logging
+from typing import Tuple
 
 
 logger = logging.getLogger('data preparation')
 
 
-def create_token_classification_dataset(tokenizer: transformers.BertTokenizerFast, batch_size: int = None)\
-        -> tf.data.Dataset:
+def create_token_classification_dataset(tokenizer: transformers.BertTokenizerFast, dev_share: int = 0.1,
+                                        batch_size: int = None) -> Tuple[tf.data.Dataset, tf.data.Dataset]:
     """
-    create the dataset for token classification with huggingface bert like models
+    create the dataset for token classification with huggingface transformers bert like models
+    split into train and dev/validation by the given share in dev_share
     tokens are labeled into XOR, AND and OTHER. Additionally a label for bert specific tokens such as CLS, SEP and PAD
     :param tokenizer: instance of subclass of transformers.BertTokenizerFast
+    :param dev_share: share of validation/development dataset
     :param batch_size: apply batching to size if given
     :return: tf.data.Dataset instance
     """
@@ -55,14 +58,22 @@ def create_token_classification_dataset(tokenizer: transformers.BertTokenizerFas
 
         all_sample_labels.append(sample_labels)
 
-    # create tensorflow dataset
+    # create tensorflow dataset and split into train and dev
     dataset = tf.data.Dataset.from_tensor_slices(({'input_ids': all_tokens['input_ids'],
                                                    'attention_mask': all_tokens['attention_mask']},
                                                   tf.constant(all_sample_labels)))
-    logger.info(f"Created token classification dataset of shape {all_tokens['input_ids'].shape}")
+    number_samples = all_tokens['input_ids'].shape[0]
+    val_samples = round(number_samples * dev_share)
+    train_dataset = dataset.take(val_samples)
+    val_dataset = dataset.skip(val_samples)
+
+    logger.info(f"Created token classification dataset of shape {all_tokens['input_ids'].shape} splitted into "
+                f"{1-dev_share}/{dev_share} -> {number_samples - val_samples}/{val_samples} (train/dev)")
     if batch_size:
-        dataset = dataset.batch(batch_size)
-    return dataset
+        train_dataset = train_dataset.batch(batch_size)
+        val_dataset = val_dataset.batch(batch_size)
+
+    return train_dataset, val_dataset
 
 
 if __name__ == '__main__':
