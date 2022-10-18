@@ -19,3 +19,9 @@ START_ENTITY = 'start_entity'
 END_SENTENCE_IDX = 'end_sentence_idx'
 END_TOKEN_ID = 'end_token_idx'
 END_ENTITY = 'end_entity'
+
+# labels for token classification task
+LABEL_OUT_OF_SCOPE = -100
+LABEL_OTHER = 0
+LABEL_XOR = 1
+LABEL_AND = 2
