@@ -10,7 +10,7 @@ from typing import Tuple
 logger = logging.getLogger('data preparation')
 
 
-def create_token_classification_dataset(tokenizer: transformers.BertTokenizerFast, dev_share: int = 0.1,
+def create_token_classification_dataset(tokenizer: transformers.PreTrainedTokenizerFast, dev_share: int = 0.1,
                                         batch_size: int = None) -> Tuple[tf.data.Dataset, tf.data.Dataset]:
     """
     create the dataset for token classification with huggingface transformers bert like models
@@ -46,15 +46,15 @@ def create_token_classification_dataset(tokenizer: transformers.BertTokenizerFas
         for token, word_index in zip(sample_tokens, tokenization.word_ids()):
             # set special class for special tokens
             if token in ['[CLS]', '[SEP]', '[PAD]']:
-                sample_labels.append(LABEL_OUT_OF_SCOPE)
+                sample_labels.append(GTC_LABEL_OUT_OF_SCOPE)
             else:
                 token_tag = sample_dict['ner-tags'][word_index]
                 if token_tag.endswith(XOR_GATEWAY):
-                    sample_labels.append(LABEL_XOR)
+                    sample_labels.append(GTC_LABEL_XOR)
                 elif token_tag.endswith(AND_GATEWAY):
-                    sample_labels.append(LABEL_AND)
+                    sample_labels.append(GTC_LABEL_AND)
                 else:
-                    sample_labels.append(LABEL_OTHER)
+                    sample_labels.append(GTC_LABEL_OTHER)
 
         all_sample_labels.append(sample_labels)
 
@@ -72,11 +72,13 @@ def create_token_classification_dataset(tokenizer: transformers.BertTokenizerFas
     if batch_size:
         train_dataset = train_dataset.batch(batch_size)
         val_dataset = val_dataset.batch(batch_size)
+        logger.info(f"Batch datasets (size {batch_size}) -> {len(train_dataset)}/{len(val_dataset)}")
 
     return train_dataset, val_dataset
 
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    tokenizer = transformers.DistilBertTokenizerFast.from_pretrained("distilbert-base-uncased")
-    dataset = create_token_classification_dataset(tokenizer, batch_size=8)
+    tokenizer = transformers.AutoTokenizer.from_pretrained("distilbert-base-uncased")
+    assert isinstance(tokenizer, transformers.PreTrainedTokenizerFast)
+    train, dev = create_token_classification_dataset(tokenizer, batch_size=8)
