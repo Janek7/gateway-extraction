@@ -2,3 +2,4 @@ tensorflow~=2.8.0
 transformers~=4.20.1
 petdatasetreader
 petbenchmarks
+tensorflow-addons~=0.18.0

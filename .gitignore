@@ -1,5 +1,7 @@
 .idea
 .ipynb_checkpoints
+ __pycache__/
+results/
 test*.py
 debug*.py
 check_for_contradictory_key_words.ipynb
