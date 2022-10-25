@@ -4,7 +4,6 @@ __pycache__/
 results/
 data/logs/
 lib
-*.zip
 test*.py
 debug*.py
 check_for_contradictory_key_words.ipynb

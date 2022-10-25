@@ -37,6 +37,9 @@ class KeywordApproach:
         self._read_and_set_keywords()
         self._read_contradictory_gateways()
         self._processed_doc_gateway_frames = []
+        # flag if details of extractions should be logged for each document
+        # default = True; temporarily False during evaluating all documents
+        self._log_document_level_details = True
 
         # check string parameters for valid values
         if self.keywords not in [LITERATURE, GOLD, OWN]:
@@ -44,18 +47,20 @@ class KeywordApproach:
         if self.output_format not in [PET, BENCHMARK]:
             raise ValueError(f"Output format must be {PET} or {BENCHMARK}")
 
-    def evaluate_documents(self, doc_names: List[str] = None,
+    def evaluate_documents(self, doc_names: List[str] = None, log_document_details: bool = False,
                            tcb: TokenClassificationBenchmark = None, reb: RelationsExtractionBenchmark = None,
                            evaluate_token_cls: bool = True, evaluate_relation_extraction: bool = True) -> None:
         """
         run extraction and evaluation with petbenchmarks
         :param doc_names: list of document names to evaluate, use all as default value
+        :param log_document_details: flag if document level results of extractions should be logged
         :param tcb: TokenClassificationBenchmark instance
         :param reb: RelationsExtractionBenchmark instance
         :param evaluate_token_cls: flag to run evaluation of token classification or not
         :param evaluate_relation_extraction: flag to run evaluation of relation extraction or not
         :return: nothing, results are written to .json file
         """
+        self._log_document_level_details = log_document_details
         if not doc_names:
             doc_names = pet_reader.document_names
 
@@ -72,37 +77,40 @@ class KeywordApproach:
         # process all documents
         logger.info(f"Start processing of {len(doc_names)} documents ...")
         for i, doc_name in enumerate(doc_names):
-            if i % 5 == 0:
+            if i % 5 == 0 and i != 0:
                 logger.info(f"Finished processing of {i} documents.")
             xor_gateways, and_gateways, doc_flows, same_gateway_relations = self.process_document(doc_name)
             process_elements[doc_name][XOR_GATEWAY].extend(xor_gateways)
             process_elements[doc_name][AND_GATEWAY].extend(and_gateways)
             relations[doc_name][FLOW].extend(doc_flows)
             relations[doc_name][SAME_GATEWAY].extend(same_gateway_relations)
+        logger.info(f"Finished processing of documents")
 
         # save results as json
         folder = f'data/results/{self.approach_name}/'
         # clear directory first and then create new
         shutil.rmtree(folder)
         os.makedirs(folder, exist_ok=True)
-        logger.info(f"Save results to {folder}")
-
         process_elements_filename = os.path.join(folder, 'process_elements.json')
         with open(process_elements_filename, 'w') as file:
             json.dump(process_elements, file, indent=4)
-
         relations_filename = os.path.join(folder, 'relations.json')
         with open(relations_filename, 'w') as file:
             json.dump(relations, file, indent=4)
+        logger.info(f"Saved results to {folder}")
 
         # run evaluation
-        logger.info(f"Run evaluation")
         if evaluate_token_cls:
+            logger.info(f"Run process element / token classification evaluation")
             BenchmarkApproach(approach_name=self.approach_name, predictions_file_or_folder=process_elements_filename)
             format_json_file(os.path.join(folder, f"results-{self.approach_name}.json"))
         if evaluate_relation_extraction:
+            logger.info(f"Run relation extraction evaluation")
             BenchmarkApproach(approach_name=self.approach_name, predictions_file_or_folder=relations_filename)
             format_json_file(os.path.join(folder, f"results-{self.approach_name}.json"))
+
+        # reset to standard value
+        self._log_document_level_details = True
 
     def process_document(self, doc_name: str) -> Tuple[List, List, List, List]:
         """
@@ -469,8 +477,9 @@ class KeywordApproach:
         :return: list of flows describing the whole document
         """
         gateway_flows = xor_flows + and_flows
-        logger.info(f"{len(gateway_flows)} gateway flows")
-        logger.info(f"{len(gold_activity_flows)} gold activity flows")
+        if self._log_document_level_details:
+            logger.info(f"{len(gateway_flows)} gateway flows")
+            logger.info(f"{len(gold_activity_flows)} gold activity flows")
 
         gateway_flows_source_entities = [flow[SOURCE_ENTITY] for flow in gateway_flows]
         # 1) gateway flows as basis
@@ -546,7 +555,8 @@ class KeywordApproach:
 
         # clear gateway frames of processed doc for next processing
         self._processed_doc_gateway_frames.clear()
-        logger.info(f"{len(doc_flows)} doc flows")
+        if self._log_document_level_details:
+            logger.info(f"{len(doc_flows)} doc flows")
         return doc_flows
 
     def _get_surrounding_activities(self, gateway: 'see _get_entity_dict documentation',
