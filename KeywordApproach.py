@@ -6,8 +6,10 @@ from petbenchmarks.relationsextraction import RelationsExtractionBenchmark
 import logging
 import json
 import os
-from typing import List, Tuple, Optional, Dict, Union
+import shutil
+from typing import List, Tuple, Optional, Dict
 from labels import *
+from utils import format_json_file
 
 logger = logging.getLogger('keyword approach')
 
@@ -42,23 +44,33 @@ class KeywordApproach:
         if self.output_format not in [PET, BENCHMARK]:
             raise ValueError(f"Output format must be {PET} or {BENCHMARK}")
 
-    def evaluate_documents(self, doc_names: List[str] = None) -> None:
+    def evaluate_documents(self, doc_names: List[str] = None,
+                           tcb: TokenClassificationBenchmark = None, reb: RelationsExtractionBenchmark = None,
+                           evaluate_token_cls: bool = True, evaluate_relation_extraction: bool = True) -> None:
         """
         run extraction and evaluation with petbenchmarks
         :param doc_names: list of document names to evaluate, use all as default value
+        :param tcb: TokenClassificationBenchmark instance
+        :param reb: RelationsExtractionBenchmark instance
+        :param evaluate_token_cls: flag to run evaluation of token classification or not
+        :param evaluate_relation_extraction: flag to run evaluation of relation extraction or not
         :return: nothing, results are written to .json file
         """
         if not doc_names:
             doc_names = pet_reader.document_names
-        logger.info(f"Start processing of {len(doc_names)} documents ...")
 
         # prepare evaluation structures to fill
-        tcb = TokenClassificationBenchmark()
+        if not tcb:
+            logger.info("Create TokenClassificationBenchmark ...")
+            tcb = TokenClassificationBenchmark()
         process_elements = tcb.GetEmptyPredictionsDict()
-        reb = RelationsExtractionBenchmark()
+        if not reb:
+            logger.info("Create RelationsExtractionBenchmark ...")
+            reb = RelationsExtractionBenchmark()
         relations = reb.GetEmptyPredictionsDict()
 
         # process all documents
+        logger.info(f"Start processing of {len(doc_names)} documents ...")
         for i, doc_name in enumerate(doc_names):
             if i % 5 == 0:
                 logger.info(f"Finished processing of {i} documents.")
@@ -69,19 +81,28 @@ class KeywordApproach:
             relations[doc_name][SAME_GATEWAY].extend(same_gateway_relations)
 
         # save results as json
-        folder = f'/data/results/{self.approach_name}/'
+        folder = f'data/results/{self.approach_name}/'
+        # clear directory first and then create new
+        shutil.rmtree(folder)
+        os.makedirs(folder, exist_ok=True)
         logger.info(f"Save results to {folder}")
+
         process_elements_filename = os.path.join(folder, 'process_elements.json')
-        relations_filename = os.path.join(folder, 'relations.json')
         with open(process_elements_filename, 'w') as file:
-            json.dump(process_elements, file)
+            json.dump(process_elements, file, indent=4)
+
+        relations_filename = os.path.join(folder, 'relations.json')
         with open(relations_filename, 'w') as file:
-            json.dump(relations, file)
+            json.dump(relations, file, indent=4)
 
         # run evaluation
         logger.info(f"Run evaluation")
-        BenchmarkApproach(approach_name=self.approach_name, predictions_file_or_folder=process_elements_filename)
-        BenchmarkApproach(approach_name=self.approach_name, predictions_file_or_folder=relations_filename)
+        if evaluate_token_cls:
+            BenchmarkApproach(approach_name=self.approach_name, predictions_file_or_folder=process_elements_filename)
+            format_json_file(os.path.join(folder, f"results-{self.approach_name}.json"))
+        if evaluate_relation_extraction:
+            BenchmarkApproach(approach_name=self.approach_name, predictions_file_or_folder=relations_filename)
+            format_json_file(os.path.join(folder, f"results-{self.approach_name}.json"))
 
     def process_document(self, doc_name: str) -> Tuple[List, List, List, List]:
         """
@@ -275,14 +296,14 @@ class KeywordApproach:
                     # check if fol. activities of g1 and g2 are equal -> if yes, the first branch is without activity
                     empty_branch = fa_g1[ELEMENT] == fa_g2[ELEMENT]
                     # 1) previous activity to first gateway -> split point (if not None because of document start)
-                    if pa_g1:
+                    if pa_g1[ELEMENT]:
                         sequence_flows.append(self._merge_flow(pa_g1, g1))
                     # 2) gateway 1 to following activity and following activity to activity after gateway (second
                     # following of g2) -> merge point
                     # if None because of empty branch then directly there
                     if not empty_branch and fa_g1[ELEMENT]:  # could be None if at document end
                         sequence_flows.append(self._merge_flow(g1, fa_g1))
-                        if ffa_g2:  # could be None if at document end
+                        if ffa_g2[ELEMENT]:  # could be None if at document end
                             sequence_flows.append(self._merge_flow(fa_g1, ffa_g2))
                     elif empty_branch and ffa_g2[ELEMENT]:  # could be None if at document end
                         sequence_flows.append(self._merge_flow(g1, ffa_g2))
@@ -297,8 +318,9 @@ class KeywordApproach:
                     same_gateway_relations.append(self._merge_flow(g1, g2))
 
                     # log gateway frame for later usage in flow merging of whole document
+                    closing = fa_g2 if fa_g2[ELEMENT] else g2
                     self._log_gateway_frame(g1[ELEMENT][0], g1[ELEMENT][1], g1,
-                                            fa_g2[ELEMENT][0], fa_g2[ELEMENT][1], fa_g2)
+                                            closing[ELEMENT][0], closing[ELEMENT][1], closing)
 
         # RULE 2): exclusive actions of common pattern "... <activity> ... or ... <activity> ..."
         for g in gateways:
@@ -316,13 +338,13 @@ class KeywordApproach:
 
                         # B) connect elements to sequence flows
                         # 1) second previous activity to gateway -> split point
-                        if ppa:  # (if not None because of document start)
+                        if ppa[ELEMENT]:  # (if not None because of document start)
                             sequence_flows.append(self._merge_flow(ppa, g))
                         # 2) gateway to following activity and previous activity -> exclusive branches
-                        sequence_flows.append(self._merge_flow(g, ppa))
+                        sequence_flows.append(self._merge_flow(g, pa))
                         sequence_flows.append(self._merge_flow(g, fa))
                         # 3) exclusive activities to second following activity of gateway -> merge point
-                        if ffa:  # (if not None because of document end)
+                        if ffa[ELEMENT]:  # (if not None because of document end)
                             sequence_flows.append(self._merge_flow(pa, ffa))
                             sequence_flows.append(self._merge_flow(fa, ffa))
 

@@ -57,10 +57,10 @@ class PetReader:
     def get_index_enriched_activities(self, doc_name: str) -> List[List[Tuple[str, int]]]:
         """
         Return activities of a document. Tokens get enriched with a position resulting in a tuple
-        :param doc_id: document id as integer
+        :param doc_name: document name
         :return: list of activities (represented as tuple) for each sentence
         """
-        doc_activities = PetReader.token_dataset.GetDocumentActivities(doc_name)
+        doc_activities = PetReader.token_dataset.GetActivities(doc_name)
         doc_sentence_ner_labels = PetReader.relations_dataset.GetSentencesWithIdsAndNerTagLabels(
             self.get_document_number(doc_name))
 
