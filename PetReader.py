@@ -2,10 +2,16 @@ import itertools
 from typing import List, Tuple
 from petreader.RelationsExtraction import RelationsExtraction
 from petreader.TokenClassification import TokenClassification
+import logging
+
+
+logger = logging.getLogger('PetReader')
 
 
 class PetReader:
+    logger.info("Load RelationsExtraction dataset ...")
     relations_dataset = RelationsExtraction()
+    logger.info("Load TokenClassification dataset ...")
     token_dataset = TokenClassification()
 
     def __init__(self):

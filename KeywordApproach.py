@@ -48,14 +48,11 @@ class KeywordApproach:
             raise ValueError(f"Output format must be {PET} or {BENCHMARK}")
 
     def evaluate_documents(self, doc_names: List[str] = None, log_document_details: bool = False,
-                           tcb: TokenClassificationBenchmark = None, reb: RelationsExtractionBenchmark = None,
                            evaluate_token_cls: bool = True, evaluate_relation_extraction: bool = True) -> None:
         """
         run extraction and evaluation with petbenchmarks
         :param doc_names: list of document names to evaluate, use all as default value
         :param log_document_details: flag if document level results of extractions should be logged
-        :param tcb: TokenClassificationBenchmark instance
-        :param reb: RelationsExtractionBenchmark instance
         :param evaluate_token_cls: flag to run evaluation of token classification or not
         :param evaluate_relation_extraction: flag to run evaluation of relation extraction or not
         :return: nothing, results are written to .json file
@@ -65,14 +62,14 @@ class KeywordApproach:
             doc_names = pet_reader.document_names
 
         # prepare evaluation structures to fill
-        if not tcb:
+        if evaluate_token_cls:
             logger.info("Create TokenClassificationBenchmark ...")
-            tcb = TokenClassificationBenchmark()
-        process_elements = tcb.GetEmptyPredictionsDict()
-        if not reb:
+            tcb = TokenClassificationBenchmark(pet_dataset=pet_reader.token_dataset)
+            process_elements = tcb.GetEmptyPredictionsDict()
+        if evaluate_relation_extraction:
             logger.info("Create RelationsExtractionBenchmark ...")
-            reb = RelationsExtractionBenchmark()
-        relations = reb.GetEmptyPredictionsDict()
+            reb = RelationsExtractionBenchmark(pet_dataset=pet_reader.relations_dataset)
+            relations = reb.GetEmptyPredictionsDict()
 
         # process all documents
         logger.info(f"Start processing of {len(doc_names)} documents ...")
@@ -80,10 +77,12 @@ class KeywordApproach:
             if i % 5 == 0 and i != 0:
                 logger.info(f"Finished processing of {i} documents.")
             xor_gateways, and_gateways, doc_flows, same_gateway_relations = self.process_document(doc_name)
-            process_elements[doc_name][XOR_GATEWAY].extend(xor_gateways)
-            process_elements[doc_name][AND_GATEWAY].extend(and_gateways)
-            relations[doc_name][FLOW].extend(doc_flows)
-            relations[doc_name][SAME_GATEWAY].extend(same_gateway_relations)
+            if evaluate_token_cls:
+                process_elements[doc_name][XOR_GATEWAY].extend(xor_gateways)
+                process_elements[doc_name][AND_GATEWAY].extend(and_gateways)
+            if evaluate_relation_extraction:
+                relations[doc_name][FLOW].extend(doc_flows)
+                relations[doc_name][SAME_GATEWAY].extend(same_gateway_relations)
         logger.info(f"Finished processing of documents")
 
         # save results as json
@@ -91,22 +90,39 @@ class KeywordApproach:
         # clear directory first and then create new
         shutil.rmtree(folder)
         os.makedirs(folder, exist_ok=True)
-        process_elements_filename = os.path.join(folder, 'process_elements.json')
-        with open(process_elements_filename, 'w') as file:
-            json.dump(process_elements, file, indent=4)
-        relations_filename = os.path.join(folder, 'relations.json')
-        with open(relations_filename, 'w') as file:
-            json.dump(relations, file, indent=4)
+        if evaluate_token_cls:
+            process_elements_filename = os.path.join(folder, 'process_elements.json')
+            with open(process_elements_filename, 'w') as file:
+                json.dump(process_elements, file, indent=4)
+        if evaluate_relation_extraction:
+            relations_filename = os.path.join(folder, 'relations.json')
+            with open(relations_filename, 'w') as file:
+                json.dump(relations, file, indent=4)
         logger.info(f"Saved results to {folder}")
+
+        """
+        Params of BenchmarkApproach
+        approach_name:  (str) the name of the approach benchmarked
+        predictions_file_or_folder: (str) path to predictions.
+                                    it can be either a file or a folder containing results files
+        output_results: (str) the path to the results file to store
+        relax_window: (int) the number of words to consider when relaxing comparison
+        strategy: (str) the strategy adopted to perform comparisong.
+                        'lr': left-right
+                        'l' : left
+                        'r' : right
+        """
 
         # run evaluation
         if evaluate_token_cls:
             logger.info(f"Run process element / token classification evaluation")
-            BenchmarkApproach(approach_name=self.approach_name, predictions_file_or_folder=process_elements_filename)
+            BenchmarkApproach(approach_name=self.approach_name, predictions_file_or_folder=process_elements_filename,
+                              pet_dataset=pet_reader.token_dataset)
             format_json_file(os.path.join(folder, f"results-{self.approach_name}.json"))
         if evaluate_relation_extraction:
             logger.info(f"Run relation extraction evaluation")
-            BenchmarkApproach(approach_name=self.approach_name, predictions_file_or_folder=relations_filename)
+            BenchmarkApproach(approach_name=self.approach_name, predictions_file_or_folder=relations_filename,
+                              pet_dataset=pet_reader.relations_dataset)
             format_json_file(os.path.join(folder, f"results-{self.approach_name}.json"))
 
         # reset to standard value
@@ -778,13 +794,15 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     keyword_approach = KeywordApproach(approach_name='key_words_literature', keywords=LITERATURE,
                                        same_xor_gateway_threshold=1, output_format=BENCHMARK)
-    # keyword_approach.evaluate_documents()
+    if True:
+        doc_names = ['doc-3.2']
+        keyword_approach.evaluate_documents(doc_names, evaluate_token_cls=True, evaluate_relation_extraction=True)
 
     # 'doc-1.1' for and gateway
     # 'doc-3.2' for exclusive gateway with two branches and overlapping concurrent gateway -> presentation candidate
     # 'doc-10.2' for or gateway in sentence
     # 'doc-9.5' for single exclusive gateway and two exclusive gateways with each two branches -> presentation candidate
-    if True:
+    if False:
         doc_name = 'doc-3.2'
 
         xor_gateways, and_gateways, doc_flows, same_gateway_relations = keyword_approach.process_document(doc_name)

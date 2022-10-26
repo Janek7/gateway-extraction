@@ -3,6 +3,7 @@
 __pycache__/
 results/
 data/logs/
+data/other/
 lib
 test*.py
 debug*.py
