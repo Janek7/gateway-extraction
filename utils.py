@@ -1,8 +1,59 @@
 import json
 import os
 import pickle
+from typing import List, Tuple
+import logging
 
 from petreader.labels import *
+from labels import *
+from PetReader import pet_reader
+
+logger = logging.getLogger('utilities')
+logging.basicConfig(level=logging.INFO)
+
+
+def read_and_set_keywords(keywords: str) -> Tuple[List[str], List[str]]:
+    """
+    load and return key word lists based on passed variant
+    :return: two list
+    """
+    logger.info(f"Load keywords '{keywords}' ...")
+    if keywords == LITERATURE:
+        # based on key words proposals of Ferreira et al. 2017
+        with open('data/keywords/literature_xor.txt') as file:
+            xor_keywords = file.read().splitlines()
+
+        with open('data/keywords/literature_and.txt') as file:
+            and_keywords = file.read().splitlines()
+
+    elif keywords == GOLD:
+        xor_keywords = pet_reader.xor_key_words_gold
+        and_keywords = pet_reader.and_key_words_gold
+
+    elif keywords == OWN:
+        raise NotImplementedError("Own keywords not implemented yet")
+
+    xor_keywords.sort()
+    and_keywords.sort()
+
+    logger.info(f"Loaded {len(xor_keywords)} XOR and {len(and_keywords)} AND keywords ({keywords})")
+    logger.info(f"Used XOR keywords: {xor_keywords}")
+    logger.info(f"Used AND keywords: {and_keywords}")
+
+    return xor_keywords, and_keywords
+
+
+def read_contradictory_gateways():
+    """
+    read pairs of contradictory exclusive gateway key words from file
+    sort to prefer longer matching phrases during search
+    :return: list of pairs
+    """
+    with open('data/keywords/contradictory_gateways_gold.txt') as file:
+        contradictory_gateways = [[x.split(" ") for x in l.strip().split(";")] for l in file.readlines()]
+        contradictory_gateways.sort(key=lambda pair: len(pair[0]) + len(pair[1]), reverse=True)
+        return contradictory_gateways
+
 
 def format_json_file(filename: str, indent: int = 4) -> None:
     """

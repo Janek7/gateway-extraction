@@ -9,7 +9,7 @@ import os
 import shutil
 from typing import List, Tuple, Optional, Dict
 from labels import *
-from utils import format_json_file
+from utils import format_json_file, read_contradictory_gateways, read_and_set_keywords
 
 logger = logging.getLogger('keyword approach')
 
@@ -31,11 +31,8 @@ class KeywordApproach:
         self.keywords = keywords
         self._same_xor_gateway_threshold = same_xor_gateway_threshold
         self.output_format = output_format
-        self._xor_keywords = None
-        self._and_keywords = None
-        self._contradictory_gateways = None
-        self._read_and_set_keywords()
-        self._read_contradictory_gateways()
+        self._xor_keywords, self._and_keywords = read_and_set_keywords(self.keywords)
+        self._contradictory_gateways = read_contradictory_gateways()
         self._processed_doc_gateway_frames = []
         # flag if details of extractions should be logged for each document
         # default = True; temporarily False during evaluating all documents
@@ -88,16 +85,20 @@ class KeywordApproach:
         # save results as json
         folder = f'data/results/{self.approach_name}/'
         # clear directory first and then create new
-        shutil.rmtree(folder)
+        if os.path.isdir(folder):
+            shutil.rmtree(folder)
         os.makedirs(folder, exist_ok=True)
+
         if evaluate_token_cls:
-            process_elements_filename = os.path.join(folder, 'process_elements.json')
+            process_elements_filename = os.path.join(folder, 'token-classification.json')
             with open(process_elements_filename, 'w') as file:
                 json.dump(process_elements, file, indent=4)
+
         if evaluate_relation_extraction:
-            relations_filename = os.path.join(folder, 'relations.json')
+            relations_filename = os.path.join(folder, 'relations-extraction-prediction.json')
             with open(relations_filename, 'w') as file:
                 json.dump(relations, file, indent=4)
+
         logger.info(f"Saved results to {folder}")
 
         """
@@ -118,12 +119,12 @@ class KeywordApproach:
             logger.info(f"Run process element / token classification evaluation")
             BenchmarkApproach(approach_name=self.approach_name, predictions_file_or_folder=process_elements_filename,
                               pet_dataset=pet_reader.token_dataset)
-            format_json_file(os.path.join(folder, f"results-{self.approach_name}.json"))
+            format_json_file(os.path.join(folder, f"results-token-classification-{self.approach_name}.json"))
         if evaluate_relation_extraction:
             logger.info(f"Run relation extraction evaluation")
             BenchmarkApproach(approach_name=self.approach_name, predictions_file_or_folder=relations_filename,
                               pet_dataset=pet_reader.relations_dataset)
-            format_json_file(os.path.join(folder, f"results-{self.approach_name}.json"))
+            format_json_file(os.path.join(folder, f"results-relations-extraction-prediction-{self.approach_name}.json"))
 
         # reset to standard value
         self._log_document_level_details = True
@@ -597,7 +598,7 @@ class KeywordApproach:
 
     def _get_previous_activity(self, sentence_idx: int, token_idx: int,
                                doc_activity_tokens: List[List[Tuple[str, int]]], skip_first: bool = False,
-                               one_already_found: bool = False) -> Optional[Tuple[int, int, str]]:
+                               one_already_found: bool = False) -> Tuple[int, int, str]:
         """
         search recursive for the second last previous activity from a start point defined by sentence_idx and token_idx
         :param sentence_idx: sentence index where to start the search
@@ -752,51 +753,14 @@ class KeywordApproach:
             END_ENTITY: end_entity,
         })
 
-    def _read_and_set_keywords(self) -> None:
-        """
-        load and set key word lists based on passed variant
-        :return:
-        """
-        logger.info(f"Load keywords '{self.keywords}' ...")
-        if self.keywords == LITERATURE:
-            # based on key words proposals of Ferreira et al. 2017
-            with open('data/keywords/literature_xor.txt') as file:
-                self._xor_keywords = file.read().splitlines()
-
-            with open('data/keywords/literature_and.txt') as file:
-                self._and_keywords = file.read().splitlines()
-
-        elif self.keywords == GOLD:
-            self._xor_keywords = pet_reader.xor_key_words_gold
-            self._and_keywords = pet_reader.and_key_words_gold
-
-        elif self.keywords == OWN:
-            raise NotImplementedError("Own keywords not implemented yet")
-
-        self._xor_keywords.sort()
-        self._and_keywords.sort()
-        logger.info(f"Loaded {len(self._xor_keywords)} XOR and {len(self._and_keywords)} AND keywords")
-        logger.info(f"Used XOR keywords: {self._xor_keywords}")
-        logger.info(f"Used AND keywords: {self._and_keywords}")
-
-    def _read_contradictory_gateways(self):
-        """
-        read pairs of contradictory exclusive gateway key words from file
-        sort to prefer longer matching phrases during search
-        :return:
-        """
-        with open('data/keywords/contradictory_gateways_gold.txt') as file:
-            self._contradictory_gateways = [[x.split(" ") for x in l.strip().split(";")] for l in file.readlines()]
-            self._contradictory_gateways.sort(key=lambda pair: len(pair[0]) + len(pair[1]), reverse=True)
-
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    keyword_approach = KeywordApproach(approach_name='key_words_literature', keywords=LITERATURE,
+    keyword_approach = KeywordApproach(approach_name='key_words_gold', keywords=GOLD,
                                        same_xor_gateway_threshold=1, output_format=BENCHMARK)
     if True:
-        doc_names = ['doc-3.2']
-        keyword_approach.evaluate_documents(doc_names, evaluate_token_cls=True, evaluate_relation_extraction=True)
+        # doc_names = ['doc-3.2']
+        keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
 
     # 'doc-1.1' for and gateway
     # 'doc-3.2' for exclusive gateway with two branches and overlapping concurrent gateway -> presentation candidate

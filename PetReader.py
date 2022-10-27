@@ -4,7 +4,7 @@ from petreader.RelationsExtraction import RelationsExtraction
 from petreader.TokenClassification import TokenClassification
 import logging
 
-
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('PetReader')
 
 
