@@ -1,12 +1,11 @@
 import json
 import os
 import pickle
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 import logging
 
 from petreader.labels import *
 from labels import *
-from PetReader import pet_reader
 
 logger = logging.getLogger('utilities')
 logging.basicConfig(level=logging.INFO)
@@ -27,6 +26,7 @@ def read_and_set_keywords(keywords: str) -> Tuple[List[str], List[str]]:
             and_keywords = file.read().splitlines()
 
     elif keywords == GOLD:
+        from PetReader import pet_reader
         xor_keywords = pet_reader.xor_key_words_gold
         and_keywords = pet_reader.and_key_words_gold
 
@@ -43,7 +43,7 @@ def read_and_set_keywords(keywords: str) -> Tuple[List[str], List[str]]:
     return xor_keywords, and_keywords
 
 
-def read_contradictory_gateways():
+def read_contradictory_gateways() -> List[Tuple[List[str], List[str]]]:
     """
     read pairs of contradictory exclusive gateway key words from file
     sort to prefer longer matching phrases during search
@@ -51,6 +51,7 @@ def read_contradictory_gateways():
     """
     with open('data/keywords/contradictory_gateways_gold.txt') as file:
         contradictory_gateways = [[x.split(" ") for x in l.strip().split(";")] for l in file.readlines()]
+        logger.info(f"Loaded {len(contradictory_gateways)} pairs of contradictory keywords")
         contradictory_gateways.sort(key=lambda pair: len(pair[0]) + len(pair[1]), reverse=True)
         return contradictory_gateways
 
@@ -92,6 +93,11 @@ def load_pickle(filename: str) -> object:
     """
     with open(os.path.abspath(filename), 'rb') as file:
         return pickle.load(file)
+
+
+def read_json_to_dict(filename: str) -> Dict:
+    with open(filename, 'r') as file:
+        return json.load(file)
 
 
 def goldstandards_to_json(objects: str = 'relevant') -> None:
