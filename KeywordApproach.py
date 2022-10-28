@@ -7,6 +7,7 @@ import logging
 import json
 import os
 import shutil
+import itertools
 from typing import List, Tuple, Optional, Dict
 from labels import *
 from utils import format_json_file, read_contradictory_gateways, read_and_set_keywords
@@ -83,23 +84,23 @@ class KeywordApproach:
         logger.info(f"Finished processing of documents")
 
         # save results as json
-        folder = f'data/results/{self.approach_name}/'
+        results_folder = f'data/results/{self.approach_name}/'
         # clear directory first and then create new
-        if os.path.isdir(folder):
-            shutil.rmtree(folder)
-        os.makedirs(folder, exist_ok=True)
+        if os.path.isdir(results_folder):
+            shutil.rmtree(results_folder)
+        os.makedirs(results_folder, exist_ok=True)
 
         if evaluate_token_cls:
-            process_elements_filename = os.path.join(folder, 'token-classification.json')
+            process_elements_filename = os.path.join(results_folder, 'token-classification.json')
             with open(process_elements_filename, 'w') as file:
                 json.dump(process_elements, file, indent=4)
 
         if evaluate_relation_extraction:
-            relations_filename = os.path.join(folder, 'relations-extraction-prediction.json')
+            relations_filename = os.path.join(results_folder, 'relations-extraction-prediction.json')
             with open(relations_filename, 'w') as file:
                 json.dump(relations, file, indent=4)
 
-        logger.info(f"Saved results to {folder}")
+        logger.info(f"Saved results to {results_folder}")
 
         """
         Params of BenchmarkApproach
@@ -115,16 +116,21 @@ class KeywordApproach:
         """
 
         # run evaluation
+        # a) token classification
         if evaluate_token_cls:
             logger.info(f"Run process element / token classification evaluation")
+            output_results = os.path.join(results_folder, "results-token-classification")
             BenchmarkApproach(approach_name=self.approach_name, predictions_file_or_folder=process_elements_filename,
-                              pet_dataset=pet_reader.token_dataset)
-            format_json_file(os.path.join(folder, f"results-token-classification-{self.approach_name}.json"))
+                              output_results=output_results, pet_dataset=pet_reader.token_dataset)
+            format_json_file(output_results + '.json')
+
+        # b) relations extraction
         if evaluate_relation_extraction:
             logger.info(f"Run relation extraction evaluation")
+            output_results = os.path.join(results_folder, "results-relations-extraction")
             BenchmarkApproach(approach_name=self.approach_name, predictions_file_or_folder=relations_filename,
-                              pet_dataset=pet_reader.relations_dataset)
-            format_json_file(os.path.join(folder, f"results-relations-extraction-prediction-{self.approach_name}.json"))
+                              output_results=output_results, pet_dataset=pet_reader.relations_dataset)
+            format_json_file(output_results + '.json')
 
         # reset to standard value
         self._log_document_level_details = True
@@ -166,6 +172,8 @@ class KeywordApproach:
                             gateway_tokens.append(sentence_gateways[i][0])
                             i += 1
                         results.append(gateway_tokens)
+                # after RECALL != 1 fix, flattened list is expected from petbenchmarks
+                results = list(itertools.chain(*results))
                 return results
             xor_gateways = gateways_to_benchmark(xor_gateways)
             and_gateways = gateways_to_benchmark(and_gateways)
@@ -756,7 +764,7 @@ class KeywordApproach:
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    keyword_approach = KeywordApproach(approach_name='key_words_gold', keywords=GOLD,
+    keyword_approach = KeywordApproach(approach_name='key_words_literature', keywords=LITERATURE,
                                        same_xor_gateway_threshold=1, output_format=BENCHMARK)
     if True:
         # doc_names = ['doc-3.2']
