@@ -11,7 +11,7 @@ logger = logging.getLogger('utilities')
 logging.basicConfig(level=logging.INFO)
 
 
-def read_and_set_keywords(keywords: str) -> Tuple[List[str], List[str]]:
+def read_keywords(keywords: str) -> Tuple[List[str], List[str]]:
     """
     load and return key word lists based on passed variant
     :return: two list
@@ -41,6 +41,22 @@ def read_and_set_keywords(keywords: str) -> Tuple[List[str], List[str]]:
     logger.info(f"Used AND keywords: {and_keywords}")
 
     return xor_keywords, and_keywords
+
+
+def write_gold_keywords_to_files() -> None:
+    """
+    write gold keywords to files
+    :return:
+    """
+    from PetReader import pet_reader
+
+    with open(r'data/keywords/gold_xor.txt', 'w') as file:
+        for keyword in sorted(pet_reader.xor_key_words_gold):
+            file.write("%s\n" % keyword)
+
+    with open(r'data/keywords/gold_and.txt', 'w') as file:
+        for keyword in sorted(pet_reader.and_key_words_gold):
+            file.write("%s\n" % keyword)
 
 
 def read_contradictory_gateways() -> List[Tuple[List[str], List[str]]]:

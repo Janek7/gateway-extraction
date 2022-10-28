@@ -1,11 +1,11 @@
-while
-meanwhile
-in parallel
-concurrently
-meantime
-in the meantime
-in parallel with this
-in addition to
-simultaneously
 at the same time
+concurrently
+in addition to
+in parallel
+in parallel with this
+in the meantime
+meantime
+meanwhile
+simultaneously
 whereas
+while

@@ -1,15 +1,15 @@
+either
+else
 if
-whether
 if not
-or
 in case
 in case of
-otherwise
-either
 only
-till
-until
-unless
-when
 only if
-else
+or
+otherwise
+till
+unless
+until
+when
+whether

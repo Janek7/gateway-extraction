@@ -10,7 +10,7 @@ import shutil
 import itertools
 from typing import List, Tuple, Optional, Dict
 from labels import *
-from utils import format_json_file, read_contradictory_gateways, read_and_set_keywords
+from utils import format_json_file, read_contradictory_gateways, read_keywords
 
 logger = logging.getLogger('keyword approach')
 
@@ -32,7 +32,7 @@ class KeywordApproach:
         self.keywords = keywords
         self._same_xor_gateway_threshold = same_xor_gateway_threshold
         self.output_format = output_format
-        self._xor_keywords, self._and_keywords = read_and_set_keywords(self.keywords)
+        self._xor_keywords, self._and_keywords = read_keywords(self.keywords)
         self._contradictory_gateways = read_contradictory_gateways()
         self._processed_doc_gateway_frames = []
         # flag if details of extractions should be logged for each document
