@@ -1,0 +1,24 @@
+either;literature;keep
+else;literature;keep
+if;literature;keep
+if not;literature;keep
+in case;literature;keep
+in case of;literature;keep
+only;literature;keep
+only if;literature;keep
+or;literature;keep
+otherwise;literature;keep
+till;literature;keep
+whether;literature;drop
+when;literature;drop
+only;literature;drop
+until;literature;drop
+if not;literature;drop
+unless;literature;drop
+for;gold;drop
+it can also happen that;gold;keep
+under certain circumstances;gold;keep
+for each patient for which;gold;keep
+should;gold;keep
+sometimes;gold;keep
+whereas;gold;keep

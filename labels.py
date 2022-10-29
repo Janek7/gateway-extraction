@@ -2,7 +2,7 @@
 LITERATURE = 'literature'
 LITERATURE_FILTERED = 'literature_filtered'
 GOLD = 'gold'
-OWN = 'own'
+CUSTOM = 'own'
 
 # output formats
 PET = 'pet'

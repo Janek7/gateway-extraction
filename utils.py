@@ -2,7 +2,7 @@ import itertools
 import json
 import os
 import pickle
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, IO
 import logging
 
 from petreader.labels import *
@@ -41,8 +41,23 @@ def read_keywords(keywords: str, token_flattened: bool = False) -> Tuple[List[st
         xor_keywords = pet_reader.xor_key_words_gold
         and_keywords = pet_reader.and_key_words_gold
 
-    elif keywords == OWN:
-        raise NotImplementedError("Own keywords not implemented yet")
+    elif keywords == CUSTOM:
+
+        def read_custom_file(file: IO) -> List[str]:
+            """
+            read file in csv format -> cols: phrase;source;keep
+            include just the phrases that have third column on 'keep' -> omit 'drop' phrases
+            :param file: file object
+            :return:
+            """
+            return [kw_phrase.split(";")[0] for kw_phrase in file.read().splitlines()
+                    if kw_phrase.split(";")[2] == "keep"]
+
+        with open('data/keywords/custom_xor.csv') as file:
+            xor_keywords = read_custom_file(file)
+
+        with open('data/keywords/custom_and.csv') as file:
+            and_keywords = read_custom_file(file)
 
     if token_flattened:
         xor_keywords = list(set(itertools.chain(*[keyword.split(" ") for keyword in xor_keywords])))
@@ -160,4 +175,7 @@ def goldstandards_to_json(objects: str = 'relevant') -> None:
 
 
 if __name__ == '__main__':
-    goldstandards_to_json()
+    # goldstandards_to_json()
+    xor_keywords, and_keywords = read_keywords(CUSTOM)
+    print(xor_keywords)
+    print(and_keywords)
