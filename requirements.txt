@@ -3,3 +3,5 @@ transformers~=4.20.1
 petdatasetreader
 petbenchmarks
 tensorflow-addons~=0.18.0
+pandas
+openpyxl

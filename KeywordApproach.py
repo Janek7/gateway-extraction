@@ -40,7 +40,7 @@ class KeywordApproach:
         self._log_document_level_details = True
 
         # check string parameters for valid values
-        if self.keywords not in [LITERATURE, GOLD, OWN]:
+        if self.keywords not in [LITERATURE, LITERATURE_FILTERED, GOLD, OWN]:
             raise ValueError(f"Key words must be {LITERATURE} or {GOLD}")
         if self.output_format not in [PET, BENCHMARK]:
             raise ValueError(f"Output format must be {PET} or {BENCHMARK}")
@@ -764,7 +764,7 @@ class KeywordApproach:
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    keyword_approach = KeywordApproach(approach_name='key_words_literature', keywords=LITERATURE,
+    keyword_approach = KeywordApproach(approach_name='key_words_literature_filtered', keywords=LITERATURE_FILTERED,
                                        same_xor_gateway_threshold=1, output_format=BENCHMARK)
     if True:
         # doc_names = ['doc-3.2']

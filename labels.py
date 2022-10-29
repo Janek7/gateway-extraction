@@ -1,5 +1,6 @@
 # set of keywords available
 LITERATURE = 'literature'
+LITERATURE_FILTERED = 'literature_filtered'
 GOLD = 'gold'
 OWN = 'own'
 

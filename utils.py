@@ -1,3 +1,4 @@
+import itertools
 import json
 import os
 import pickle
@@ -11,9 +12,11 @@ logger = logging.getLogger('utilities')
 logging.basicConfig(level=logging.INFO)
 
 
-def read_keywords(keywords: str) -> Tuple[List[str], List[str]]:
+def read_keywords(keywords: str, token_flattened: bool = False) -> Tuple[List[str], List[str]]:
     """
     load and return key word lists based on passed variant
+    :param keywords: string constant which set to load
+    :param token_flattened: flag if keywords should be splitted into tokens
     :return: two list
     """
     logger.info(f"Load keywords '{keywords}' ...")
@@ -25,6 +28,14 @@ def read_keywords(keywords: str) -> Tuple[List[str], List[str]]:
         with open('data/keywords/literature_and.txt') as file:
             and_keywords = file.read().splitlines()
 
+    elif keywords == LITERATURE_FILTERED:
+        # based on key words proposals of Ferreira et al. 2017 (filtered
+        with open('data/keywords/literature_xor_filtered.txt') as file:
+            xor_keywords = file.read().splitlines()
+
+        with open('data/keywords/literature_and_filtered.txt') as file:
+            and_keywords = file.read().splitlines()
+
     elif keywords == GOLD:
         from PetReader import pet_reader
         xor_keywords = pet_reader.xor_key_words_gold
@@ -32,6 +43,10 @@ def read_keywords(keywords: str) -> Tuple[List[str], List[str]]:
 
     elif keywords == OWN:
         raise NotImplementedError("Own keywords not implemented yet")
+
+    if token_flattened:
+        xor_keywords = list(set(itertools.chain(*[keyword.split(" ") for keyword in xor_keywords])))
+        and_keywords = list(set(itertools.chain(*[keyword.split(" ") for keyword in and_keywords])))
 
     xor_keywords.sort()
     and_keywords.sort()
