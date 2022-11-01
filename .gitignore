@@ -3,6 +3,7 @@
 __pycache__/
 results/
 data/logs/
+data/logs_server/
 scripts/data/logs/
 data/other/
 lib

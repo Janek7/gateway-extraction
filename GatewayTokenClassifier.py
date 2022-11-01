@@ -6,6 +6,7 @@ import os
 import datetime
 import re
 import logging
+from typing import List
 
 import numpy as np
 import tensorflow as tf
@@ -36,6 +37,7 @@ class GatewayTokenClassifier(tf.keras.Model):
 
     def __init__(self, args: argparse.Namespace, model, train_dataset: tf.data.Dataset,
                  extra_head: bool = False) -> None:
+        self.extra_head = extra_head
 
         # A) OPTIMIZER
         optimizer, lr_schedule = transformers.create_optimizer(
@@ -68,6 +70,49 @@ class GatewayTokenClassifier(tf.keras.Model):
         # token_cls_model.summary()
         # self.summary()
 
+    def predict(self, X: tf.data.Dataset, X_word_ids: List[List[int]], word_ids_start_idx: int = 0)\
+            -> List[List[int]]:
+        """
+        create predictions for given data; output is one (numerical) label for each input token
+        :param X: dataset
+        :param X_word_ids:
+        :param word_ids_start_idx:
+        :return:
+        """
+        predictions = super().predict(X)
+
+        converted_results = []  # list (for each sample): a dict with word_id: predicted class(es))
+
+        for i, sample in enumerate(predictions):
+
+            sample_word_ids = X_word_ids[word_ids_start_idx + i]
+            important_token_pairs = [(i, word_id) for i, word_id in enumerate(sample_word_ids) if word_id != None]
+
+            converted_sample = {}
+            # store prediction(s) for every original word
+            for token_index, word_id in important_token_pairs:
+                token_prediction = np.argmax(sample[token_index])
+                if word_id not in converted_sample:
+                    converted_sample[word_id] = [token_prediction]
+                else:
+                    converted_sample[word_id].append(token_prediction)
+
+            # merge predictions (possible/necessary if multiple BERT-tokens are mapped to one input word)
+            for word_id, token_predictions in converted_sample.items():
+                token_predictions = list(set(token_predictions))
+                # if different labels were predicted, take the highest => 3 (AND) > 2 (XOR) > 1(other)
+                if len(token_predictions) > 1:
+                    token_predictions.sort(reverse=True)
+                    token_predictions = token_predictions[:1]
+                converted_sample[word_id] = token_predictions[0]
+            converted_sample = [(idx, label) for idx, label in converted_sample.items()]
+            # assure sort by index after extracting from (unordered?) dict
+            converted_sample.sort(key=lambda idx_label_pair: idx_label_pair[0])
+            # reduce to ordered list of labels
+            converted_sample = [label for idx, label in converted_sample]
+            converted_results.append(converted_sample)
+
+        return converted_results
 
 def simple_training(args: argparse.Namespace, token_cls_model, tokenizer) -> None:
     """
@@ -169,7 +214,7 @@ def cross_validation(args: argparse.Namespace, token_cls_model, tokenizer) -> No
         json.dump(metrics_per_fold, file, indent=4)
 
 
-def main(args: argparse.Namespace) -> None:
+def train_routine(args: argparse.Namespace) -> None:
     # Fix random seeds and threads
     tf.random.set_seed(args.seed)
     tf.keras.utils.set_random_seed(args.seed)
@@ -207,4 +252,4 @@ def main(args: argparse.Namespace) -> None:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     args = parser.parse_args([] if "__file__" not in globals() else None)
-    main(args)
+    train_routine(args)

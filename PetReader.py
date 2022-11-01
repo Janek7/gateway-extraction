@@ -48,6 +48,14 @@ class PetReader:
         """
         return self.token_dataset.GetDocumentText(doc_name)
 
+    def get_doc_sample_ids(self, doc_name: str) -> List[int]:
+        """
+        return the sample/sentence IDs belonging to the given doc_name
+        :param doc_name: doc name
+        :return: list of sample IDs
+        """
+        return self.token_dataset.get_n_sample_of_a_document(doc_name)
+
     def get_doc_sentences(self, doc_name: str) -> List[List[str]]:
         """
         return text of a document as list of samples/sentences

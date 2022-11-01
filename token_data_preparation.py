@@ -1,6 +1,5 @@
 import tensorflow as tf
 import transformers
-from petreader.labels import *
 from sklearn.model_selection import KFold
 from transformers import BatchEncoding
 
@@ -12,15 +11,16 @@ from typing import Tuple, List
 logger = logging.getLogger('Data Preparation')
 
 
-def get_tokens_labels_weights(tokenizer: transformers.PreTrainedTokenizerFast, other_labels_weight: float,
-                              label_set: str = 'filtered') -> Tuple[BatchEncoding, tf.Tensor, tf.Tensor]:
+def preprocess_tokenization_data(tokenizer: transformers.PreTrainedTokenizerFast, other_labels_weight: float,
+                                 label_set: str = 'filtered') \
+        -> Tuple[BatchEncoding, tf.Tensor, tf.Tensor, List[List[int]]]:
     """
     create token classification samples from whole PET dataset -> samples (tokens) and their labels and weights for
     usage in a tensorflow dataset
     :param tokenizer:
     :param other_labels_weight: sample weight to assign samples with tokens != gateway tokens
     :param label_set: flag if to use all labels ('all') or only gateway labels and one rest label ('filtered')
-    :return: tokens, labels and weights as tensors
+    :return: tokens, labels & weights as tensors, original word ids (2-dim integer list)
     """
     sample_numbers = pet_reader.token_dataset.GetRandomizedSampleNumbers()
     sample_dicts = [pet_reader.token_dataset.GetSampleDictWithNerLabels(sample_number) for sample_number in
@@ -89,7 +89,7 @@ def get_tokens_labels_weights(tokenizer: transformers.PreTrainedTokenizerFast, o
 
     dataset_labels = tf.constant(dataset_labels)
     dataset_sample_weights = tf.constant(dataset_sample_weights)
-    return dataset_tokens, dataset_labels, dataset_sample_weights
+    return dataset_tokens, dataset_labels, dataset_sample_weights, dataset_word_ids
 
 
 def create_token_classification_dataset_cv(tokenizer: transformers.PreTrainedTokenizerFast, other_labels_weight: float,
@@ -105,7 +105,7 @@ def create_token_classification_dataset_cv(tokenizer: transformers.PreTrainedTok
     :param batch_size: apply batching to size if given
     :return: list of tuples (train, dev) as tf.data.Dataset objects
     """
-    tokens, labels, sample_weights = get_tokens_labels_weights(tokenizer, other_labels_weight, label_set)
+    tokens, labels, sample_weights, _ = preprocess_tokenization_data(tokenizer, other_labels_weight, label_set)
 
     # shuffle inputs before splitting in train/dev
     indices = tf.range(start=0, limit=tokens['input_ids'].shape[0], dtype=tf.int32)
@@ -155,7 +155,7 @@ def create_token_classification_dataset(tokenizer: transformers.PreTrainedTokeni
     :param batch_size: apply batching to size if given
     :return: train dataset as tf.data.Dataset, dev dataset as tf.data.Dataset
     """
-    tokens, labels, sample_weights = get_tokens_labels_weights(tokenizer, other_labels_weight, label_set)
+    tokens, labels, sample_weights, _ = preprocess_tokenization_data(tokenizer, other_labels_weight, label_set)
 
     # create tensorflow dataset and split into train and dev
     dataset = tf.data.Dataset.from_tensor_slices(({'input_ids': tokens['input_ids'],

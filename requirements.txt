@@ -5,3 +5,4 @@ petbenchmarks
 tensorflow-addons~=0.18.0
 pandas
 openpyxl
+sklearn
