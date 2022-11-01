@@ -27,6 +27,7 @@ parser.add_argument("--seed", default=42, type=int, help="Random seed.")
 parser.add_argument("--routine", default="cv", type=str, help="Simple training or cross validation.")
 parser.add_argument("--dev_share", default=0.1, type=float, help="Share of dev dataset in simple training routine.")
 parser.add_argument("--folds", default=5, type=int, help="Number of folds in cross validation routine.")
+parser.add_argument("--store_weights", default=False, type=bool, help="Flag if best weights should be stored.")
 # Architecture params
 parser.add_argument("--extra_head", default=False, type=bool, help="Include extra cls head.")
 parser.add_argument("--labels", default="filtered", type=str, help="Label set to use.")
@@ -70,7 +71,7 @@ class GatewayTokenClassifier(tf.keras.Model):
                 init_lr=2e-5,
                 num_train_steps=(len(train_dataset) // args.batch_size) * args.epochs,
                 weight_decay_rate=0.01,
-                num_warmup_steps=10,
+                num_warmup_steps=0,
             )
 
             self.compile(optimizer=optimizer,
@@ -87,7 +88,7 @@ class GatewayTokenClassifier(tf.keras.Model):
         if self.model_path:
             self.load_weights(model_path)
 
-    def __call__(self, tokens: transformers.BatchEncoding, word_ids: List[List[int]]) \
+    def predict(self, tokens: transformers.BatchEncoding, word_ids: List[List[int]]) \
             -> List[List[int]]:
         """
         create predictions for given data; output is one (numerical) label for each input token
@@ -95,7 +96,7 @@ class GatewayTokenClassifier(tf.keras.Model):
         :param word_ids: original word ids of tokens as 2-dim list
         :return:
         """
-        predictions = super().__call__(tokens)
+        predictions = super().predict(tokens)
 
         converted_results = []  # list (for each sample): a dict with word_id: predicted class(es))
 
@@ -131,7 +132,7 @@ class GatewayTokenClassifier(tf.keras.Model):
         return converted_results
 
 
-def simple_training(args: argparse.Namespace, token_cls_model, store_model: bool = False) -> None:
+def simple_training(args: argparse.Namespace, token_cls_model) -> None:
     """
     run a training based on a simple train / test split
     :param args: namespace args
@@ -156,8 +157,8 @@ def simple_training(args: argparse.Namespace, token_cls_model, store_model: bool
     )
 
     # store model
-    if store_model:
-        model.save_weights(os.path.join(args.logdir, "weights"))
+    if args.store_weights:
+        model.save_weights(os.path.join(args.logdir, "weigths/weights"))
 
     # store metrics
     with open(os.path.join(args.logdir, "metrics.json"), 'w') as file:
@@ -219,8 +220,8 @@ def cross_validation(args: argparse.Namespace, token_cls_model, store_model: boo
         )
 
         # store model
-        if store_model:
-            model.save_weights(os.path.join(args.logdir, "weights"))
+        if args.store_weights:
+            model.save_weights(os.path.join(args.logdir, "weights/weights"))
 
         # record fold results
         for metric, epoch_values in history.history.items():
@@ -275,4 +276,4 @@ if __name__ == "__main__":
     args = parser.parse_args([] if "__file__" not in globals() else None)
     set_seeds(args.seed)
 
-    train_routine(args)
+    train_routine(args, )

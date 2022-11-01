@@ -199,12 +199,14 @@ def set_seeds(seed: int, overwrite=False) -> None:
     :param overwrite: flag if overwrite of seed should be allowed; only usage in following initial set_seeds intended
     :return:
     """
+    global SEED_SET_DURING_SESSION
     if not SEED_SET_DURING_SESSION or overwrite:
         logger.info(f"Set seeds to {seed} (overwrite={overwrite})")
         import tensorflow as tf
         tf.random.set_seed(seed)
         tf.keras.utils.set_random_seed(seed)
         tf.compat.v1.set_random_seed(seed)
+        SEED_SET_DURING_SESSION = True
 
     if SEED_SET_DURING_SESSION and overwrite:
         logger.warning("utils.set_seeds overwrites already set seed")

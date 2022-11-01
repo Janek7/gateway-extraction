@@ -101,7 +101,8 @@ def preprocess_tokenization_data(other_labels_weight: float = 0.1, label_set: st
 
 
 def create_token_classification_dataset_cv(other_labels_weight: float, label_set: str = 'filtered', kfolds: int = 5,
-                                           batch_size: int = None) -> List[Tuple[tf.data.Dataset, tf.data.Dataset]]:
+                                           batch_size: int = None, shuffle: bool = True)\
+        -> List[Tuple[tf.data.Dataset, tf.data.Dataset]]:
     """
     create the dataset for token classification with huggingface transformers bert like models
     split into kfolds splits to use for cross validation
@@ -109,18 +110,21 @@ def create_token_classification_dataset_cv(other_labels_weight: float, label_set
     :param label_set: flag if to use all labels ('all') or only gateway labels and one rest label ('filtered')
     :param kfolds: number of folds
     :param batch_size: apply batching to size if given
+    :param shuffle: flag if shuffle the data
     :return: list of tuples (train, dev) as tf.data.Dataset objects
     """
     tokens, labels, sample_weights, _ = preprocess_tokenization_data(other_labels_weight=other_labels_weight,
                                                                      label_set=label_set)
+    input_ids, attention_masks = tokens['input_ids'], tokens['attention_mask']
 
     # shuffle inputs before splitting in train/dev
-    indices = tf.range(start=0, limit=tokens['input_ids'].shape[0], dtype=tf.int32)
-    shuffled_indices = tf.random.shuffle(indices)
-    shuffled_input_ids = tf.gather(tokens['input_ids'], shuffled_indices)
-    shuffled_attention_masks = tf.gather(tokens['attention_mask'], shuffled_indices)
-    shuffled_labels = tf.gather(labels, shuffled_indices)
-    shuffled_sample_weights = tf.gather(sample_weights, shuffled_indices)
+    if shuffle:
+        indices = tf.range(start=0, limit=tokens['input_ids'].shape[0], dtype=tf.int32)
+        shuffled_indices = tf.random.shuffle(indices)
+        input_ids = tf.gather(tokens['input_ids'], shuffled_indices)
+        attention_masks = tf.gather(tokens['attention_mask'], shuffled_indices)
+        labels = tf.gather(labels, shuffled_indices)
+        sample_weights = tf.gather(sample_weights, shuffled_indices)
 
     # Define the K-fold Cross Validator
     kfold = KFold(n_splits=kfolds, shuffle=False)
@@ -131,15 +135,15 @@ def create_token_classification_dataset_cv(other_labels_weight: float, label_set
 
     # create folds
     folded_datasets = []
-    for train, test in kfold.split(shuffled_input_ids):
-        train_tf_dataset = create_dataset(t=tf.gather(shuffled_input_ids, train),
-                                          a=tf.gather(shuffled_attention_masks, train),
-                                          l=tf.gather(shuffled_labels, train),
-                                          w=tf.gather(shuffled_sample_weights, train))
-        dev_tf_dataset = create_dataset(t=tf.gather(shuffled_input_ids, test),
-                                        a=tf.gather(shuffled_attention_masks, test),
-                                        l=tf.gather(shuffled_labels, test),
-                                        w=tf.gather(shuffled_sample_weights, test))
+    for train, test in kfold.split(input_ids):
+        train_tf_dataset = create_dataset(t=tf.gather(input_ids, train),
+                                          a=tf.gather(attention_masks, train),
+                                          l=tf.gather(labels, train),
+                                          w=tf.gather(sample_weights, train))
+        dev_tf_dataset = create_dataset(t=tf.gather(input_ids, test),
+                                        a=tf.gather(attention_masks, test),
+                                        l=tf.gather(labels, test),
+                                        w=tf.gather(sample_weights, test))
         if batch_size:
             train_tf_dataset = train_tf_dataset.batch(batch_size)
             dev_tf_dataset = dev_tf_dataset.batch(batch_size)
@@ -149,7 +153,8 @@ def create_token_classification_dataset_cv(other_labels_weight: float, label_set
 
 
 def create_token_classification_dataset(other_labels_weight: float, label_set: str = 'filtered', dev_share: float = 0.1,
-                                        batch_size: int = None) -> Tuple[tf.data.Dataset, tf.data.Dataset]:
+                                        batch_size: int = None, shuffle: bool = True) \
+        -> Tuple[tf.data.Dataset, tf.data.Dataset]:
     """
     create the dataset for token classification with huggingface transformers bert like models
     split into train and dev/validation by the given share in dev_share
@@ -158,6 +163,7 @@ def create_token_classification_dataset(other_labels_weight: float, label_set: s
     :param label_set: flag if to use all labels ('all') or only gateway labels and one rest label ('filtered')
     :param dev_share: share of validation/development dataset
     :param batch_size: apply batching to size if given
+    :param shuffle: flag if shuffle the data
     :return: train dataset as tf.data.Dataset, dev dataset as tf.data.Dataset
     """
     tokens, labels, sample_weights, _ = preprocess_tokenization_data(other_labels_weight=other_labels_weight,
@@ -170,8 +176,8 @@ def create_token_classification_dataset(other_labels_weight: float, label_set: s
                                                   sample_weights))
     number_samples = tokens['input_ids'].shape[0]
     val_samples = round(number_samples * dev_share)
-    train_dataset = dataset.take(val_samples)
-    val_dataset = dataset.skip(val_samples)
+    val_dataset = dataset.take(val_samples)
+    train_dataset = dataset.skip(val_samples)
 
     logger.info(f"Created token classification dataset of shape {tokens['input_ids'].shape} splitted into "
                 f"{1 - dev_share}/{dev_share} -> {number_samples - val_samples}/{val_samples} (train/dev)")
@@ -179,6 +185,9 @@ def create_token_classification_dataset(other_labels_weight: float, label_set: s
         train_dataset = train_dataset.batch(batch_size)
         val_dataset = val_dataset.batch(batch_size)
         logger.info(f"Batch datasets (size {batch_size}) -> {len(train_dataset)}/{len(val_dataset)}")
+
+    if shuffle:
+        train_dataset = train_dataset.shuffle()
 
     return train_dataset, val_dataset
 
