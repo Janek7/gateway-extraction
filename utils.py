@@ -8,13 +8,22 @@ import logging
 from petreader.labels import *
 from labels import *
 
-logger = logging.getLogger('utilities')
+logger = logging.getLogger('Utilities')
 logging.basicConfig(level=logging.INFO)
+
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))  # project root path
 
 
 def read_config() -> Dict:
-    with open("config.json", 'r') as file:
-        return json.load(file)
+    """
+    read config from file into dict
+    :return: config as Dict
+    """
+    with open(os.path.join(ROOT_DIR, "config.json"), 'r') as file:
+        config = json.load(file)
+    config[KEYWORDS_FILTERED_APPROACH][NUM_LABELS] = 4 if config[KEYWORDS_FILTERED_APPROACH][LABEL_SET] == FILTERED else 9
+    logger.info(f"Loaded config: {str(config)}")
+    return config
 
 
 config = read_config()
@@ -30,18 +39,18 @@ def read_keywords(keywords: str, token_flattened: bool = False) -> Tuple[List[st
     logger.info(f"Load keywords '{keywords}' ...")
     if keywords == LITERATURE:
         # based on key words proposals of Ferreira et al. 2017
-        with open('data/keywords/literature_xor.txt') as file:
+        with open(os.path.join(ROOT_DIR, 'data/keywords/literature_xor.txt')) as file:
             xor_keywords = file.read().splitlines()
 
-        with open('data/keywords/literature_and.txt') as file:
+        with open(os.path.join(ROOT_DIR, 'data/keywords/literature_and.txt')) as file:
             and_keywords = file.read().splitlines()
 
     elif keywords == LITERATURE_FILTERED:
         # based on key words proposals of Ferreira et al. 2017 (filtered
-        with open('data/keywords/literature_xor_filtered.txt') as file:
+        with open(os.path.join(ROOT_DIR, 'data/keywords/literature_xor_filtered.txt')) as file:
             xor_keywords = file.read().splitlines()
 
-        with open('data/keywords/literature_and_filtered.txt') as file:
+        with open(os.path.join(ROOT_DIR, 'data/keywords/literature_and_filtered.txt')) as file:
             and_keywords = file.read().splitlines()
 
     elif keywords == GOLD:
@@ -61,10 +70,10 @@ def read_keywords(keywords: str, token_flattened: bool = False) -> Tuple[List[st
             return [kw_phrase.split(";")[0] for kw_phrase in file.read().splitlines()
                     if kw_phrase.split(";")[2] == "keep"]
 
-        with open('data/keywords/custom_xor.csv') as file:
+        with open(os.path.join(ROOT_DIR, 'data/keywords/custom_xor.csv')) as file:
             xor_keywords = read_custom_file(file)
 
-        with open('data/keywords/custom_and.csv') as file:
+        with open(os.path.join(ROOT_DIR, 'data/keywords/custom_and.csv')) as file:
             and_keywords = read_custom_file(file)
 
     if token_flattened:
@@ -88,11 +97,11 @@ def write_gold_keywords_to_files() -> None:
     """
     from PetReader import pet_reader
 
-    with open(r'data/keywords/gold_xor.txt', 'w') as file:
+    with open(os.path.join(ROOT_DIR, 'data/keywords/gold_xor.txt'), 'w') as file:
         for keyword in sorted(pet_reader.xor_key_words_gold):
             file.write("%s\n" % keyword)
 
-    with open(r'data/keywords/gold_and.txt', 'w') as file:
+    with open(os.path.join(ROOT_DIR, 'data/keywords/gold_and.txt'), 'w') as file:
         for keyword in sorted(pet_reader.and_key_words_gold):
             file.write("%s\n" % keyword)
 
@@ -103,7 +112,7 @@ def read_contradictory_gateways() -> List[Tuple[List[str], List[str]]]:
     sort to prefer longer matching phrases during search
     :return: list of pairs
     """
-    with open('data/keywords/contradictory_gateways_gold.txt') as file:
+    with open(os.path.join(ROOT_DIR, 'data/keywords/contradictory_gateways_gold.txt')) as file:
         contradictory_gateways = [[x.split(" ") for x in l.strip().split(";")] for l in file.readlines()]
         logger.info(f"Loaded {len(contradictory_gateways)} pairs of contradictory keywords")
         contradictory_gateways.sort(key=lambda pair: len(pair[0]) + len(pair[1]), reverse=True)
@@ -168,17 +177,17 @@ def goldstandards_to_json(objects: str = 'relevant') -> None:
                       if token_type.lower() in [k.lower() for k in target_object_keys]}
                 for doc, doc_dict in goldstandard_dict.items()}
 
-    relations_goldstandard = load_pickle("data/other/relations_goldstandard.pkl")
+    relations_goldstandard = load_pickle(os.path.join(ROOT_DIR, "data/other/relations_goldstandard.pkl"))
     if objects == 'relevant':
         relations_goldstandard = filter_goldstandard_dict(relations_goldstandard, [FLOW, SAME_GATEWAY])
-    with open("data/other/relations_goldstandard.json", 'w') as file:
+    with open(os.path.join(ROOT_DIR, "data/other/relations_goldstandard.json"), 'w') as file:
         json.dump(relations_goldstandard, file, indent=4)
 
-    token_goldstandard = load_pickle("data/other/token_goldstandard.pkl")
+    token_goldstandard = load_pickle(os.path.join(ROOT_DIR, "data/other/token_goldstandard.pkl"))
     if objects == 'relevant':
         token_goldstandard = filter_goldstandard_dict(token_goldstandard, [ACTIVITY, XOR_GATEWAY, AND_GATEWAY,
                                                                            CONDITION_SPECIFICATION])
-    with open("data/other/token_goldstandard.json", 'w') as file:
+    with open(os.path.join(ROOT_DIR, "data/other/token_goldstandard.json"), 'w') as file:
         json.dump(token_goldstandard, file, indent=4)
 
 
