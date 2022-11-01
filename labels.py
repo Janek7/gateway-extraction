@@ -57,3 +57,11 @@ TC_LABELS_ALL = [TC_LABEL_OUT_OF_SCOPE, TC_LABEL_OTHER, TC_LABEL_XOR, TC_LABEL_A
 # weights for token classification task
 TC_WEIGHTS_BERT_TOKENS = 0
 TC_WEIGHTS_GATEWAY_LABELS = 1
+
+# Modes of how to handle differences in token predictions from GatewayTokenClassifier in KeywordsFilterApproach
+LOG = 'log'
+DROP = 'drop'
+
+# Log levels of filtering
+FILE = 'file'
+CONSOLE = 'console'

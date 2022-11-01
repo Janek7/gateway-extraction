@@ -12,21 +12,22 @@ from petbenchmarks.relationsextraction import RelationsExtractionBenchmark
 from petreader.labels import *
 
 from labels import *
-from utils import format_json_file, read_contradictory_gateways, read_keywords
+from utils import format_json_file, read_contradictory_gateways, read_keywords, ROOT_DIR
 
-logger = logging.getLogger('keyword approach')
+logger = logging.getLogger('Keyword Approach')
 
 
 class KeywordsApproach:
 
-    def __init__(self, approach_name: str = None, keywords: str = LITERATURE, same_xor_gateway_threshold: int = 1,
-                 output_format: str = BENCHMARK):
+    def __init__(self, approach_name: str = None, keywords: str = LITERATURE, output_format: str = BENCHMARK,
+                 same_xor_gateway_threshold: int = 1, output_folder: str = None):
         """
         creates new instance of the basic keyword approach
         :param approach_name: description of approach to use in result folder name; if not set use key word variant
         :param keywords: flag/variant which keywords to use; available: literature, gold, own
         :param same_xor_gateway_threshold: threshold to recognize subsequent (contradictory xor) gateways as same
         :param output_format: output format of extracted element and flows; available: benchmark, pet
+        :param output_folder: name of output folder; if none -> create based on approach name
         """
         self.approach_name = approach_name
         if not self.approach_name:
@@ -34,6 +35,9 @@ class KeywordsApproach:
         self.keywords = keywords
         self._same_xor_gateway_threshold = same_xor_gateway_threshold
         self.output_format = output_format
+        self.results_folder = os.path.join(ROOT_DIR,
+                                           f'data/results/{self.approach_name}/') if not output_folder else output_folder
+
         self._xor_keywords, self._and_keywords = read_keywords(self.keywords)
         self._contradictory_gateways = read_contradictory_gateways()
         self._processed_doc_gateway_frames = []
@@ -71,6 +75,12 @@ class KeywordsApproach:
             reb = RelationsExtractionBenchmark(pet_dataset=pet_reader.relations_dataset)
             relations = reb.GetEmptyPredictionsDict()
 
+        # setup folder structure
+        if os.path.isdir(self.results_folder):
+            # clear directory first and then create new
+            shutil.rmtree(self.results_folder)
+        os.makedirs(self.results_folder, exist_ok=True)
+
         # process all documents
         logger.info(f"Start processing of {len(doc_names)} documents ...")
         for i, doc_name in enumerate(doc_names):
@@ -86,23 +96,17 @@ class KeywordsApproach:
         logger.info(f"Finished processing of documents")
 
         # save results as json
-        results_folder = f'data/results/{self.approach_name}/'
-        # clear directory first and then create new
-        if os.path.isdir(results_folder):
-            shutil.rmtree(results_folder)
-        os.makedirs(results_folder, exist_ok=True)
-
         if evaluate_token_cls:
-            process_elements_filename = os.path.join(results_folder, 'token-classification.json')
+            process_elements_filename = os.path.join(self.results_folder, 'token-classification.json')
             with open(process_elements_filename, 'w') as file:
                 json.dump(process_elements, file, indent=4)
 
         if evaluate_relation_extraction:
-            relations_filename = os.path.join(results_folder, 'relations-extraction-prediction.json')
+            relations_filename = os.path.join(self.results_folder, 'relations-extraction-prediction.json')
             with open(relations_filename, 'w') as file:
                 json.dump(relations, file, indent=4)
 
-        logger.info(f"Saved results to {results_folder}")
+        logger.info(f"Saved results to {self.results_folder}")
 
         """
         Params of BenchmarkApproach
@@ -121,7 +125,7 @@ class KeywordsApproach:
         # a) token classification
         if evaluate_token_cls:
             logger.info(f"Run process element / token classification evaluation")
-            output_results = os.path.join(results_folder, "results-token-classification")
+            output_results = os.path.join(self.results_folder, "results-token-classification")
             BenchmarkApproach(approach_name=self.approach_name, predictions_file_or_folder=process_elements_filename,
                               output_results=output_results, pet_dataset=pet_reader.token_dataset)
             format_json_file(output_results + '.json')
@@ -129,7 +133,7 @@ class KeywordsApproach:
         # b) relations extraction
         if evaluate_relation_extraction:
             logger.info(f"Run relation extraction evaluation")
-            output_results = os.path.join(results_folder, "results-relations-extraction")
+            output_results = os.path.join(self.results_folder, "results-relations-extraction")
             BenchmarkApproach(approach_name=self.approach_name, predictions_file_or_folder=relations_filename,
                               output_results=output_results, pet_dataset=pet_reader.relations_dataset)
             format_json_file(output_results + '.json')
@@ -180,6 +184,7 @@ class KeywordsApproach:
                 # after RECALL != 1 fix, flattened list is expected from petbenchmarks
                 results = list(itertools.chain(*results))
                 return results
+
             xor_gateways = gateways_to_benchmark(xor_gateways)
             and_gateways = gateways_to_benchmark(and_gateways)
 
@@ -191,7 +196,16 @@ class KeywordsApproach:
 
         return xor_gateways, and_gateways, doc_flows, same_gateway_relations
 
-    def filter_gateways(self, doc_name, xor_gateways, and_gateways):
+    def filter_gateways(self, doc_name: str, xor_gateways: List[List[Tuple[str, int, str]]],
+                        and_gateways: List[List[Tuple[str, int, str]]]) \
+            -> Tuple[List[List[Tuple[str, int, str]]], List[List[Tuple[str, int, str]]]]:
+        """
+        filter given gateways of given documents using the GatewayTokenClassifier model
+        :param doc_name: name of document to which gateways belongs
+        :param xor_gateways: list of xor gateways of target document in PET format
+        :param and_gateways: list of and gateways of target document in PET format
+        :return: xor gateways, and gateways (same format, just filtered)
+        """
         return xor_gateways, and_gateways
 
     def _extract_gateways(self, sentence_list: List[List[str]], gateway_type: str) -> List[List[Tuple[str, int, str]]]:
@@ -565,7 +579,8 @@ class KeywordsApproach:
             # check if source and target are not part of the same gateway and the target entity is part of a gateway
             if source_entity_gf != target_entity_gf and target_entity_gf is not None:
                 # if the flow target is not the start entity of the gateway (i.e. split point), then rewire
-                if flow[TARGET_ENTITY] !=self._processed_doc_gateway_frames[target_entity_gf][START_ENTITY][ELEMENT][2]:
+                if flow[TARGET_ENTITY] != self._processed_doc_gateway_frames[target_entity_gf][START_ENTITY][ELEMENT][
+                    2]:
                     flows_to_remove.append(flow)
                     # create new flow between source of current flow and start entity of gateway (split point)
                     flows_to_add.append({**{k: v for k, v in flow.items() if k.startswith("source-")},

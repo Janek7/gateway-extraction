@@ -192,27 +192,25 @@ def goldstandards_to_json(objects: str = 'relevant') -> None:
         json.dump(token_goldstandard, file, indent=4)
 
 
-def set_seeds(seed: int, overwrite=False) -> None:
+def set_seeds(seed: int) -> None:
     """
     set tensorflow seeds
     :param seed: seed
-    :param overwrite: flag if overwrite of seed should be allowed; only usage in following initial set_seeds intended
     :return:
     """
     global SEED_SET_DURING_SESSION
-    if not SEED_SET_DURING_SESSION or overwrite:
-        logger.info(f"Set seeds to {seed} (overwrite={overwrite})")
+    if not SEED_SET_DURING_SESSION:
+        logger.info(f"Set seeds to {seed}")
         import tensorflow as tf
         tf.random.set_seed(seed)
         tf.keras.utils.set_random_seed(seed)
         tf.compat.v1.set_random_seed(seed)
         SEED_SET_DURING_SESSION = True
 
-    if SEED_SET_DURING_SESSION and overwrite:
-        logger.warning("utils.set_seeds overwrites already set seed")
 
-
-set_seeds(config[SEED], overwrite=True)  # set always, will maybe overwritten by seed of args
+# set as backup if seed was not set in running script
+# call of this method is sure, because all runnable scripts include loading of some utilities
+set_seeds(config[SEED])
 
 
 if __name__ == '__main__':

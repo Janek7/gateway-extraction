@@ -37,17 +37,17 @@ parser.add_argument("--other_labels_weight", default=0.1, type=float, help="Samp
 class GatewayTokenClassifier(tf.keras.Model):
 
     def __init__(self, args: argparse.Namespace = None, bert_model=None, train_dataset: tf.data.Dataset = None,
-                 extra_head: bool = False, model_path: str = None) -> None:
+                 extra_head: bool = False, weights_path: str = None) -> None:
         """
         creates a GatewayTokenClassifier
         :param args: args Namespace
         :param bert_model: bert like transformer for token classification model
         :param train_dataset: train dataset
         :param extra_head: flag if to include an extra classification head on top of the loaded model
-        :param model_path: path of stored weights. If set, load from there
+        :param weights_path: path of stored weights. If set, load from there
         """
         self.extra_head = extra_head
-        self.model_path = model_path
+        self.weights_path = weights_path
         num_labels = args.num_labels if args else config[KEYWORDS_FILTERED_APPROACH][NUM_LABELS]
 
         # A) ARCHITECTURE
@@ -85,8 +85,9 @@ class GatewayTokenClassifier(tf.keras.Model):
             # self.summary()
 
         # if model path is passed, restore weights
-        if self.model_path:
-            self.load_weights(model_path)
+        if self.weights_path:
+            logger.info(f"Restored weights from {weights_path}")
+            self.load_weights(weights_path)
 
     def predict(self, tokens: transformers.BatchEncoding, word_ids: List[List[int]]) \
             -> List[List[int]]:
@@ -96,7 +97,7 @@ class GatewayTokenClassifier(tf.keras.Model):
         :param word_ids: original word ids of tokens as 2-dim list
         :return:
         """
-        predictions = super().predict(tokens)
+        predictions = super().predict({"input_ids": tokens["input_ids"], "attention_mask": tokens["attention_mask"]})
 
         converted_results = []  # list (for each sample): a dict with word_id: predicted class(es))
 
