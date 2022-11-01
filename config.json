@@ -3,5 +3,6 @@
     "bert-model-name": "distilbert-base-uncased",
     "label-set": "filtered",
     "other-labels-weight": 0.1
-  }
+  },
+  "seed": 42
 }

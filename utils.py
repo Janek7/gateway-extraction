@@ -12,6 +12,7 @@ logger = logging.getLogger('Utilities')
 logging.basicConfig(level=logging.INFO)
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))  # project root path
+SEED_SET_DURING_SESSION = False
 
 
 def read_config() -> Dict:
@@ -189,6 +190,27 @@ def goldstandards_to_json(objects: str = 'relevant') -> None:
                                                                            CONDITION_SPECIFICATION])
     with open(os.path.join(ROOT_DIR, "data/other/token_goldstandard.json"), 'w') as file:
         json.dump(token_goldstandard, file, indent=4)
+
+
+def set_seeds(seed: int, overwrite=False) -> None:
+    """
+    set tensorflow seeds
+    :param seed: seed
+    :param overwrite: flag if overwrite of seed should be allowed; only usage in following initial set_seeds intended
+    :return:
+    """
+    if not SEED_SET_DURING_SESSION or overwrite:
+        logger.info(f"Set seeds to {seed} (overwrite={overwrite})")
+        import tensorflow as tf
+        tf.random.set_seed(seed)
+        tf.keras.utils.set_random_seed(seed)
+        tf.compat.v1.set_random_seed(seed)
+
+    if SEED_SET_DURING_SESSION and overwrite:
+        logger.warning("utils.set_seeds overwrites already set seed")
+
+
+set_seeds(config[SEED], overwrite=True)  # set always, will maybe overwritten by seed of args
 
 
 if __name__ == '__main__':

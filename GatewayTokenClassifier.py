@@ -14,7 +14,7 @@ import transformers
 
 from token_data_preparation import create_token_classification_dataset, create_token_classification_dataset_cv
 from metrics import *
-from utils import config
+from utils import config, set_seeds
 
 logger = logging.getLogger('Gateway Token Classifier')
 
@@ -35,60 +35,74 @@ parser.add_argument("--other_labels_weight", default=0.1, type=float, help="Samp
 
 class GatewayTokenClassifier(tf.keras.Model):
 
-    def __init__(self, args: argparse.Namespace, model, train_dataset: tf.data.Dataset,
-                 extra_head: bool = False) -> None:
+    def __init__(self, args: argparse.Namespace = None, bert_model=None, train_dataset: tf.data.Dataset = None,
+                 extra_head: bool = False, model_path: str = None) -> None:
+        """
+        creates a GatewayTokenClassifier
+        :param args: args Namespace
+        :param bert_model: bert like transformer for token classification model
+        :param train_dataset: train dataset
+        :param extra_head: flag if to include an extra classification head on top of the loaded model
+        :param model_path: path of stored weights. If set, load from there
+        """
         self.extra_head = extra_head
+        self.model_path = model_path
+        num_labels = args.num_labels if args else config[KEYWORDS_FILTERED_APPROACH][NUM_LABELS]
 
-        # A) OPTIMIZER
-        optimizer, lr_schedule = transformers.create_optimizer(
-            init_lr=2e-5,
-            num_train_steps=(len(train_dataset) // args.batch_size) * args.epochs,
-            weight_decay_rate=0.01,
-            num_warmup_steps=10,
-        )
-
-        # B) ARCHITECTURE
+        # A) ARCHITECTURE
         inputs = {
-            "input_ids": tf.keras.layers.Input(shape=[64], dtype=tf.int32),  # before: None
-            "attention_mask": tf.keras.layers.Input(shape=[64], dtype=tf.int32)
+            "input_ids": tf.keras.layers.Input(shape=[None], dtype=tf.int32),
+            "attention_mask": tf.keras.layers.Input(shape=[None], dtype=tf.int32)
         }
-        bert_output = model(inputs).logits  # includes one dense layer with linear activation function
+        if not bert_model:
+            bert_model = transformers.TFAutoModelForTokenClassification.from_pretrained(
+                config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME], num_labels=num_labels)
+        bert_output = bert_model(inputs).logits  # includes one dense layer with linear activation function
         if extra_head:
-            predictions = tf.keras.layers.Dense(args.num_labels, activation=tf.nn.softmax)(bert_output)
+            predictions = tf.keras.layers.Dense(num_labels, activation=tf.nn.softmax)(bert_output)
         else:
             predictions = bert_output
         super().__init__(inputs=inputs, outputs=predictions)
 
-        # C) COMPILE
-        self.compile(optimizer=optimizer,
-                     # loss=custom_loss,
-                     loss=tf.keras.losses.SparseCategoricalCrossentropy(),
-                     # general accuracy of all labels (except 0 class for padding tokens)
-                     weighted_metrics=[tf.metrics.SparseCategoricalAccuracy(name="overall_accuracy")],
-                     # metrics for classes of interest
-                     metrics=[xor_precision, xor_recall, xor_f1, and_recall, and_precision, and_f1])
-        # token_cls_model.summary()
-        # self.summary()
+        # B) COMPILE (only needed when training is intended)
+        if args and train_dataset:
+            optimizer, lr_schedule = transformers.create_optimizer(
+                init_lr=2e-5,
+                num_train_steps=(len(train_dataset) // args.batch_size) * args.epochs,
+                weight_decay_rate=0.01,
+                num_warmup_steps=10,
+            )
 
-    def predict(self, X: tf.data.Dataset, X_word_ids: List[List[int]], word_ids_start_idx: int = 0) \
+            self.compile(optimizer=optimizer,
+                         # loss=custom_loss,
+                         loss=tf.keras.losses.SparseCategoricalCrossentropy(),
+                         # general accuracy of all labels (except 0 class for padding tokens)
+                         weighted_metrics=[tf.metrics.SparseCategoricalAccuracy(name="overall_accuracy")],
+                         # metrics for classes of interest
+                         metrics=[xor_precision, xor_recall, xor_f1, and_recall, and_precision, and_f1])
+            # token_cls_model.summary()
+            # self.summary()
+
+        # if model path is passed, restore weights
+        if self.model_path:
+            self.load_weights(model_path)
+
+    def __call__(self, tokens: transformers.BatchEncoding, word_ids: List[List[int]]) \
             -> List[List[int]]:
         """
         create predictions for given data; output is one (numerical) label for each input token
-        :param X: dataset
-        :param X_word_ids:
-        :param word_ids_start_idx:
+        :param tokens: tokens as BatchEncoding
+        :param word_ids: original word ids of tokens as 2-dim list
         :return:
         """
-        predictions = super().predict(X)
+        predictions = super().__call__(tokens)
 
         converted_results = []  # list (for each sample): a dict with word_id: predicted class(es))
 
         for i, sample in enumerate(predictions):
-
-            sample_word_ids = X_word_ids[word_ids_start_idx + i]
-            important_token_pairs = [(i, word_id) for i, word_id in enumerate(sample_word_ids) if word_id != None]
-
+            important_token_pairs = [(i, word_id) for i, word_id in enumerate(word_ids[i]) if word_id is not None]
             converted_sample = {}
+
             # store prediction(s) for every original word
             for token_index, word_id in important_token_pairs:
                 token_prediction = np.argmax(sample[token_index])
@@ -105,22 +119,23 @@ class GatewayTokenClassifier(tf.keras.Model):
                     token_predictions.sort(reverse=True)
                     token_predictions = token_predictions[:1]
                 converted_sample[word_id] = token_predictions[0]
-            converted_sample = [(idx, label) for idx, label in converted_sample.items()]
+
             # assure sort by index after extracting from (unordered?) dict
+            converted_sample = [(idx, label) for idx, label in converted_sample.items()]
             converted_sample.sort(key=lambda idx_label_pair: idx_label_pair[0])
             # reduce to ordered list of labels
             converted_sample = [label for idx, label in converted_sample]
+
             converted_results.append(converted_sample)
 
         return converted_results
 
 
-def simple_training(args: argparse.Namespace, token_cls_model, tokenizer) -> None:
+def simple_training(args: argparse.Namespace, token_cls_model) -> None:
     """
     run a training based on a simple train / test split
     :param args: namespace args
     :param token_cls_model: token classification model
-    :param tokenizer: tokenizer
     :return:
     """
     logger.info(f"Run simple training (num_labels={args.num_labels}; other_labels_weight={args.other_labels_weight}; "
@@ -143,12 +158,11 @@ def simple_training(args: argparse.Namespace, token_cls_model, tokenizer) -> Non
         json.dump(history.history, file, indent=4)
 
 
-def cross_validation(args: argparse.Namespace, token_cls_model, tokenizer) -> None:
+def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
     """
     run training in a cross validation routine -> averaged results are outputted into logdir
     :param args: namespace args
     :param token_cls_model: token classification model
-    :param tokenizer: tokenizer
     :return:
     """
     logger.info(f"Run {args.folds}-fold cross validation (num_labels={args.num_labels}; "
@@ -192,8 +206,7 @@ def cross_validation(args: argparse.Namespace, token_cls_model, tokenizer) -> No
         history = model.fit(
             train_dataset, epochs=args.epochs, validation_data=dev_dataset,
             callbacks=[tf.keras.callbacks.TensorBoard(args.logdir,
-                                                      # histogram_freq=1,
-                                                      update_freq=5,
+                                                      update_freq='batch',
                                                       profile_batch=0)]
         )
 
@@ -216,10 +229,6 @@ def cross_validation(args: argparse.Namespace, token_cls_model, tokenizer) -> No
 
 
 def train_routine(args: argparse.Namespace) -> None:
-    # Fix random seeds and threads
-    tf.random.set_seed(args.seed)
-    tf.keras.utils.set_random_seed(args.seed)
-    tf.compat.v1.set_random_seed(args.seed)
 
     # Create logdir name
     args.logdir = os.path.join("data/logs", "{}-{}-{}".format(
@@ -236,22 +245,22 @@ def train_routine(args: argparse.Namespace) -> None:
     logger.info(f"Use {args.labels} labels ({args.num_labels})")
 
     # Load the model
-    logger.info(f"Load transformer model and tokenizer ({args.zhuggingface_model_name})")
+    logger.info(f"Load transformer model and tokenizer ({config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME]})")
     token_cls_model = transformers.TFAutoModelForTokenClassification.from_pretrained(
         config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME],
         num_labels=args.num_labels)
-    tokenizer = transformers.AutoTokenizer.from_pretrained(config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME])
-    assert isinstance(tokenizer, transformers.PreTrainedTokenizerFast)
 
     # cross validation
     if args.routine == 'cv':
-        cross_validation(args, token_cls_model, tokenizer)
+        cross_validation(args, token_cls_model)
     # simple training
     else:
-        simple_training(args, token_cls_model, tokenizer)
+        simple_training(args, token_cls_model)
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     args = parser.parse_args([] if "__file__" not in globals() else None)
+    set_seeds(args.seed)
+
     train_routine(args)

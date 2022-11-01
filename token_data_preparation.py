@@ -15,18 +15,22 @@ logger = logging.getLogger('Data Preparation')
 
 
 tokenizer = transformers.AutoTokenizer.from_pretrained(config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME])
+assert isinstance(tokenizer, transformers.PreTrainedTokenizerFast)
 
 
-def preprocess_tokenization_data(other_labels_weight: float, label_set: str = 'filtered')\
+def preprocess_tokenization_data(other_labels_weight: float = 0.1, label_set: str = 'filtered',
+                                 sample_numbers: List[int] = None)\
         -> Tuple[BatchEncoding, tf.Tensor, tf.Tensor, List[List[int]]]:
     """
     create token classification samples from whole PET dataset -> samples (tokens) and their labels and weights for
     usage in a tensorflow dataset
     :param other_labels_weight: sample weight to assign samples with tokens != gateway tokens
     :param label_set: flag if to use all labels ('all') or only gateway labels and one rest label ('filtered')
+    :param sample_numbers: list of sample IDs to preprocess; if None -> use all
     :return: tokens, labels & weights as tensors, original word ids (2-dim integer list)
     """
-    sample_numbers = pet_reader.token_dataset.GetRandomizedSampleNumbers()
+    if not sample_numbers:
+        sample_numbers = pet_reader.token_dataset.GetRandomizedSampleNumbers()
     sample_dicts = [pet_reader.token_dataset.GetSampleDictWithNerLabels(sample_number) for sample_number in
                     sample_numbers]
     sample_sentences = [sample_dict['tokens'] for sample_dict in sample_dicts]
@@ -181,15 +185,13 @@ def create_token_classification_dataset(other_labels_weight: float, label_set: s
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    tokenizer = transformers.AutoTokenizer.from_pretrained("distilbert-base-uncased")
-    assert isinstance(tokenizer, transformers.PreTrainedTokenizerFast)
 
     if False:
-        train, dev = create_token_classification_dataset(tokenizer, other_labels_weight=.2, label_set='filtered',
+        train, dev = create_token_classification_dataset(other_labels_weight=.2, label_set='filtered',
                                                          dev_share=.1, batch_size=8)
 
     if True:
-        folded_datasets = create_token_classification_dataset_cv(tokenizer, other_labels_weight=.2, kfolds=5,
+        folded_datasets = create_token_classification_dataset_cv(other_labels_weight=.2, kfolds=5,
                                                                  label_set='filtered', batch_size=8)
         for t, d in folded_datasets:
             print(len(t), len(d))

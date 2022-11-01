@@ -1,8 +1,11 @@
 # A) CONFIG KEYS
+
 KEYWORDS_FILTERED_APPROACH = 'keywords-filtered-approach'
 BERT_MODEL_NAME = 'bert-model-name'
 LABEL_SET = 'label-set'
 OTHER_LABELS_WEIGHT = 'other-labels-weight'
+NUM_LABELS = 'num-labels'
+SEED = 'seed'
 
 # B) LABELS FOR KEYWORDSAPPROACH
 
@@ -31,6 +34,10 @@ END_ENTITY = 'end_entity'
 
 
 # C) LABELS FOR TOKEN CLASSIFICATION TASK
+
+# label sets
+ALL = 'all'
+FILTERED = 'filtered'
 
 # classification labels
 TC_LABEL_OUT_OF_SCOPE = 0
