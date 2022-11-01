@@ -12,6 +12,14 @@ logger = logging.getLogger('utilities')
 logging.basicConfig(level=logging.INFO)
 
 
+def read_config() -> Dict:
+    with open("config.json", 'r') as file:
+        return json.load(file)
+
+
+config = read_config()
+
+
 def read_keywords(keywords: str, token_flattened: bool = False) -> Tuple[List[str], List[str]]:
     """
     load and return key word lists based on passed variant
@@ -176,6 +184,9 @@ def goldstandards_to_json(objects: str = 'relevant') -> None:
 
 if __name__ == '__main__':
     # goldstandards_to_json()
-    xor_keywords, and_keywords = read_keywords(CUSTOM)
-    print(xor_keywords)
-    print(and_keywords)
+
+    # xor_keywords, and_keywords = read_keywords(CUSTOM)
+    # print(xor_keywords)
+    # print(and_keywords)
+
+    print(config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME])

@@ -14,6 +14,7 @@ import transformers
 
 from token_data_preparation import create_token_classification_dataset, create_token_classification_dataset_cv
 from metrics import *
+from utils import config
 
 logger = logging.getLogger('Gateway Token Classifier')
 
@@ -30,7 +31,6 @@ parser.add_argument("--folds", default=5, type=int, help="Number of folds in cro
 parser.add_argument("--extra_head", default=False, type=bool, help="Include extra cls head.")
 parser.add_argument("--labels", default="filtered", type=str, help="Label set to use.")
 parser.add_argument("--other_labels_weight", default=0.1, type=float, help="Sample weight for non gateway tokens.")
-parser.add_argument("--zhuggingface_model_name", default="distilbert-base-uncased", type=str, help="Model checkpoint")
 
 
 class GatewayTokenClassifier(tf.keras.Model):
@@ -70,7 +70,7 @@ class GatewayTokenClassifier(tf.keras.Model):
         # token_cls_model.summary()
         # self.summary()
 
-    def predict(self, X: tf.data.Dataset, X_word_ids: List[List[int]], word_ids_start_idx: int = 0)\
+    def predict(self, X: tf.data.Dataset, X_word_ids: List[List[int]], word_ids_start_idx: int = 0) \
             -> List[List[int]]:
         """
         create predictions for given data; output is one (numerical) label for each input token
@@ -114,6 +114,7 @@ class GatewayTokenClassifier(tf.keras.Model):
 
         return converted_results
 
+
 def simple_training(args: argparse.Namespace, token_cls_model, tokenizer) -> None:
     """
     run a training based on a simple train / test split
@@ -124,7 +125,7 @@ def simple_training(args: argparse.Namespace, token_cls_model, tokenizer) -> Non
     """
     logger.info(f"Run simple training (num_labels={args.num_labels}; other_labels_weight={args.other_labels_weight}; "
                 f"dev_share={args.dev_share})")
-    train, dev = create_token_classification_dataset(tokenizer, other_labels_weight=args.other_labels_weight,
+    train, dev = create_token_classification_dataset(other_labels_weight=args.other_labels_weight,
                                                      label_set=args.labels, dev_share=args.dev_share,
                                                      batch_size=args.batch_size)
 
@@ -152,7 +153,7 @@ def cross_validation(args: argparse.Namespace, token_cls_model, tokenizer) -> No
     """
     logger.info(f"Run {args.folds}-fold cross validation (num_labels={args.num_labels}; "
                 f"other_labels_weight={args.other_labels_weight})")
-    folded_datasets = create_token_classification_dataset_cv(tokenizer, other_labels_weight=args.other_labels_weight,
+    folded_datasets = create_token_classification_dataset_cv(other_labels_weight=args.other_labels_weight,
                                                              label_set=args.labels, kfolds=args.folds,
                                                              batch_size=args.batch_size)
     args_logdir_original = args.logdir
@@ -236,9 +237,10 @@ def train_routine(args: argparse.Namespace) -> None:
 
     # Load the model
     logger.info(f"Load transformer model and tokenizer ({args.zhuggingface_model_name})")
-    token_cls_model = transformers.TFAutoModelForTokenClassification.from_pretrained(args.zhuggingface_model_name,
-                                                                                     num_labels=args.num_labels)
-    tokenizer = transformers.AutoTokenizer.from_pretrained(args.zhuggingface_model_name)
+    token_cls_model = transformers.TFAutoModelForTokenClassification.from_pretrained(
+        config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME],
+        num_labels=args.num_labels)
+    tokenizer = transformers.AutoTokenizer.from_pretrained(config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME])
     assert isinstance(tokenizer, transformers.PreTrainedTokenizerFast)
 
     # cross validation

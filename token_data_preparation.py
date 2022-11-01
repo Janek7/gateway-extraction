@@ -1,23 +1,27 @@
+import logging
+from typing import Tuple, List
+
 import tensorflow as tf
 import transformers
 from sklearn.model_selection import KFold
 from transformers import BatchEncoding
+from PetReader import pet_reader
+from petreader.labels import *
 
 from labels import *
-from PetReader import pet_reader
-import logging
-from typing import Tuple, List
+from utils import config
 
 logger = logging.getLogger('Data Preparation')
 
 
-def preprocess_tokenization_data(tokenizer: transformers.PreTrainedTokenizerFast, other_labels_weight: float,
-                                 label_set: str = 'filtered') \
+tokenizer = transformers.AutoTokenizer.from_pretrained(config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME])
+
+
+def preprocess_tokenization_data(other_labels_weight: float, label_set: str = 'filtered')\
         -> Tuple[BatchEncoding, tf.Tensor, tf.Tensor, List[List[int]]]:
     """
     create token classification samples from whole PET dataset -> samples (tokens) and their labels and weights for
     usage in a tensorflow dataset
-    :param tokenizer:
     :param other_labels_weight: sample weight to assign samples with tokens != gateway tokens
     :param label_set: flag if to use all labels ('all') or only gateway labels and one rest label ('filtered')
     :return: tokens, labels & weights as tensors, original word ids (2-dim integer list)
@@ -92,20 +96,19 @@ def preprocess_tokenization_data(tokenizer: transformers.PreTrainedTokenizerFast
     return dataset_tokens, dataset_labels, dataset_sample_weights, dataset_word_ids
 
 
-def create_token_classification_dataset_cv(tokenizer: transformers.PreTrainedTokenizerFast, other_labels_weight: float,
-                                           label_set: str = 'filtered', kfolds: int = 5, batch_size: int = None) \
-        -> List[Tuple[tf.data.Dataset, tf.data.Dataset]]:
+def create_token_classification_dataset_cv(other_labels_weight: float, label_set: str = 'filtered', kfolds: int = 5,
+                                           batch_size: int = None) -> List[Tuple[tf.data.Dataset, tf.data.Dataset]]:
     """
     create the dataset for token classification with huggingface transformers bert like models
     split into kfolds splits to use for cross validation
-    :param tokenizer: instance of subclass of transformers.BertTokenizerFast
     :param other_labels_weight: sample weight to assign samples with tokens != gateway tokens
     :param label_set: flag if to use all labels ('all') or only gateway labels and one rest label ('filtered')
     :param kfolds: number of folds
     :param batch_size: apply batching to size if given
     :return: list of tuples (train, dev) as tf.data.Dataset objects
     """
-    tokens, labels, sample_weights, _ = preprocess_tokenization_data(tokenizer, other_labels_weight, label_set)
+    tokens, labels, sample_weights, _ = preprocess_tokenization_data(other_labels_weight=other_labels_weight,
+                                                                     label_set=label_set)
 
     # shuffle inputs before splitting in train/dev
     indices = tf.range(start=0, limit=tokens['input_ids'].shape[0], dtype=tf.int32)
@@ -141,21 +144,20 @@ def create_token_classification_dataset_cv(tokenizer: transformers.PreTrainedTok
     return folded_datasets
 
 
-def create_token_classification_dataset(tokenizer: transformers.PreTrainedTokenizerFast, other_labels_weight: float,
-                                        label_set: str = 'filtered', dev_share: float = 0.1, batch_size: int = None) \
-        -> Tuple[tf.data.Dataset, tf.data.Dataset]:
+def create_token_classification_dataset(other_labels_weight: float, label_set: str = 'filtered', dev_share: float = 0.1,
+                                        batch_size: int = None) -> Tuple[tf.data.Dataset, tf.data.Dataset]:
     """
     create the dataset for token classification with huggingface transformers bert like models
     split into train and dev/validation by the given share in dev_share
     tokens are labeled into XOR, AND and OTHER. Additionally a label for bert specific tokens such as CLS, SEP and PAD
-    :param tokenizer: instance of subclass of transformers.BertTokenizerFast
     :param other_labels_weight: sample weight to assign samples with tokens != gateway tokens
     :param label_set: flag if to use all labels ('all') or only gateway labels and one rest label ('filtered')
     :param dev_share: share of validation/development dataset
     :param batch_size: apply batching to size if given
     :return: train dataset as tf.data.Dataset, dev dataset as tf.data.Dataset
     """
-    tokens, labels, sample_weights, _ = preprocess_tokenization_data(tokenizer, other_labels_weight, label_set)
+    tokens, labels, sample_weights, _ = preprocess_tokenization_data(other_labels_weight=other_labels_weight,
+                                                                     label_set=label_set)
 
     # create tensorflow dataset and split into train and dev
     dataset = tf.data.Dataset.from_tensor_slices(({'input_ids': tokens['input_ids'],

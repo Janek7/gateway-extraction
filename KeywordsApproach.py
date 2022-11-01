@@ -1,21 +1,23 @@
-from petreader.labels import *
-from PetReader import pet_reader
-from petbenchmarks.benchmarks import BenchmarkApproach
-from petbenchmarks.tokenclassification import TokenClassificationBenchmark
-from petbenchmarks.relationsextraction import RelationsExtractionBenchmark
 import logging
 import json
 import os
 import shutil
 import itertools
 from typing import List, Tuple, Optional, Dict
+
+from PetReader import pet_reader
+from petbenchmarks.benchmarks import BenchmarkApproach
+from petbenchmarks.tokenclassification import TokenClassificationBenchmark
+from petbenchmarks.relationsextraction import RelationsExtractionBenchmark
+from petreader.labels import *
+
 from labels import *
 from utils import format_json_file, read_contradictory_gateways, read_keywords
 
 logger = logging.getLogger('keyword approach')
 
 
-class KeywordApproach:
+class KeywordsApproach:
 
     def __init__(self, approach_name: str = None, keywords: str = LITERATURE, same_xor_gateway_threshold: int = 1,
                  output_format: str = BENCHMARK):
@@ -146,13 +148,16 @@ class KeywordApproach:
         doc_sentences = pet_reader.get_doc_sentences(doc_name)
         doc_activities_enriched = pet_reader.get_index_enriched_activities(doc_name)
 
-        # extract concurrent gateways and related flow relations
+        # extract concurrent and exclusive gateways and related flow relations
         and_gateways = self._extract_gateways(doc_sentences, AND_GATEWAY)
-        and_flows = self._extract_concurrent_flows(doc_activities_enriched, and_gateways)
-
-        # extract exclusive gateways and related flow relations
         xor_gateways = self._extract_gateways(doc_sentences, XOR_GATEWAY)
+
+        # apply filtering (in KeywordApproach base class (-> this class) no effect)
+        xor_gateways, and_gateways = self.filter_gateways(doc_name, xor_gateways, and_gateways)
+
+        # extract related flow relations
         xor_flows, same_gateway_relations = self._extract_exclusive_flows(doc_activities_enriched, xor_gateways)
+        and_flows = self._extract_concurrent_flows(doc_activities_enriched, and_gateways)
 
         # extract flow relations of gold activities and remove the ones involved in gateway flows
         gold_activity_flows = self._extract_gold_activity_flows(doc_activities_enriched)
@@ -185,6 +190,9 @@ class KeywordApproach:
             same_gateway_relations = relations_to_benchmark(same_gateway_relations)
 
         return xor_gateways, and_gateways, doc_flows, same_gateway_relations
+
+    def filter_gateways(self, doc_name, xor_gateways, and_gateways):
+        return xor_gateways, and_gateways
 
     def _extract_gateways(self, sentence_list: List[List[str]], gateway_type: str) -> List[List[Tuple[str, int, str]]]:
         """
@@ -764,8 +772,8 @@ class KeywordApproach:
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    keyword_approach = KeywordApproach(approach_name='key_words_custom', keywords=CUSTOM,
-                                       same_xor_gateway_threshold=1, output_format=BENCHMARK)
+    keyword_approach = KeywordsApproach(approach_name='key_words_custom', keywords=CUSTOM,
+                                        same_xor_gateway_threshold=1, output_format=BENCHMARK)
     if True:
         # doc_names = ['doc-3.2']
         keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)

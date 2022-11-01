@@ -1,4 +1,10 @@
-from petreader.labels import *
+# A) CONFIG KEYS
+KEYWORDS_FILTERED_APPROACH = 'keywords-filtered-approach'
+BERT_MODEL_NAME = 'bert-model-name'
+LABEL_SET = 'label-set'
+OTHER_LABELS_WEIGHT = 'other-labels-weight'
+
+# B) LABELS FOR KEYWORDSAPPROACH
 
 # set of keywords available
 LITERATURE = 'literature'
@@ -23,7 +29,10 @@ END_SENTENCE_IDX = 'end_sentence_idx'
 END_TOKEN_ID = 'end_token_idx'
 END_ENTITY = 'end_entity'
 
-# labels for token classification task
+
+# C) LABELS FOR TOKEN CLASSIFICATION TASK
+
+# classification labels
 TC_LABEL_OUT_OF_SCOPE = 0
 TC_LABEL_OTHER = 1  # in case of 'filtered' labels -> all the rest; in case of 'all' labels -> 'O'
 TC_LABEL_XOR = 2
