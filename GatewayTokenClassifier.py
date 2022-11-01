@@ -149,9 +149,9 @@ def simple_training(args: argparse.Namespace, token_cls_model) -> None:
 
     history = model.fit(
         train, epochs=args.epochs, validation_data=dev,
-        callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, histogram_freq=1, update_freq=100, profile_batch=0),
-                   # tf.keras.callbacks.EarlyStopping(monitor='val_accuracy', min_delta=1e-4, patience=100,
-                   #                                  verbose=0, mode="max", baseline=None, restore_best_weights=True)
+        callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq="batch", profile_batch=0),
+                   tf.keras.callbacks.EarlyStopping(monitor='val_overall_accuracy', min_delta=1e-4, patience=1,
+                                                    verbose=0, mode="max", restore_best_weights=True)
                    ]
     )
     with open(os.path.join(args.logdir, "metrics.json"), 'w') as file:
@@ -205,9 +205,10 @@ def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
         model = GatewayTokenClassifier(args, token_cls_model, train_dataset)
         history = model.fit(
             train_dataset, epochs=args.epochs, validation_data=dev_dataset,
-            callbacks=[tf.keras.callbacks.TensorBoard(args.logdir,
-                                                      update_freq='batch',
-                                                      profile_batch=0)]
+            callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq='batch', profile_batch=0),
+                       tf.keras.callbacks.EarlyStopping(monitor='val_overall_accuracy', min_delta=1e-4, patience=1,
+                                                        verbose=0, mode="max", restore_best_weights=True)
+                       ]
         )
 
         # record fold results
