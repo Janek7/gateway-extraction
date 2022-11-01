@@ -23,12 +23,12 @@ parser.add_argument("--epochs", default=1, type=int, help="Number of epochs.")
 parser.add_argument("--seed", default=42, type=int, help="Random seed.")
 # routine params
 parser.add_argument("--routine", default="cv", type=str, help="Simple training or cross validation.")
-parser.add_argument("--dev_share", default=.2, type=int, help="Share of dev dataset in simple training routine.")
-parser.add_argument("--folds", default=2, type=int, help="Number of folds in cross validation routine.")
+parser.add_argument("--dev_share", default=0.1, type=float, help="Share of dev dataset in simple training routine.")
+parser.add_argument("--folds", default=5, type=int, help="Number of folds in cross validation routine.")
 # Architecture params
 parser.add_argument("--extra_head", default=False, type=bool, help="Include extra cls head.")
 parser.add_argument("--labels", default="filtered", type=str, help="Label set to use.")
-parser.add_argument("--other_labels_weight", default=0.1, type=int, help="Sample weight for non gateway tokens.")
+parser.add_argument("--other_labels_weight", default=0.1, type=float, help="Sample weight for non gateway tokens.")
 parser.add_argument("--zhuggingface_model_name", default="distilbert-base-uncased", type=str, help="Model checkpoint")
 
 
@@ -66,7 +66,7 @@ class GatewayTokenClassifier(tf.keras.Model):
                      # metrics for classes of interest
                      metrics=[xor_precision, xor_recall, xor_f1, and_recall, and_precision, and_f1])
         # token_cls_model.summary()
-        self.summary()
+        # self.summary()
 
 
 def simple_training(args: argparse.Namespace, token_cls_model, tokenizer) -> None:
@@ -137,14 +137,18 @@ def cross_validation(args: argparse.Namespace, token_cls_model, tokenizer) -> No
 
     # perform k-fold CV
     for i, (train_dataset, dev_dataset) in enumerate(folded_datasets):
-        logger.info(f"Start training of fold {i}")
+        logger.info(f" Start training of fold {i} ".center(100, '-'))
+
         # train
-        args.logdir = f"{args_logdir_original}\\{i + 1}"
+        args.logdir = f"{args_logdir_original}/{i + 1}"
         os.makedirs(args.logdir, exist_ok=True)
         model = GatewayTokenClassifier(args, token_cls_model, train_dataset)
         history = model.fit(
             train_dataset, epochs=args.epochs, validation_data=dev_dataset,
-            callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, histogram_freq=1, update_freq=100, profile_batch=0)]
+            callbacks=[tf.keras.callbacks.TensorBoard(args.logdir,
+                                                      # histogram_freq=1,
+                                                      update_freq=5,
+                                                      profile_batch=0)]
         )
 
         # record fold results
