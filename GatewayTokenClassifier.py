@@ -131,7 +131,7 @@ class GatewayTokenClassifier(tf.keras.Model):
         return converted_results
 
 
-def simple_training(args: argparse.Namespace, token_cls_model) -> None:
+def simple_training(args: argparse.Namespace, token_cls_model, store_model: bool = False) -> None:
     """
     run a training based on a simple train / test split
     :param args: namespace args
@@ -154,15 +154,22 @@ def simple_training(args: argparse.Namespace, token_cls_model) -> None:
                                                     verbose=0, mode="max", restore_best_weights=True)
                    ]
     )
+
+    # store model
+    if store_model:
+        model.save_weights(os.path.join(args.logdir, "weights"))
+
+    # store metrics
     with open(os.path.join(args.logdir, "metrics.json"), 'w') as file:
         json.dump(history.history, file, indent=4)
 
 
-def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
+def cross_validation(args: argparse.Namespace, token_cls_model, store_model: bool = False) -> None:
     """
     run training in a cross validation routine -> averaged results are outputted into logdir
     :param args: namespace args
     :param token_cls_model: token classification model
+    :param store_model: flag if model weights should be stored in logdir
     :return:
     """
     logger.info(f"Run {args.folds}-fold cross validation (num_labels={args.num_labels}; "
@@ -210,6 +217,10 @@ def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
                                                         verbose=0, mode="max", restore_best_weights=True)
                        ]
         )
+
+        # store model
+        if store_model:
+            model.save_weights(os.path.join(args.logdir, "weights"))
 
         # record fold results
         for metric, epoch_values in history.history.items():
