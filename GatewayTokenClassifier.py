@@ -190,7 +190,7 @@ def cross_validation(args: argparse.Namespace, token_cls_model, store_model: boo
     def update_avg_metrics(metrics_per_fold):
         for metric, value in metrics_per_fold.items():
             if not metric.startswith("avg_"):
-                metrics_per_fold[f"avg_{metric}"] = np.mean(value)
+                metrics_per_fold[f"avg_{metric}"] = round(np.mean(value), 4)
 
     def print_metrics(metrics_per_fold):
         print(' Score per fold '.center(50, '-'))
@@ -229,7 +229,7 @@ def cross_validation(args: argparse.Namespace, token_cls_model, store_model: boo
             # record value of last epoch for each metric
             if metric.startswith("val_"):
                 metric = metric[4:]
-                metrics_per_fold[metric].append(epoch_values[-1])
+                metrics_per_fold[metric].append(round(epoch_values[-1], 4))
         # models.append(model)
 
         update_avg_metrics(metrics_per_fold)
