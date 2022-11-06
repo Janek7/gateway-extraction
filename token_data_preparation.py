@@ -113,6 +113,7 @@ def create_token_classification_dataset_cv(other_labels_weight: float, label_set
     :param shuffle: flag if shuffle the data
     :return: list of tuples (train, dev) as tf.data.Dataset objects
     """
+    logger.info(f"Create CV (folds={kfolds}) dataset (shuffle: {shuffle})")
     tokens, labels, sample_weights, _ = preprocess_tokenization_data(other_labels_weight=other_labels_weight,
                                                                      label_set=label_set)
     input_ids, attention_masks = tokens['input_ids'], tokens['attention_mask']
@@ -166,6 +167,7 @@ def create_token_classification_dataset(other_labels_weight: float, label_set: s
     :param shuffle: flag if shuffle the data
     :return: train dataset as tf.data.Dataset, dev dataset as tf.data.Dataset
     """
+    logger.info(f"Create simple split (dev_share={dev_share}) dataset (shuffle: {shuffle})")
     tokens, labels, sample_weights, _ = preprocess_tokenization_data(other_labels_weight=other_labels_weight,
                                                                      label_set=label_set)
 
@@ -187,7 +189,7 @@ def create_token_classification_dataset(other_labels_weight: float, label_set: s
         logger.info(f"Batch datasets (size {batch_size}) -> {len(train_dataset)}/{len(val_dataset)}")
 
     if shuffle:
-        train_dataset = train_dataset.shuffle()
+        train_dataset = train_dataset.shuffle(buffer_size=10000)
 
     return train_dataset, val_dataset
 

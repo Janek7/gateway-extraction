@@ -53,7 +53,8 @@ def xor_f1(y_true, y_pred):
 
 
 def and_precision(y_true, y_pred):
-    y_pred = tf.math.argmax(y_pred, axis=2)
+    if len(tf.shape(y_pred)) == 3:
+        y_pred = tf.math.argmax(y_pred, axis=2)
     y_true_filtered, y_pred_filtered = filter_y_for_target_label(y_true, y_pred, TC_LABEL_AND)
     true_positives = TPs(y_true_filtered, y_pred_filtered)
     predicted_positives = K.sum(K.round(K.clip(y_pred_filtered, 0, 1)))
@@ -64,7 +65,8 @@ def and_precision(y_true, y_pred):
 
 
 def and_recall(y_true, y_pred):
-    y_pred = tf.math.argmax(y_pred, axis=2)
+    if len(tf.shape(y_pred)) == 3:
+        y_pred = tf.math.argmax(y_pred, axis=2)
     y_true_filtered, y_pred_filtered = filter_y_for_target_label(y_true, y_pred, TC_LABEL_AND)
     true_positives = TPs(y_true_filtered, y_pred_filtered)
     real_positives = K.sum(K.round(K.clip(y_true_filtered, 0, 1)))

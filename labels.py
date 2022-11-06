@@ -6,6 +6,7 @@ LABEL_SET = 'label-set'
 OTHER_LABELS_WEIGHT = 'other-labels-weight'
 NUM_LABELS = 'num-labels'
 SEED = 'seed'
+ENSEMBLE_SEEDS = 'ensemble-seeds'
 
 # B) LABELS FOR KEYWORDSAPPROACH
 

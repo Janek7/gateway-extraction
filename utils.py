@@ -192,25 +192,23 @@ def goldstandards_to_json(objects: str = 'relevant') -> None:
         json.dump(token_goldstandard, file, indent=4)
 
 
-def set_seeds(seed: int) -> None:
+def set_seeds(seed: int, caller: str = None) -> None:
     """
     set tensorflow seeds
     :param seed: seed
+    :param caller: where seed change was called, optional
     :return:
     """
-    global SEED_SET_DURING_SESSION
-    if not SEED_SET_DURING_SESSION:
-        logger.info(f"Set seeds to {seed}")
-        import tensorflow as tf
-        tf.random.set_seed(seed)
-        tf.keras.utils.set_random_seed(seed)
-        tf.compat.v1.set_random_seed(seed)
-        SEED_SET_DURING_SESSION = True
+    logger.info(f"Set seeds to {seed} (caller: {caller})")
+    import tensorflow as tf
+    tf.random.set_seed(seed)
+    tf.keras.utils.set_random_seed(seed)
+    tf.compat.v1.set_random_seed(seed)
 
 
 # set as backup if seed was not set in running script
 # call of this method is sure, because all runnable scripts include loading of some utilities
-set_seeds(config[SEED])
+set_seeds(config[SEED], "default config")
 
 
 if __name__ == '__main__':

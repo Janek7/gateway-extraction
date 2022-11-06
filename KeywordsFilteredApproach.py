@@ -23,7 +23,7 @@ class KeywordsFilteredApproach(KeywordsApproach):
     def __init__(self, approach_name: str = None, keywords: str = LITERATURE, output_format: str = BENCHMARK,
                  same_xor_gateway_threshold: int = 1, output_folder: str = None,
                  # class specific params:
-                 weights_path: str = None, mode: str = None, filtering_log_level: str = FILE):
+                 weights_path: str = None, mode: str = DROP, filtering_log_level: str = FILE):
         """
         creates new instance of the advanced keywords filtered approach
         :param approach_name: description of approach to use in result folder name; if not set use key word variant
@@ -55,7 +55,7 @@ class KeywordsFilteredApproach(KeywordsApproach):
         tokens, _, _, word_ids = preprocess_tokenization_data(sample_numbers=pet_reader.get_doc_sample_ids(doc_name))
 
         # predict token labels with GatewayTokenClassifier
-        predictions = self.token_classifier.predict(tokens, word_ids)
+        predictions = self.token_classifier.predict_converted(tokens, word_ids)
 
         # filter gateway lists using predictions
         def filter_gateways(gateways, gateway_type):
@@ -96,7 +96,7 @@ class KeywordsFilteredApproach(KeywordsApproach):
             return filtered_gateways
 
         filtered_xor_gateways = filter_gateways(xor_gateways, XOR_GATEWAY)
-        filtered_and_gateways = filter_gateways(and_gateways, AND_GATEWAY)
+        filtered_and_gateways = and_gateways  # filter_gateways(and_gateways, AND_GATEWAY)
         return filtered_xor_gateways, filtered_and_gateways
 
 
@@ -105,7 +105,7 @@ if __name__ == '__main__':
     keyword_filtered_approach = KeywordsFilteredApproach(approach_name='key_words_custom_tc_filtered', keywords=CUSTOM,
                                                          output_format=BENCHMARK, same_xor_gateway_threshold=1,
                                                          weights_path="data\logs\GatewayTokenClassifier.py-2022-11-01_183522-bs=8,ds=0.1,e=1,eh=False,f=5,l=filtered,olw=0.1,r=single,s=42,sw=True\weigths\weights",
-                                                         filtering_log_level=CONSOLE)
+                                                         mode=DROP, filtering_log_level=FILE)
 
     doc_name = 'doc-3.2'
     xor_gateways, and_gateways, doc_flows, same_gateway_relations = keyword_filtered_approach.process_document(doc_name)
