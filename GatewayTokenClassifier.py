@@ -6,7 +6,7 @@ import os
 import datetime
 import re
 import logging
-from typing import List
+from typing import List, Dict
 
 import numpy as np
 import tensorflow as tf
@@ -55,7 +55,6 @@ class GatewayTokenClassifierEnsemble:
         :param fold_seed_datasets: list of train/dev pairs (differ in seed; but same fold)
         :return: averaged history
         """
-        # 1) train single models
         histories = []
 
         for i, (model, seed, (train, dev)) in enumerate(zip(self.models, self.seeds, fold_seed_datasets)):
@@ -72,12 +71,22 @@ class GatewayTokenClassifierEnsemble:
             )
             histories.append(history)
 
-        # 2) average histories (epoch-wise)
-        history_merged = tf.keras.callbacks.History()
-        for key in histories[0].history.keys():
-            means = list(np.mean([h.history[key] for h in histories], axis=0))
-            history_merged.history[key] = means
+        return self.average_histories(histories)
 
+    @staticmethod
+    def average_histories(histories: List[tf.keras.callbacks.History]) -> tf.keras.callbacks.History:
+        """
+        average histories (epoch-wise)
+        :param histories: list of tf.keras.callbacks.History (one for each seed)
+        :return: merged history as one object (tf.keras.callbacks.History)
+        """
+        history_merged = tf.keras.callbacks.History()
+        for metric in histories[0].history.keys():
+            # with axis=0 keep epoch dimensions, just reduce seed dimension
+            seed_means = list(np.mean([h.history[metric] for h in histories], axis=0))
+            history_merged.history[metric] = seed_means
+            # record last epoch value for each seed as well
+            history_merged.history[f"seed-results-{metric}"] = [h.history[metric][-1] for h in histories]
         return history_merged
 
     def predict(self, tokens: transformers.BatchEncoding) -> np.ndarray:
@@ -269,25 +278,26 @@ def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
                                                        label_set=args.labels, kfolds=args.folds,
                                                        batch_size=args.batch_size))
 
+    os.makedirs(args.logdir, exist_ok=True)
     args_logdir_original = args.logdir
 
     # models = []  # not used because of memory limitations
-    metrics_per_fold = {'avg_loss': 0, 'avg_xor_precision': 0, 'avg_xor_recall': 0, 'avg_xor_f1': 0,
-                        'avg_and_recall': 0, 'avg_and_precision': 0, 'avg_and_f1': 0, 'avg_overall_accuracy': 0,
-                        'loss': [], 'xor_precision': [], 'xor_recall': [], 'xor_f1': [], 'and_recall': [],
-                        'and_precision': [], 'and_f1': [], 'overall_accuracy': []}
+    metrics_per_fold = {'avg_val_loss': 0, 'avg_val_xor_precision': 0, 'avg_val_xor_recall': 0, 'avg_val_xor_f1': 0,
+                        'avg_val_and_recall': 0, 'avg_val_and_precision': 0, 'avg_val_and_f1': 0, 'avg_val_overall_accuracy': 0,
+                        'val_loss': [], 'val_xor_precision': [], 'val_xor_recall': [], 'val_xor_f1': [], 'val_and_recall': [],
+                        'val_and_precision': [], 'val_and_f1': [], 'val_overall_accuracy': []}
 
     def update_avg_metrics(metrics_per_fold):
         for metric, value in metrics_per_fold.items():
-            if not metric.startswith("avg_"):
+            if not metric.startswith("avg_") and not metric.startswith("seed-results-"):
                 metrics_per_fold[f"avg_{metric}"] = round(np.mean(value), 4)
 
     def print_metrics(metrics_per_fold):
         print(' Score per fold '.center(100, '-'))
-        for i in range(len(metrics_per_fold['loss'])):
+        for i in range(args.folds):
             if i > 0: print('-' * 100)
             metric_str = ' - '.join([f"{metric}: {round(value[i], 4)}" for metric, value in metrics_per_fold.items() if
-                                     not metric.startswith("avg_")])
+                                     not metric.startswith("avg_") and not metric.startswith("seed-results-")])
             print(f"> Fold {i + 1} - {metric_str}")
         print()
         print(' Average scores '.center(100, '-'))
@@ -300,8 +310,9 @@ def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
         logger.info(f" Start training of fold {i} ".center(100, '-'))
 
         # create fold folder
-        args.logdir = f"{args_logdir_original}/{i + 1}"
-        os.makedirs(args.logdir, exist_ok=True)
+        if not args.ensemble:
+            args.logdir = f"{args_logdir_original}/{i + 1}"
+            os.makedirs(args.logdir, exist_ok=True)
 
         # a) fit normal models
         if not args.ensemble:
@@ -326,17 +337,20 @@ def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
                                                             train_size=len(fold_i_seed_datasets[0][0]))
             history = ensemble_model.fit(args, fold_i_seed_datasets)
 
-        # record fold results
-        for metric, epoch_values in history.history.items():
+        # record fold results (record only validation results; drop training metrics)
+        for metric, values in history.history.items():
             # record value of last epoch for each metric
             if metric.startswith("val_"):
-                metric = metric[4:]
-                metrics_per_fold[metric].append(round(epoch_values[-1], 4))
+                # values = values of metric in each epoch (in case of ensemble, values is already averaged over seeds)
+                metrics_per_fold[metric].append(round(values[-1], 4))
+            elif metric.startswith("seed-results-val_"):
+                # values = list of results of metric for every seed (last epoch)
+                metrics_per_fold[f"{metric}-{i}"] = values
+
         # models.append(model)
 
-        update_avg_metrics(metrics_per_fold)
-
-    logger.info("Finished CV, print and save results")
+    logger.info("Finished CV, average, print and save results")
+    update_avg_metrics(metrics_per_fold)
     print_metrics(metrics_per_fold)
 
     # save metrics
