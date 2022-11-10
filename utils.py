@@ -191,6 +191,10 @@ def goldstandards_to_json(objects: str = 'relevant') -> None:
         json.dump(token_goldstandard, file, indent=4)
 
 
+# save in variable, because it has to be always called random.seed(...) before every random.X call
+CURRENT_USED_SEED = 0
+
+
 def set_seeds(seed: int, caller: str = None) -> None:
     """
     set tensorflow seeds
@@ -203,6 +207,8 @@ def set_seeds(seed: int, caller: str = None) -> None:
     tf.random.set_seed(seed)
     tf.keras.utils.set_random_seed(seed)
     tf.compat.v1.set_random_seed(seed)
+    global CURRENT_USED_SEED
+    CURRENT_USED_SEED = seed
 
 
 # set as backup if seed was not set in running script

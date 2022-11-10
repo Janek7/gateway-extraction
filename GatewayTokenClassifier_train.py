@@ -30,10 +30,11 @@ parser.add_argument("--routine", default="ft", type=str, help="Simple split trai
                                                               "full training without validation 'ft'.")
 parser.add_argument("--dev_share", default=0.1, type=float, help="Share of dev dataset in simple training routine.")
 parser.add_argument("--folds", default=2, type=int, help="Number of folds in cross validation routine.")
+parser.add_argument("--sampling_strategy", default=NORMAL, type=str, help="How to sample samples.")
 parser.add_argument("--store_weights", default=True, type=bool, help="Flag if best weights should be stored.")
 # Architecture params
 parser.add_argument("--ensemble", default=True, type=bool, help="Use ensemble learning with config.json seeds.")
-parser.add_argument("--labels", default="all", type=str, help="Label set to use.")
+parser.add_argument("--labels", default=ALL, type=str, help="Label set to use.")
 parser.add_argument("--other_labels_weight", default=0.1, type=float, help="Sample weight for non gateway tokens.")
 
 
@@ -81,7 +82,8 @@ def simple_split_training(args: argparse.Namespace, token_cls_model) -> None:
     """
     logger.info(f"Run simple training (num_labels={args.num_labels}; other_labels_weight={args.other_labels_weight}; "
                 f"dev_share={args.dev_share})")
-    train, dev = create_token_classification_dataset(other_labels_weight=args.other_labels_weight,
+    train, dev = create_token_classification_dataset(args.sampling_strategy,
+                                                     other_labels_weight=args.other_labels_weight,
                                                      label_set=args.labels, dev_share=args.dev_share,
                                                      batch_size=args.batch_size)
 
@@ -117,7 +119,8 @@ def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
 
     # laod data multiple times when using ensembles because seed influences shuffling
     if not args.ensemble:
-        folded_datasets = create_token_classification_dataset_cv(other_labels_weight=args.other_labels_weight,
+        folded_datasets = create_token_classification_dataset_cv(args.sampling_strategy,
+                                                                 other_labels_weight=args.other_labels_weight,
                                                                  label_set=args.labels, kfolds=args.folds,
                                                                  batch_size=args.batch_size)
     else:
@@ -125,7 +128,8 @@ def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
         for seed in config[ENSEMBLE_SEEDS]:
             set_seeds(seed, "GatewayTokenClassifierEnsemble - dataset creation")
             seed_dataset_lists.append(
-                create_token_classification_dataset_cv(other_labels_weight=args.other_labels_weight,
+                create_token_classification_dataset_cv(args.sampling_strategy,
+                                                       other_labels_weight=args.other_labels_weight,
                                                        label_set=args.labels, kfolds=args.folds,
                                                        batch_size=args.batch_size))
 
@@ -216,8 +220,8 @@ def full_training(args: argparse.Namespace, token_cls_model) -> None:
 
     if not args.ensemble:
         # create dataset
-        train = create_full_training_dataset(other_labels_weight=args.other_labels_weight, label_set=args.labels,
-                                             batch_size=args.batch_size)
+        train = create_full_training_dataset(args.sampling_strategy, other_labels_weight=args.other_labels_weight,
+                                             label_set=args.labels, batch_size=args.batch_size)
 
         # train
         model = GatewayTokenClassifier(args, token_cls_model, len(train))
@@ -241,7 +245,8 @@ def full_training(args: argparse.Namespace, token_cls_model) -> None:
         train_datasets = []
         for seed in config[ENSEMBLE_SEEDS]:
             set_seeds(seed, "GatewayTokenClassifierEnsemble - dataset creation")
-            train_datasets.append(create_full_training_dataset(other_labels_weight=args.other_labels_weight,
+            train_datasets.append(create_full_training_dataset(args.sampling_strategy,
+                                                               other_labels_weight=args.other_labels_weight,
                                                                label_set=args.labels, batch_size=args.batch_size))
         # train
         args_dir_original = args.logdir

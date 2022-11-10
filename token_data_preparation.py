@@ -1,42 +1,123 @@
+import copy
 import logging
 from typing import Tuple, List
+import random
 
 import tensorflow as tf
 import transformers
 from sklearn.model_selection import KFold
 from transformers import BatchEncoding
-from PetReader import pet_reader
 from petreader.labels import *
 
+from PetReader import pet_reader
 from labels import *
-from utils import config
+from utils import config, CURRENT_USED_SEED
 
 logger = logging.getLogger('Data Preparation')
 
 
-tokenizer = transformers.AutoTokenizer.from_pretrained(config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME])
-assert isinstance(tokenizer, transformers.PreTrainedTokenizerFast)
+_tokenizer = transformers.AutoTokenizer.from_pretrained(config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME])
+assert isinstance(_tokenizer, transformers.PreTrainedTokenizerFast)
+all_sample_ids = pet_reader.token_dataset.GetRandomizedSampleNumbers()
 
 
-def preprocess_tokenization_data(other_labels_weight: float = 0.1, label_set: str = 'filtered',
-                                 sample_numbers: List[int] = None)\
+# A) DATA SAMPLING
+
+def get_samples(strategy: str = None) -> List[int]:
+    """
+    unified method to get list of samples to include in a dataset; which samples is controlled by strategy parameter
+    :param strategy: strategy which samples to include
+    :return: list of sample numbers
+    """
+    if strategy == NORMAL or strategy is None:
+        return all_sample_ids
+    elif strategy == UP_SAMPLING:
+        return _up_sample_gateway_samples()
+    elif strategy == DOWN_SAMPLING:
+        return _down_sample_other_samples()
+    elif strategy == ONLY_GATEWAYS:
+        return _only_gateway_samples()
+    else:
+        raise ValueError(f"{strategy} is not a valid sampling strategy")
+
+
+def _up_sample_gateway_samples() -> List[int]:
+    """
+    create a (shuffled) list of samples where gateway samples get upsampled to number of samples without gateway
+    :return: list of sample ids
+    """
+    gateway_samples = _only_gateway_samples()
+    without_gateway_samples = list(set(all_sample_ids) - set(gateway_samples))
+
+    # sample samples with gateway until number of samples without gateway is reached
+    upsampled_gateway_samples = []
+    i = 0
+    while len(upsampled_gateway_samples) < len(without_gateway_samples):
+        upsampled_gateway_samples.append(gateway_samples[i])
+        i += 1
+        i %= len(gateway_samples)
+
+    up_sampled_samples = without_gateway_samples + upsampled_gateway_samples
+    random.seed(CURRENT_USED_SEED)
+    random.shuffle(up_sampled_samples)
+    return up_sampled_samples
+
+
+def _down_sample_other_samples() -> List[int]:
+    """
+    create a (shuffled) list of samples where samples without gateway get down sampled to the number of samples with
+    gateway
+    :return: list of sample ids
+    """
+    gateway_samples = _only_gateway_samples()
+    without_gateway_samples = list(set(all_sample_ids) - set(gateway_samples))
+    # not all samples without gateway will be included -> shuffle to sample random ones
+    random.seed(CURRENT_USED_SEED)
+    random.shuffle(without_gateway_samples)
+
+    # sample samples without gateway until number of samples with gateway is reached
+    down_sampled_without_gateway_samples = []
+    i = 0
+    while len(down_sampled_without_gateway_samples) < len(gateway_samples):
+        down_sampled_without_gateway_samples.append(without_gateway_samples[i])
+        i += 1
+
+    down_sampled_samples = gateway_samples + down_sampled_without_gateway_samples
+    random.seed(CURRENT_USED_SEED)
+    random.shuffle(down_sampled_samples)
+    return down_sampled_samples
+
+
+def _only_gateway_samples() -> List[int]:
+    """
+    return filtered list of samples ids that contain at least one gateway token
+    """
+    return [s for s in pet_reader.token_dataset.GetRandomizedSampleNumbers()
+            if f"B-{XOR_GATEWAY}" in pet_reader.token_dataset.GetSampleDictWithNerLabels(s)["ner-tags"]
+            or f"B-{AND_GATEWAY}" in pet_reader.token_dataset.GetSampleDictWithNerLabels(s)["ner-tags"]]
+
+
+# B) DATASET CREATION
+
+
+def preprocess_tokenization_data(sampling_strategy: str = None, other_labels_weight: float = 0.1,
+                                 label_set: str = 'filtered')\
         -> Tuple[BatchEncoding, tf.Tensor, tf.Tensor, List[List[int]]]:
     """
     create token classification samples from whole PET dataset -> samples (tokens) and their labels and weights for
     usage in a tensorflow dataset
+    :param sampling_strategy: strategy how to sample samples: 'normal', 'up', 'down', 'og' (only gateways)
     :param other_labels_weight: sample weight to assign samples with tokens != gateway tokens
     :param label_set: flag if to use all labels ('all') or only gateway labels and one rest label ('filtered')
-    :param sample_numbers: list of sample IDs to preprocess; if None -> use all
     :return: tokens, labels & weights as tensors, original word ids (2-dim integer list)
     """
-    if not sample_numbers:
-        sample_numbers = pet_reader.token_dataset.GetRandomizedSampleNumbers()
+    sample_numbers = get_samples(strategy=sampling_strategy)
     sample_dicts = [pet_reader.token_dataset.GetSampleDictWithNerLabels(sample_number) for sample_number in
                     sample_numbers]
     sample_sentences = [sample_dict['tokens'] for sample_dict in sample_dicts]
 
     # 1) transform tokens tags into IDs classification
-    dataset_tokens = tokenizer(sample_sentences, is_split_into_words=True, padding=True, return_tensors='tf')
+    dataset_tokens = _tokenizer(sample_sentences, is_split_into_words=True, padding=True, return_tensors='tf')
     max_sentence_length = dataset_tokens['input_ids'].shape[1]
 
     # 2) transform NER token tags into labels for classification
@@ -47,9 +128,9 @@ def preprocess_tokenization_data(other_labels_weight: float = 0.1, label_set: st
         sample_dict = pet_reader.token_dataset.GetSampleDictWithNerLabels(sample_number)
         # transformer_tokens = tokenizer.convert_ids_to_tokens(tokens['input_ids'][i])
         # tokenize again every single sample to get access to .word_ids()
-        tokenization = tokenizer(sample_dict['tokens'], is_split_into_words=True,
-                                 padding='max_length', max_length=max_sentence_length, return_tensors='tf')
-        sample_tokens = tokenizer.convert_ids_to_tokens(tokenization['input_ids'][0])
+        tokenization = _tokenizer(sample_dict['tokens'], is_split_into_words=True,
+                                  padding='max_length', max_length=max_sentence_length, return_tensors='tf')
+        sample_tokens = _tokenizer.convert_ids_to_tokens(tokenization['input_ids'][0])
 
         sample_labels = []
         sample_sample_weights = []
@@ -100,8 +181,8 @@ def preprocess_tokenization_data(other_labels_weight: float = 0.1, label_set: st
     return dataset_tokens, dataset_labels, dataset_sample_weights, dataset_word_ids
 
 
-def shuffle_tokenization_data(input_ids: tf.Tensor, attention_masks: tf.Tensor, labels: tf.Tensor,
-                              sample_weights: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor]:
+def _shuffle_tokenization_data(input_ids: tf.Tensor, attention_masks: tf.Tensor, labels: tf.Tensor,
+                               sample_weights: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor]:
     """
     shuffle tensors of tokenized data
     :return: data tensors in same format but shuffled
@@ -115,17 +196,19 @@ def shuffle_tokenization_data(input_ids: tf.Tensor, attention_masks: tf.Tensor, 
     return input_ids, attention_masks, labels, sample_weights
 
 
-def create_dataset(input_ids: tf.Tensor, attention_masks: tf.Tensor, labels: tf.Tensor, sample_weights: tf.Tensor)\
+def _create_dataset(input_ids: tf.Tensor, attention_masks: tf.Tensor, labels: tf.Tensor, sample_weights: tf.Tensor)\
         -> tf.data.Dataset:
     return tf.data.Dataset.from_tensor_slices(({'input_ids': input_ids, 'attention_mask': attention_masks},
                                                labels,
                                                sample_weights))
 
 
-def create_full_training_dataset(other_labels_weight: float, label_set: str = 'filtered', batch_size: int = None,
-                                 shuffle: bool = True) -> tf.data.Dataset:
+def create_full_training_dataset(sampling_strategy: str, other_labels_weight: float = None,
+                                 label_set: str = 'filtered', batch_size: int = None, shuffle: bool = True)\
+        -> tf.data.Dataset:
     """
     create one training set of the whole data without separating a dev set
+    :param sampling_strategy: strategy how to sample samples: 'normal', 'up', 'down', 'og' (only gateways)
     :param other_labels_weight: sample weight to assign samples with tokens != gateway tokens
     :param label_set: flag if to use all labels ('all') or only gateway labels and one rest label ('filtered')
     :param batch_size: apply batching to size if given
@@ -134,20 +217,22 @@ def create_full_training_dataset(other_labels_weight: float, label_set: str = 'f
     """
     logger.info(f"Create full training dataset dataset (other_labels_weight: {other_labels_weight} - "
                 f"label_set: {label_set} - batch_size: {batch_size} - shuffle: {shuffle})")
-    tokens, labels, sample_weights, _ = preprocess_tokenization_data(other_labels_weight=other_labels_weight,
+    tokens, labels, sample_weights, _ = preprocess_tokenization_data(sampling_strategy=sampling_strategy,
+                                                                     other_labels_weight=other_labels_weight,
                                                                      label_set=label_set)
-    dataset = create_dataset(tokens["input_ids"], tokens["attention_mask"], labels, sample_weights)
+    dataset = _create_dataset(tokens["input_ids"], tokens["attention_mask"], labels, sample_weights)
     if batch_size:
         dataset = dataset.batch(batch_size)
     return dataset
 
 
-def create_token_classification_dataset_cv(other_labels_weight: float, label_set: str = 'filtered', kfolds: int = 5,
-                                           batch_size: int = None, shuffle: bool = True)\
-        -> List[Tuple[tf.data.Dataset, tf.data.Dataset]]:
+def create_token_classification_dataset_cv(sampling_strategy: str, other_labels_weight: float = None,
+                                           label_set: str = 'filtered', kfolds: int = 5, batch_size: int = None,
+                                           shuffle: bool = True) -> List[Tuple[tf.data.Dataset, tf.data.Dataset]]:
     """
     create the dataset for token classification with huggingface transformers bert like models
     split into kfolds splits to use for cross validation
+    :param sampling_strategy: strategy how to sample samples: 'normal', 'up', 'down', 'og' (only gateways)
     :param other_labels_weight: sample weight to assign samples with tokens != gateway tokens
     :param label_set: flag if to use all labels ('all') or only gateway labels and one rest label ('filtered')
     :param kfolds: number of folds
@@ -157,14 +242,15 @@ def create_token_classification_dataset_cv(other_labels_weight: float, label_set
     """
     logger.info(f"Create CV (folds={kfolds}) dataset (other_labels_weight: {float} - label_set: {label_set} "
                 f"- batch_size: {batch_size} - shuffle: {shuffle})")
-    tokens, labels, sample_weights, _ = preprocess_tokenization_data(other_labels_weight=other_labels_weight,
+    tokens, labels, sample_weights, _ = preprocess_tokenization_data(sampling_strategy=sampling_strategy,
+                                                                     other_labels_weight=other_labels_weight,
                                                                      label_set=label_set)
     input_ids, attention_masks = tokens['input_ids'], tokens['attention_mask']
 
     # shuffle inputs before splitting in train/dev
     if shuffle:
-        input_ids, attention_masks, labels, sample_weights = shuffle_tokenization_data(input_ids, attention_masks,
-                                                                                       labels, sample_weights)
+        input_ids, attention_masks, labels, sample_weights = _shuffle_tokenization_data(input_ids, attention_masks,
+                                                                                        labels, sample_weights)
 
     # Define the K-fold Cross Validator
     kfold = KFold(n_splits=kfolds)
@@ -172,14 +258,14 @@ def create_token_classification_dataset_cv(other_labels_weight: float, label_set
     # create folds
     folded_datasets = []
     for train, test in kfold.split(input_ids):
-        train_tf_dataset = create_dataset(tf.gather(input_ids, train),
-                                          tf.gather(attention_masks, train),
-                                          tf.gather(labels, train),
-                                          tf.gather(sample_weights, train))
-        dev_tf_dataset = create_dataset(tf.gather(input_ids, test),
-                                        tf.gather(attention_masks, test),
-                                        tf.gather(labels, test),
-                                        tf.gather(sample_weights, test))
+        train_tf_dataset = _create_dataset(tf.gather(input_ids, train),
+                                           tf.gather(attention_masks, train),
+                                           tf.gather(labels, train),
+                                           tf.gather(sample_weights, train))
+        dev_tf_dataset = _create_dataset(tf.gather(input_ids, test),
+                                         tf.gather(attention_masks, test),
+                                         tf.gather(labels, test),
+                                         tf.gather(sample_weights, test))
         if batch_size:
             train_tf_dataset = train_tf_dataset.batch(batch_size)
             dev_tf_dataset = dev_tf_dataset.batch(batch_size)
@@ -188,13 +274,14 @@ def create_token_classification_dataset_cv(other_labels_weight: float, label_set
     return folded_datasets
 
 
-def create_token_classification_dataset(other_labels_weight: float, label_set: str = 'filtered', dev_share: float = 0.1,
-                                        batch_size: int = None, shuffle: bool = True) \
-        -> Tuple[tf.data.Dataset, tf.data.Dataset]:
+def create_token_classification_dataset(sampling_strategy: str, other_labels_weight: float = None,
+                                        label_set: str = 'filtered', dev_share: float = 0.1, batch_size: int = None,
+                                        shuffle: bool = True) -> Tuple[tf.data.Dataset, tf.data.Dataset]:
     """
     create the dataset for token classification with huggingface transformers bert like models
     split into train and dev/validation by the given share in dev_share
     tokens are labeled into XOR, AND and OTHER. Additionally a label for bert specific tokens such as CLS, SEP and PAD
+    :param sampling_strategy: strategy how to sample samples: 'normal', 'up', 'down', 'og' (only gateways)
     :param other_labels_weight: sample weight to assign samples with tokens != gateway tokens
     :param label_set: flag if to use all labels ('all') or only gateway labels and one rest label ('filtered')
     :param dev_share: share of validation/development dataset
@@ -204,11 +291,12 @@ def create_token_classification_dataset(other_labels_weight: float, label_set: s
     """
     logger.info(f"Create simple split (dev_share={dev_share}) dataset ((other_labels_weight: {float} "
                 f"- label_set: {label_set} - batch_size: {batch_size} - shuffle: {shuffle})")
-    tokens, labels, sample_weights, _ = preprocess_tokenization_data(other_labels_weight=other_labels_weight,
+    tokens, labels, sample_weights, _ = preprocess_tokenization_data(sampling_strategy=sampling_strategy,
+                                                                     other_labels_weight=other_labels_weight,
                                                                      label_set=label_set)
 
     # create tensorflow dataset and split into train and dev
-    dataset = create_dataset(tokens["input_ids"], tokens["attention_mask"], labels, sample_weights)
+    dataset = _create_dataset(tokens["input_ids"], tokens["attention_mask"], labels, sample_weights)
     number_samples = tokens['input_ids'].shape[0]
     val_samples = round(number_samples * dev_share)
     val_dataset = dataset.take(val_samples)

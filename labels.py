@@ -66,3 +66,9 @@ DROP = 'drop'
 # Log levels of filtering
 FILE = 'file'
 CONSOLE = 'console'
+
+# Sampling strategies
+NORMAL = 'normal'
+UP_SAMPLING = 'up'
+DOWN_SAMPLING = 'down'
+ONLY_GATEWAYS = 'og'
