@@ -100,6 +100,48 @@ def preprocess_tokenization_data(other_labels_weight: float = 0.1, label_set: st
     return dataset_tokens, dataset_labels, dataset_sample_weights, dataset_word_ids
 
 
+def shuffle_tokenization_data(input_ids: tf.Tensor, attention_masks: tf.Tensor, labels: tf.Tensor,
+                              sample_weights: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor]:
+    """
+    shuffle tensors of tokenized data
+    :return: data tensors in same format but shuffled
+    """
+    indices = tf.range(start=0, limit=input_ids.shape[0], dtype=tf.int32)
+    shuffled_indices = tf.random.shuffle(indices)
+    input_ids = tf.gather(input_ids, shuffled_indices)
+    attention_masks = tf.gather(attention_masks, shuffled_indices)
+    labels = tf.gather(labels, shuffled_indices)
+    sample_weights = tf.gather(sample_weights, shuffled_indices)
+    return input_ids, attention_masks, labels, sample_weights
+
+
+def create_dataset(input_ids: tf.Tensor, attention_masks: tf.Tensor, labels: tf.Tensor, sample_weights: tf.Tensor)\
+        -> tf.data.Dataset:
+    return tf.data.Dataset.from_tensor_slices(({'input_ids': input_ids, 'attention_mask': attention_masks},
+                                               labels,
+                                               sample_weights))
+
+
+def create_full_training_dataset(other_labels_weight: float, label_set: str = 'filtered', batch_size: int = None,
+                                 shuffle: bool = True) -> tf.data.Dataset:
+    """
+    create one training set of the whole data without separating a dev set
+    :param other_labels_weight: sample weight to assign samples with tokens != gateway tokens
+    :param label_set: flag if to use all labels ('all') or only gateway labels and one rest label ('filtered')
+    :param batch_size: apply batching to size if given
+    :param shuffle: flag if shuffle the data
+    :return: one tensorflow dataset
+    """
+    logger.info(f"Create full training dataset dataset (other_labels_weight: {float} - label_set: {label_set} "
+                f"- batch_size: {batch_size} - shuffle: {shuffle})")
+    tokens, labels, sample_weights, _ = preprocess_tokenization_data(other_labels_weight=other_labels_weight,
+                                                                     label_set=label_set)
+    dataset = create_dataset(tokens["input_ids"], tokens["attention_mask"], labels, sample_weights)
+    if batch_size:
+        dataset = dataset.batch(batch_size)
+    return dataset
+
+
 def create_token_classification_dataset_cv(other_labels_weight: float, label_set: str = 'filtered', kfolds: int = 5,
                                            batch_size: int = None, shuffle: bool = True)\
         -> List[Tuple[tf.data.Dataset, tf.data.Dataset]]:
@@ -113,38 +155,31 @@ def create_token_classification_dataset_cv(other_labels_weight: float, label_set
     :param shuffle: flag if shuffle the data
     :return: list of tuples (train, dev) as tf.data.Dataset objects
     """
-    logger.info(f"Create CV (folds={kfolds}) dataset (shuffle: {shuffle})")
+    logger.info(f"Create CV (folds={kfolds}) dataset (other_labels_weight: {float} - label_set: {label_set} "
+                f"- batch_size: {batch_size} - shuffle: {shuffle})")
     tokens, labels, sample_weights, _ = preprocess_tokenization_data(other_labels_weight=other_labels_weight,
                                                                      label_set=label_set)
     input_ids, attention_masks = tokens['input_ids'], tokens['attention_mask']
 
     # shuffle inputs before splitting in train/dev
     if shuffle:
-        indices = tf.range(start=0, limit=tokens['input_ids'].shape[0], dtype=tf.int32)
-        shuffled_indices = tf.random.shuffle(indices)
-        input_ids = tf.gather(tokens['input_ids'], shuffled_indices)
-        attention_masks = tf.gather(tokens['attention_mask'], shuffled_indices)
-        labels = tf.gather(labels, shuffled_indices)
-        sample_weights = tf.gather(sample_weights, shuffled_indices)
+        input_ids, attention_masks, labels, sample_weights = shuffle_tokenization_data(input_ids, attention_masks,
+                                                                                       labels, sample_weights)
 
     # Define the K-fold Cross Validator
-    kfold = KFold(n_splits=kfolds, shuffle=False)
-
-    # helper method to create tf.dataset
-    create_dataset = lambda t, a, l, w: tf.data.Dataset.from_tensor_slices(
-        ({'input_ids': t, 'attention_mask': a}, l, w))
+    kfold = KFold(n_splits=kfolds)
 
     # create folds
     folded_datasets = []
     for train, test in kfold.split(input_ids):
-        train_tf_dataset = create_dataset(t=tf.gather(input_ids, train),
-                                          a=tf.gather(attention_masks, train),
-                                          l=tf.gather(labels, train),
-                                          w=tf.gather(sample_weights, train))
-        dev_tf_dataset = create_dataset(t=tf.gather(input_ids, test),
-                                        a=tf.gather(attention_masks, test),
-                                        l=tf.gather(labels, test),
-                                        w=tf.gather(sample_weights, test))
+        train_tf_dataset = create_dataset(tf.gather(input_ids, train),
+                                          tf.gather(attention_masks, train),
+                                          tf.gather(labels, train),
+                                          tf.gather(sample_weights, train))
+        dev_tf_dataset = create_dataset(tf.gather(input_ids, test),
+                                        tf.gather(attention_masks, test),
+                                        tf.gather(labels, test),
+                                        tf.gather(sample_weights, test))
         if batch_size:
             train_tf_dataset = train_tf_dataset.batch(batch_size)
             dev_tf_dataset = dev_tf_dataset.batch(batch_size)
@@ -167,15 +202,13 @@ def create_token_classification_dataset(other_labels_weight: float, label_set: s
     :param shuffle: flag if shuffle the data
     :return: train dataset as tf.data.Dataset, dev dataset as tf.data.Dataset
     """
-    logger.info(f"Create simple split (dev_share={dev_share}) dataset (shuffle: {shuffle})")
+    logger.info(f"Create simple split (dev_share={dev_share}) dataset ((other_labels_weight: {float} "
+                f"- label_set: {label_set} - batch_size: {batch_size} - shuffle: {shuffle})")
     tokens, labels, sample_weights, _ = preprocess_tokenization_data(other_labels_weight=other_labels_weight,
                                                                      label_set=label_set)
 
     # create tensorflow dataset and split into train and dev
-    dataset = tf.data.Dataset.from_tensor_slices(({'input_ids': tokens['input_ids'],
-                                                   'attention_mask': tokens['attention_mask']},
-                                                  labels,
-                                                  sample_weights))
+    dataset = create_dataset(tokens["input_ids"], tokens["attention_mask"], labels, sample_weights)
     number_samples = tokens['input_ids'].shape[0]
     val_samples = round(number_samples * dev_share)
     val_dataset = dataset.take(val_samples)

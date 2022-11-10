@@ -1,44 +1,33 @@
 #!/usr/bin/env python3
 
 import argparse
-import json
-import os
-import datetime
-import re
 import logging
-from typing import List, Dict
+import os
+from typing import List
 
 import numpy as np
 import tensorflow as tf
 import transformers
 
-from token_data_preparation import create_token_classification_dataset, create_token_classification_dataset_cv
 from metrics import *
 from utils import config, set_seeds
 
 logger = logging.getLogger('Gateway Token Classifier')
 logger_ensemble = logging.getLogger('Gateway Token Classifier Ensemble')
 
-parser = argparse.ArgumentParser()
-# Standard params
-parser.add_argument("--batch_size", default=8, type=int, help="Batch size.")
-parser.add_argument("--epochs", default=1, type=int, help="Number of epochs.")
-parser.add_argument("--seed", default=42, type=int, help="Random seed.")
-# routine params
-parser.add_argument("--routine", default="cv", type=str, help="Simple training or cross validation.")
-parser.add_argument("--dev_share", default=0.1, type=float, help="Share of dev dataset in simple training routine.")
-parser.add_argument("--folds", default=2, type=int, help="Number of folds in cross validation routine.")
-parser.add_argument("--store_weights", default=False, type=bool, help="Flag if best weights should be stored.")
-# Architecture params
-parser.add_argument("--ensemble", default=True, type=bool, help="Use ensemble learning with config.json seeds.")
-parser.add_argument("--labels", default="filtered", type=str, help="Label set to use.")
-parser.add_argument("--other_labels_weight", default=0.1, type=float, help="Sample weight for non gateway tokens.")
-
 
 class GatewayTokenClassifierEnsemble:
 
     def __init__(self, args: argparse.Namespace = None, bert_model=None, train_size: int = None,
-                 seeds=None) -> None:
+                 seeds: List = None, ensemble_path: str = None) -> None:
+        """
+        initializes a ensemble of GatewayTokenClassifier
+        :param args: args Namespace
+        :param bert_model: bert like transformer for token classification model
+        :param train_size: train dataset size
+        :param seeds: list of seeds for which to create models (default: config seeds)
+        :param ensemble_path: path of trained ensemble with stored weights. If set, load model weights from there
+        """
         logger_ensemble.info("Create and initialize a GatewayTokenClassifierEnsemble")
         if seeds is None:
             seeds = config[ENSEMBLE_SEEDS]
@@ -49,27 +38,36 @@ class GatewayTokenClassifierEnsemble:
             set_seeds(seed, "GatewayTokenClassifierEnsemble - model initialization")
             self.models.append(GatewayTokenClassifier(args=args, bert_model=bert_model, train_size=train_size))
 
-    def fit(self, args, fold_seed_datasets):
+    def fit(self, args, train_datasets, dev_datasets=None, save_single_models=False):
         """
         fit method that fits every single seed model and averages metrics in history
-        :param fold_seed_datasets: list of train/dev pairs (differ in seed; but same fold)
+        :param train_datasets: list of train datasets (differ in seed; but same fold)
+        :param dev_datasets: list of dev datasets (differ in seed; but same fold); optional (-> None for full training)
+        :param save_single_models: if True, record training with Tensorboard and save model weights in subfolder
         :return: averaged history
         """
+        args_logdir_original = args.logdir
         histories = []
+        if not dev_datasets:
+            dev_datasets = [None for i in range(len(self.seeds))]
 
-        for i, (model, seed, (train, dev)) in enumerate(zip(self.models, self.seeds, fold_seed_datasets)):
+        for i, (model, seed, train, dev) in enumerate(zip(self.models, self.seeds, train_datasets, dev_datasets)):
             logger_ensemble.info(f" Fit Model {i} with seed {self.seeds[i]} ".center(50, '*'))
             set_seeds(seed, "GatewayTokenClassifierEnsemble - model fit")
 
-            history = model.fit(
-                train, epochs=args.epochs, validation_data=dev,
-                callbacks=[
-                    # tf.keras.callbacks.TensorBoard(args.logdir, update_freq='batch', profile_batch=0),
-                    tf.keras.callbacks.EarlyStopping(monitor='val_overall_accuracy', min_delta=1e-4, patience=1,
-                                                     verbose=0, mode="max", restore_best_weights=True)
-                ]
-            )
+            callbacks = [tf.keras.callbacks.EarlyStopping(monitor='overall_accuracy', min_delta=1e-4, patience=1,
+                                                          verbose=0, mode="max", restore_best_weights=True)]
+
+            if save_single_models:
+                args.logdir = f"{args_logdir_original}/{seed}"
+                os.makedirs(args.logdir, exist_ok=True)
+                callbacks.append(tf.keras.callbacks.TensorBoard(args.logdir, update_freq='batch', profile_batch=0))
+
+            history = model.fit(train, epochs=args.epochs, validation_data=dev, callbacks=callbacks)
             histories.append(history)
+
+            if save_single_models:
+                model.save_weights(os.path.join(args.logdir, "weigths/weights"))
 
         return self.average_histories(histories)
 
@@ -183,10 +181,16 @@ class GatewayTokenClassifier(tf.keras.Model):
         return convert_predictions_into_labels(predictions, word_ids)
 
 
-# HELPER METHODS
+# shared helper method
 
 
 def convert_predictions_into_labels(predictions: np.ndarray, word_ids: List[List[int]]) -> List[List[int]]:
+    """
+    convert predictions for every token (logits) into a list of labels for each sample
+    :param predictions: logits as np.ndarray
+    :param word_ids: original word ids of tokens
+    :return: list of labels for each sample
+    """
     converted_results = []  # list (for each sample): a dict with word_id: predicted class(es))
 
     for i, sample in enumerate(predictions):
@@ -219,177 +223,3 @@ def convert_predictions_into_labels(predictions: np.ndarray, word_ids: List[List
         converted_results.append(converted_sample)
 
     return converted_results
-
-
-def simple_training(args: argparse.Namespace, token_cls_model) -> None:
-    """
-    run a training based on a simple train / test split
-    :param args: namespace args
-    :param token_cls_model: token classification model
-    :return:
-    """
-    logger.info(f"Run simple training (num_labels={args.num_labels}; other_labels_weight={args.other_labels_weight}; "
-                f"dev_share={args.dev_share})")
-    train, dev = create_token_classification_dataset(other_labels_weight=args.other_labels_weight,
-                                                     label_set=args.labels, dev_share=args.dev_share,
-                                                     batch_size=args.batch_size)
-
-    # Create the model and train it
-    model = GatewayTokenClassifier(args, token_cls_model, len(train))
-
-    history = model.fit(
-        train, epochs=args.epochs, validation_data=dev,
-        callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq="batch", profile_batch=0),
-                   tf.keras.callbacks.EarlyStopping(monitor='val_overall_accuracy', min_delta=1e-4, patience=1,
-                                                    verbose=0, mode="max", restore_best_weights=True)
-                   ]
-    )
-
-    # store model
-    if args.store_weights:
-        model.save_weights(os.path.join(args.logdir, "weigths/weights"))
-
-    # store metrics
-    with open(os.path.join(args.logdir, "metrics.json"), 'w') as file:
-        json.dump(history.history, file, indent=4)
-
-
-def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
-    """
-    run training in a cross validation routine -> averaged results are outputted into logdir
-    :param args: namespace args
-    :param token_cls_model: token classification model
-    :return:
-    """
-    logger.info(f"Run {args.folds}-fold cross validation (num_labels={args.num_labels}; "
-                f"other_labels_weight={args.other_labels_weight})")
-
-    # laod data multiple times when using ensembles because seed influences shuffling
-    if not args.ensemble:
-        folded_datasets = create_token_classification_dataset_cv(other_labels_weight=args.other_labels_weight,
-                                                                 label_set=args.labels, kfolds=args.folds,
-                                                                 batch_size=args.batch_size)
-    else:
-        seed_dataset_lists = []
-        for seed in config[ENSEMBLE_SEEDS]:
-            set_seeds(seed, "GatewayTokenClassifierEnsemble - dataset creation")
-            seed_dataset_lists.append(
-                create_token_classification_dataset_cv(other_labels_weight=args.other_labels_weight,
-                                                       label_set=args.labels, kfolds=args.folds,
-                                                       batch_size=args.batch_size))
-
-    os.makedirs(args.logdir, exist_ok=True)
-    args_logdir_original = args.logdir
-
-    # models = []  # not used because of memory limitations
-    metrics_per_fold = {'avg_val_loss': 0, 'avg_val_xor_precision': 0, 'avg_val_xor_recall': 0, 'avg_val_xor_f1': 0,
-                        'avg_val_and_recall': 0, 'avg_val_and_precision': 0, 'avg_val_and_f1': 0, 'avg_val_overall_accuracy': 0,
-                        'val_loss': [], 'val_xor_precision': [], 'val_xor_recall': [], 'val_xor_f1': [], 'val_and_recall': [],
-                        'val_and_precision': [], 'val_and_f1': [], 'val_overall_accuracy': []}
-
-    def update_avg_metrics(metrics_per_fold):
-        for metric, value in metrics_per_fold.items():
-            if not metric.startswith("avg_") and not metric.startswith("seed-results-"):
-                metrics_per_fold[f"avg_{metric}"] = round(np.mean(value), 4)
-
-    def print_metrics(metrics_per_fold):
-        print(' Score per fold '.center(100, '-'))
-        for i in range(args.folds):
-            if i > 0: print('-' * 100)
-            metric_str = ' - '.join([f"{metric}: {round(value[i], 4)}" for metric, value in metrics_per_fold.items() if
-                                     not metric.startswith("avg_") and not metric.startswith("seed-results-")])
-            print(f"> Fold {i + 1} - {metric_str}")
-        print()
-        print(' Average scores '.center(100, '-'))
-        print(' - '.join([f"{metric}: {round(value, 4)}" for metric, value in metrics_per_fold.items() if
-                          metric.startswith("avg_")]))
-
-    # perform k-fold CV
-
-    for i in range(args.folds):
-        logger.info(f" Start training of fold {i} ".center(100, '-'))
-
-        # create fold folder
-        if not args.ensemble:
-            args.logdir = f"{args_logdir_original}/{i + 1}"
-            os.makedirs(args.logdir, exist_ok=True)
-
-        # a) fit normal models
-        if not args.ensemble:
-            train_dataset, dev_dataset = folded_datasets[i][0], folded_datasets[i][1]
-            model = GatewayTokenClassifier(args, token_cls_model, len(train_dataset))
-            history = model.fit(
-                train_dataset, epochs=args.epochs, validation_data=dev_dataset,
-                callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq='batch', profile_batch=0),
-                           tf.keras.callbacks.EarlyStopping(monitor='val_overall_accuracy', min_delta=1e-4, patience=1,
-                                                            verbose=0, mode="max", restore_best_weights=True)
-                           ]
-            )
-            # store model
-            if args.store_weights:
-                model.save_weights(os.path.join(args.logdir, "weights/weights"))
-
-        # b) fit ensemble model (train multiple seeds for current fold)
-        else:
-            # extract fold i train/dev pair for the current seed and pass this list to fit of ensemble classifier
-            fold_i_seed_datasets = [seed_folded_datasets[i] for seed_folded_datasets in seed_dataset_lists]
-            ensemble_model = GatewayTokenClassifierEnsemble(args, token_cls_model,
-                                                            train_size=len(fold_i_seed_datasets[0][0]))
-            history = ensemble_model.fit(args, fold_i_seed_datasets)
-
-        # record fold results (record only validation results; drop training metrics)
-        for metric, values in history.history.items():
-            # record value of last epoch for each metric
-            if metric.startswith("val_"):
-                # values = values of metric in each epoch (in case of ensemble, values is already averaged over seeds)
-                metrics_per_fold[metric].append(round(values[-1], 4))
-            elif metric.startswith("seed-results-val_"):
-                # values = list of results of metric for every seed (last epoch)
-                metrics_per_fold[f"{metric}-{i}"] = values
-
-        # models.append(model)
-
-    logger.info("Finished CV, average, print and save results")
-    update_avg_metrics(metrics_per_fold)
-    print_metrics(metrics_per_fold)
-
-    # save metrics
-    with open(os.path.join(args_logdir_original, "cv_metrics.json"), 'w') as file:
-        json.dump(metrics_per_fold, file, indent=4)
-
-
-def train_routine(args: argparse.Namespace) -> None:
-    # Create logdir name
-    args.logdir = os.path.join("data/logs", "{}-{}-{}".format(
-        os.path.basename(globals().get("__file__", "notebook")),
-        datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S"),
-        ",".join(("{}={}".format(re.sub("(.)[^_]*_?", r"\1", k), v) for k, v in sorted(vars(args).items())))
-    ))
-    if args.labels == 'filtered':
-        args.num_labels = 4
-    elif args.labels == 'all':
-        args.num_labels = 9
-    else:
-        raise ValueError(f"args.labels must be 'filtered' or 'all' and not '{args.labels}'")
-    logger.info(f"Use {args.labels} labels ({args.num_labels})")
-
-    # Load the model
-    logger.info(f"Load transformer model and tokenizer ({config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME]})")
-    token_cls_model = transformers.TFAutoModelForTokenClassification.from_pretrained(
-        config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME],
-        num_labels=args.num_labels)
-
-    # cross validation
-    if args.routine == 'cv':
-        cross_validation(args, token_cls_model)
-    # simple training
-    else:
-        simple_training(args, token_cls_model)
-
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    args = parser.parse_args([] if "__file__" not in globals() else None)
-    set_seeds(args.seed, "args")
-
-    train_routine(args)
