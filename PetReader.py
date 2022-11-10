@@ -1,22 +1,29 @@
 import itertools
+import os
 from typing import List, Tuple
 from petreader.RelationsExtraction import RelationsExtraction
 from petreader.TokenClassification import TokenClassification
 import logging
+
+from utils import ROOT_DIR, load_pickle, save_as_pickle
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('PetReader')
 
 
 class PetReader:
-    logger.info("Load RelationsExtraction dataset ...")
-    relations_dataset = RelationsExtraction()
-    logger.info("Load TokenClassification dataset ...")
-    token_dataset = TokenClassification()
+    """
+    Wrapper for PET dataset with own reading methods
+    """
 
     def __init__(self):
-        self._xor_key_words_gold = self.get_gateway_key_words(PetReader.token_dataset.GetXORGateways())
-        self._and_key_words_gold = self.get_gateway_key_words(PetReader.token_dataset.GetANDGateways())
+        logger.info("Load RelationsExtraction dataset ...")
+        self.relations_dataset = RelationsExtraction()
+        logger.info("Load TokenClassification dataset ...")
+        self.token_dataset = TokenClassification()
+
+        self._xor_key_words_gold = self.get_gateway_key_words(self.token_dataset.GetXORGateways())
+        self._and_key_words_gold = self.get_gateway_key_words(self.token_dataset.GetANDGateways())
 
     @staticmethod
     def get_gateway_key_words(dataset_gateway_list: List) -> List[str]:
@@ -74,8 +81,8 @@ class PetReader:
         :param doc_name: document name
         :return: list of activities (represented as tuple) for each sentence
         """
-        doc_activities = PetReader.token_dataset.GetActivities(doc_name)
-        doc_sentence_ner_labels = PetReader.relations_dataset.GetSentencesWithIdsAndNerTagLabels(
+        doc_activities = self.token_dataset.GetActivities(doc_name)
+        doc_sentence_ner_labels = self.relations_dataset.GetSentencesWithIdsAndNerTagLabels(
             self.get_document_number(doc_name))
 
         doc_activity_tokens = []
@@ -89,4 +96,17 @@ class PetReader:
         return doc_activity_tokens
 
 
-pet_reader = PetReader()
+# Load / create and save pet_reader (for faster loading)
+
+pet_reader_path = os.path.join(ROOT_DIR, "data/other/pet_reader.pkl")
+if os.path.exists(pet_reader_path):
+    logger.info(f"Reload pet_reader from {pet_reader_path}")
+    pet_reader = load_pickle(pet_reader_path)
+else:
+    logger.info(f"Create pet_reader and save as {pet_reader_path}")
+    pet_reader = PetReader()
+    save_as_pickle(pet_reader, pet_reader_path)
+
+
+if __name__ == '__main__':
+    print(pet_reader.xor_key_words_gold)
