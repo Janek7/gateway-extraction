@@ -33,7 +33,7 @@ parser.add_argument("--folds", default=2, type=int, help="Number of folds in cro
 parser.add_argument("--store_weights", default=True, type=bool, help="Flag if best weights should be stored.")
 # Architecture params
 parser.add_argument("--ensemble", default=True, type=bool, help="Use ensemble learning with config.json seeds.")
-parser.add_argument("--labels", default="filtered", type=str, help="Label set to use.")
+parser.add_argument("--labels", default="all", type=str, help="Label set to use.")
 parser.add_argument("--other_labels_weight", default=0.1, type=float, help="Sample weight for non gateway tokens.")
 
 
@@ -51,6 +51,7 @@ def train_routine(args: argparse.Namespace) -> None:
     else:
         raise ValueError(f"args.labels must be 'filtered' or 'all' and not '{args.labels}'")
     logger.info(f"Use {args.labels} labels ({args.num_labels})")
+    print(args)
 
     # Load the model
     logger.info(f"Load transformer model and tokenizer ({config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME]})")
@@ -97,7 +98,7 @@ def simple_split_training(args: argparse.Namespace, token_cls_model) -> None:
 
     # store model
     if args.store_weights:
-        model.save_weights(os.path.join(args.logdir, "weigths/weights"))
+        model.save_weights(os.path.join(args.logdir, "weights/weights"))
 
     # store metrics
     with open(os.path.join(args.logdir, "metrics.json"), 'w') as file:
@@ -213,7 +214,7 @@ def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
 def full_training(args: argparse.Namespace, token_cls_model) -> None:
     logger.info(f"Run full training (num_labels={args.num_labels}; other_labels_weight={args.other_labels_weight})")
 
-    if args.ensemble:
+    if not args.ensemble:
         # create dataset
         train = create_full_training_dataset(other_labels_weight=args.other_labels_weight, label_set=args.labels,
                                              batch_size=args.batch_size)
@@ -229,7 +230,7 @@ def full_training(args: argparse.Namespace, token_cls_model) -> None:
 
         # store model
         if args.store_weights:
-            model.save_weights(os.path.join(args.logdir, "weigths/weights"))
+            model.save_weights(os.path.join(args.logdir, "weights/weights"))
 
         # store metrics
         with open(os.path.join(args.logdir, "metrics.json"), 'w') as file:
@@ -243,12 +244,13 @@ def full_training(args: argparse.Namespace, token_cls_model) -> None:
             train_datasets.append(create_full_training_dataset(other_labels_weight=args.other_labels_weight,
                                                                label_set=args.labels, batch_size=args.batch_size))
         # train
+        args_dir_original = args.logdir
         ensemble_model = GatewayTokenClassifierEnsemble(args, token_cls_model,
                                                         train_size=len(train_datasets[0]))
         history = ensemble_model.fit(args, train_datasets, save_single_models=args.store_weights)
 
         # store metrics
-        with open(os.path.join(args.logdir, "metrics.json"), 'w') as file:
+        with open(os.path.join(args_dir_original, "metrics.json"), 'w') as file:
             json.dump(history.history, file, indent=4)
 
 
@@ -257,4 +259,6 @@ if __name__ == "__main__":
     args = parser.parse_args([] if "__file__" not in globals() else None)
     set_seeds(args.seed, "args")
 
-    train_routine(args)
+    # train_routine(args)
+
+    ensemble = GatewayTokenClassifierEnsemble(ensemble_path="C:\\Users\\janek\\Development\\Git\\master-thesis\\data\\logs\\GatewayTokenClassifier_train.py-2022-11-10_070547-bs=8,ds=0.1,e=True,e=1,f=2,l=all,olw=0.1,r=ft,s=42,sw=True")

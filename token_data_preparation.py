@@ -132,8 +132,8 @@ def create_full_training_dataset(other_labels_weight: float, label_set: str = 'f
     :param shuffle: flag if shuffle the data
     :return: one tensorflow dataset
     """
-    logger.info(f"Create full training dataset dataset (other_labels_weight: {float} - label_set: {label_set} "
-                f"- batch_size: {batch_size} - shuffle: {shuffle})")
+    logger.info(f"Create full training dataset dataset (other_labels_weight: {other_labels_weight} - "
+                f"label_set: {label_set} - batch_size: {batch_size} - shuffle: {shuffle})")
     tokens, labels, sample_weights, _ = preprocess_tokenization_data(other_labels_weight=other_labels_weight,
                                                                      label_set=label_set)
     dataset = create_dataset(tokens["input_ids"], tokens["attention_mask"], labels, sample_weights)

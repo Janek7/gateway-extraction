@@ -12,7 +12,6 @@ logger = logging.getLogger('Utilities')
 logging.basicConfig(level=logging.INFO)
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))  # project root path
-SEED_SET_DURING_SESSION = False
 
 
 def read_config() -> Dict:

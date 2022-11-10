@@ -1,8 +1,8 @@
 {
   "keywords-filtered-approach": {
     "bert-model-name": "distilbert-base-uncased",
-    "label-set": "filtered",
-    "other-labels-weight": 0.1
+    "label-set": "all",
+    "other-labels-weight": 0.4
   },
   "seed": 42,
   "ensemble-seeds": [42, 43]

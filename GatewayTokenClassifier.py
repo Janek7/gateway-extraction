@@ -32,11 +32,19 @@ class GatewayTokenClassifierEnsemble:
         if seeds is None:
             seeds = config[ENSEMBLE_SEEDS]
         self.seeds = seeds
+        self.ensemble_path = ensemble_path
         self.models = []
+        if self.ensemble_path:
+            logger.info(f"Restored weights from trained ensemble {ensemble_path}")
+
         # create single models based on seeds
         for i, seed in enumerate(self.seeds):
             set_seeds(seed, "GatewayTokenClassifierEnsemble - model initialization")
-            self.models.append(GatewayTokenClassifier(args=args, bert_model=bert_model, train_size=train_size))
+            model = GatewayTokenClassifier(args=args, bert_model=bert_model, train_size=train_size)
+            # if path to trained ensemble is passed, restore weights
+            if self.ensemble_path:
+                model.load_weights(os.path.join(self.ensemble_path, str(seed), "weights/weights")).expect_partial()
+            self.models.append(model)
 
     def fit(self, args, train_datasets, dev_datasets=None, save_single_models=False):
         """
@@ -46,6 +54,9 @@ class GatewayTokenClassifierEnsemble:
         :param save_single_models: if True, record training with Tensorboard and save model weights in subfolder
         :return: averaged history
         """
+        if self.ensemble_path:
+            logger.warning("Ensemble was loaded from stored weights and should not be trained further (optimizer not"
+                           "was not saved")
         args_logdir_original = args.logdir
         histories = []
         if not dev_datasets:
@@ -67,7 +78,7 @@ class GatewayTokenClassifierEnsemble:
             histories.append(history)
 
             if save_single_models:
-                model.save_weights(os.path.join(args.logdir, "weigths/weights"))
+                model.save_weights(os.path.join(args.logdir, "weights/weights"))
 
         return self.average_histories(histories)
 
