@@ -26,16 +26,17 @@ parser.add_argument("--batch_size", default=8, type=int, help="Batch size.")
 parser.add_argument("--epochs", default=1, type=int, help="Number of epochs.")
 parser.add_argument("--seed", default=42, type=int, help="Random seed.")
 # routine params
-parser.add_argument("--routine", default="ft", type=str, help="Simple split training 'sp', cross validation 'cv' or "
+parser.add_argument("--routine", default="cv", type=str, help="Simple split training 'sp', cross validation 'cv' or "
                                                               "full training without validation 'ft'.")
 parser.add_argument("--dev_share", default=0.1, type=float, help="Share of dev dataset in simple training routine.")
 parser.add_argument("--folds", default=2, type=int, help="Number of folds in cross validation routine.")
-parser.add_argument("--sampling_strategy", default=NORMAL, type=str, help="How to sample samples.")
-parser.add_argument("--store_weights", default=True, type=bool, help="Flag if best weights should be stored.")
-# Architecture params
+parser.add_argument("--store_weights", default=False, type=bool, help="Flag if best weights should be stored.")
+# Architecture / data params
 parser.add_argument("--ensemble", default=True, type=bool, help="Use ensemble learning with config.json seeds.")
 parser.add_argument("--labels", default=ALL, type=str, help="Label set to use.")
 parser.add_argument("--other_labels_weight", default=0.1, type=float, help="Sample weight for non gateway tokens.")
+parser.add_argument("--sampling_strategy", default=NORMAL, type=str, help="How to sample samples.")
+parser.add_argument("--use_synonyms", default=False, type=str, help="Include synonym samples.")
 
 
 def train_routine(args: argparse.Namespace) -> None:
@@ -93,8 +94,8 @@ def simple_split_training(args: argparse.Namespace, token_cls_model) -> None:
     history = model.fit(
         train, epochs=args.epochs, validation_data=dev,
         callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq="batch", profile_batch=0),
-                   tf.keras.callbacks.EarlyStopping(monitor='val_overall_accuracy', min_delta=1e-4, patience=1,
-                                                    verbose=0, mode="max", restore_best_weights=True)
+                   # tf.keras.callbacks.EarlyStopping(monitor='val_overall_accuracy', min_delta=1e-4, patience=1,
+                   #                                  verbose=0, mode="max", restore_best_weights=True)
                    ]
     )
 
@@ -119,7 +120,7 @@ def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
 
     # laod data multiple times when using ensembles because seed influences shuffling
     if not args.ensemble:
-        folded_datasets = create_token_classification_dataset_cv(args.sampling_strategy,
+        folded_datasets = create_token_classification_dataset_cv(args.sampling_strategy, use_synonyms=args.use_synonyms,
                                                                  other_labels_weight=args.other_labels_weight,
                                                                  label_set=args.labels, kfolds=args.folds,
                                                                  batch_size=args.batch_size)
@@ -128,7 +129,7 @@ def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
         for seed in config[ENSEMBLE_SEEDS]:
             set_seeds(seed, "GatewayTokenClassifierEnsemble - dataset creation")
             seed_dataset_lists.append(
-                create_token_classification_dataset_cv(args.sampling_strategy,
+                create_token_classification_dataset_cv(args.sampling_strategy, use_synonyms=args.use_synonyms,
                                                        other_labels_weight=args.other_labels_weight,
                                                        label_set=args.labels, kfolds=args.folds,
                                                        batch_size=args.batch_size))
@@ -176,8 +177,8 @@ def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
             history = model.fit(
                 train_dataset, epochs=args.epochs, validation_data=dev_dataset,
                 callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq='batch', profile_batch=0),
-                           tf.keras.callbacks.EarlyStopping(monitor='val_overall_accuracy', min_delta=1e-4, patience=1,
-                                                            verbose=0, mode="max", restore_best_weights=True)
+                           # tf.keras.callbacks.EarlyStopping(monitor='val_overall_accuracy', min_delta=1e-4, patience=1,
+                           #                                  verbose=0, mode="max", restore_best_weights=True)
                            ]
             )
             # store model
@@ -220,16 +221,18 @@ def full_training(args: argparse.Namespace, token_cls_model) -> None:
 
     if not args.ensemble:
         # create dataset
-        train = create_full_training_dataset(args.sampling_strategy, other_labels_weight=args.other_labels_weight,
-                                             label_set=args.labels, batch_size=args.batch_size)
+        train = create_full_training_dataset(args.sampling_strategy, use_synonyms=args.use_synonyms,
+                                             other_labels_weight=args.other_labels_weight, label_set=args.labels,
+                                             batch_size=args.batch_size)
 
         # train
         model = GatewayTokenClassifier(args, token_cls_model, len(train))
         history = model.fit(
             train, epochs=args.epochs,
-            callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq="batch", profile_batch=0),
-                       tf.keras.callbacks.EarlyStopping(monitor='val_overall_accuracy', min_delta=1e-4, patience=1,
-                                                        verbose=0, mode="max", restore_best_weights=True)]
+            callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq="batch", profile_batch=0)
+                       # tf.keras.callbacks.EarlyStopping(monitor='val_overall_accuracy', min_delta=1e-4, patience=1,
+                       #                                  verbose=0, mode="max", restore_best_weights=True)
+                                             ]
         )
 
         # store model
@@ -245,7 +248,7 @@ def full_training(args: argparse.Namespace, token_cls_model) -> None:
         train_datasets = []
         for seed in config[ENSEMBLE_SEEDS]:
             set_seeds(seed, "GatewayTokenClassifierEnsemble - dataset creation")
-            train_datasets.append(create_full_training_dataset(args.sampling_strategy,
+            train_datasets.append(create_full_training_dataset(args.sampling_strategy, use_synonyms=args.use_synonyms,
                                                                other_labels_weight=args.other_labels_weight,
                                                                label_set=args.labels, batch_size=args.batch_size))
         # train

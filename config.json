@@ -5,6 +5,6 @@
     "other-labels-weight": 0.4
   },
   "seed": 42,
-  "ensemble-seeds": [42, 43],
+  "ensemble-seeds": [43, 44, 45],
   "synonym-samples-start-number": 500
 }

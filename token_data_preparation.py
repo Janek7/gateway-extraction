@@ -45,7 +45,7 @@ def get_samples(strategy: str = None, use_synonyms: bool = False) -> List[int]:
     elif strategy == DOWN_SAMPLING:
         return _down_sample_other_samples()
     elif strategy == ONLY_GATEWAYS:
-        return _only_gateway_samples()
+        return _only_gateway_samples(use_synonyms=use_synonyms)
     else:
         raise ValueError(f"{strategy} is not a valid sampling strategy")
 
@@ -356,11 +356,11 @@ def create_token_classification_dataset(sampling_strategy: str, use_synonyms: bo
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
 
-    if False:
-        train, dev = create_token_classification_dataset(other_labels_weight=.2, label_set='filtered',
-                                                         dev_share=.1, batch_size=8)
-
     if True:
+        samples = get_samples(strategy="og", use_synonyms=True)
+        print(len(samples))
+
+    if False:
         folded_datasets = create_token_classification_dataset_cv(sampling_strategy=NORMAL, use_synonyms=True,
                                                                  other_labels_weight=.2, kfolds=5,
                                                                  label_set='all', batch_size=8)

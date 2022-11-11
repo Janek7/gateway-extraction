@@ -66,8 +66,7 @@ class GatewayTokenClassifierEnsemble:
             logger_ensemble.info(f" Fit Model {i} with seed {self.seeds[i]} ".center(50, '*'))
             set_seeds(seed, "GatewayTokenClassifierEnsemble - model fit")
 
-            callbacks = [tf.keras.callbacks.EarlyStopping(monitor='overall_accuracy', min_delta=1e-4, patience=1,
-                                                          verbose=0, mode="max", restore_best_weights=True)]
+            callbacks = []  # [tf.keras.callbacks.EarlyStopping(monitor='overall_accuracy', min_delta=1e-4, patience=1, verbose=0, mode="max", restore_best_weights=True)]
 
             if save_single_models:
                 args.logdir = f"{args_logdir_original}/{seed}"
