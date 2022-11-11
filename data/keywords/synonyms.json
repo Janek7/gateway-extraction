@@ -1,0 +1,23 @@
+{
+  "xor": {
+    "either": ["or"],
+    "else" :["otherwise"],
+    "if": ["whether", "whenever", "given", "supposing", "once", "provided", "assuming", "presuming"],
+    "only": ["just", "exclusively"],
+    "or": ["either"],
+    "otherwise": ["or", "else", "contrarily"],
+    "whether": ["if"]
+  },
+  "and": {
+    "meantime": ["meanwhile"],
+    "meanwhile": ["meantime", "while"],
+    "while": ["during", "whilst", "whereas"],
+    "whereas": ["while"]
+  },
+  "sources": [
+    "searching 'synonyms ...' on Google",
+    "https://www.thesaurus.com/",
+    "https://www.merriam-webster.com/thesaurus",
+    "https://www.collinsdictionary.com/dictionary/english-thesaurus"
+  ]
+}

@@ -11,9 +11,7 @@ otherwise;literature;keep
 till;literature;keep
 whether;literature;drop
 when;literature;drop
-only;literature;drop
 until;literature;drop
-if not;literature;drop
 unless;literature;drop
 for;gold;drop
 it can also happen that;gold;keep

@@ -90,6 +90,16 @@ def read_keywords(keywords: str, token_flattened: bool = False) -> Tuple[List[st
     return xor_keywords, and_keywords
 
 
+def read_keyword_synonyms() -> Tuple[Dict, Dict]:
+    """
+    read dictionaries of keyword synonyms from one synonym file
+    :return: two dicts with keywords as key and a list of synonyms as values
+    """
+    with open(os.path.join(ROOT_DIR, 'data/keywords/synonyms.json')) as file:
+        synonym_dict = json.load(file)
+    return synonym_dict["xor"], synonym_dict["and"]
+
+
 def write_gold_keywords_to_files() -> None:
     """
     write gold keywords to files

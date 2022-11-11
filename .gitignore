@@ -8,5 +8,6 @@ scripts/data/logs/
 data/other/
 lib
 test*.py
+notebooks/*test.ipynb
 debug*.py
 check_for_contradictory_key_words.ipynb

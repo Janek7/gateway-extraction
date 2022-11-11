@@ -7,6 +7,7 @@ OTHER_LABELS_WEIGHT = 'other-labels-weight'
 NUM_LABELS = 'num-labels'
 SEED = 'seed'
 ENSEMBLE_SEEDS = 'ensemble-seeds'
+SYNONYM_SAMPLES_START_NUMBER = 'synonym-samples-start-number'
 
 # B) LABELS FOR KEYWORDSAPPROACH
 

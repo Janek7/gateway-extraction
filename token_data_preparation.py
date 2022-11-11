@@ -1,4 +1,3 @@
-import copy
 import logging
 from typing import Tuple, List
 import random
@@ -11,6 +10,7 @@ from petreader.labels import *
 
 from PetReader import pet_reader
 from labels import *
+from token_data_augmentation import get_synonym_samples
 from utils import config, CURRENT_USED_SEED
 
 logger = logging.getLogger('Data Preparation')
@@ -23,12 +23,21 @@ all_sample_ids = pet_reader.token_dataset.GetRandomizedSampleNumbers()
 
 # A) DATA SAMPLING
 
-def get_samples(strategy: str = None) -> List[int]:
+def get_samples(strategy: str = None, use_synonyms: bool = False) -> List[int]:
     """
     unified method to get list of samples to include in a dataset; which samples is controlled by strategy parameter
+    use use_synonyms=True only with "normal" and "only gateway" strategy
     :param strategy: strategy which samples to include
+    :param use_synonyms: flag if synonym samples should be included;
+                         WARNING: True will change up/down sampling logic -> DO NOT USE TOGETHER
     :return: list of sample numbers
     """
+    # extend all sample ids with created synonym sample ids
+    if use_synonyms:
+        synonym_samples = get_synonym_samples()
+        all_sample_ids.extend(list(synonym_samples.keys()))
+
+    # modify all_sample_ids list based on sampling strategy
     if strategy == NORMAL or strategy is None:
         return all_sample_ids
     elif strategy == UP_SAMPLING:
@@ -88,45 +97,66 @@ def _down_sample_other_samples() -> List[int]:
     return down_sampled_samples
 
 
-def _only_gateway_samples() -> List[int]:
+def _only_gateway_samples(use_synonyms: bool = False) -> List[int]:
     """
     return filtered list of samples ids that contain at least one gateway token
+    :param use_synonyms: flag if synonym samples should be included
     """
-    return [s for s in pet_reader.token_dataset.GetRandomizedSampleNumbers()
-            if f"B-{XOR_GATEWAY}" in pet_reader.token_dataset.GetSampleDictWithNerLabels(s)["ner-tags"]
-            or f"B-{AND_GATEWAY}" in pet_reader.token_dataset.GetSampleDictWithNerLabels(s)["ner-tags"]]
+    only_gateway_samples = [s for s in pet_reader.token_dataset.GetRandomizedSampleNumbers()
+                            if f"B-{XOR_GATEWAY}" in pet_reader.token_dataset.GetSampleDictWithNerLabels(s)["ner-tags"]
+                            or f"B-{AND_GATEWAY}" in pet_reader.token_dataset.GetSampleDictWithNerLabels(s)["ner-tags"]]
+    if use_synonyms:
+        synonym_samples = get_synonym_samples()
+        only_gateway_samples.extend(list(synonym_samples.keys()))
+    return only_gateway_samples
 
 
 # B) DATASET CREATION
 
 
-def preprocess_tokenization_data(sampling_strategy: str = None, other_labels_weight: float = 0.1,
-                                 label_set: str = 'filtered')\
+def preprocess_tokenization_data(sample_numbers: List = None, sampling_strategy: str = None, use_synonyms: bool = False,
+                                 other_labels_weight: float = 0.1, label_set: str = 'filtered')\
         -> Tuple[BatchEncoding, tf.Tensor, tf.Tensor, List[List[int]]]:
     """
     create token classification samples from whole PET dataset -> samples (tokens) and their labels and weights for
     usage in a tensorflow dataset
+    include either samples from sample_numbers list OR sample samples with sampling_strategy
+    :param sample_numbers: list of concrete sample numbers
     :param sampling_strategy: strategy how to sample samples: 'normal', 'up', 'down', 'og' (only gateways)
+    :param use_synonyms: flag if synonym samples should be included;
     :param other_labels_weight: sample weight to assign samples with tokens != gateway tokens
     :param label_set: flag if to use all labels ('all') or only gateway labels and one rest label ('filtered')
     :return: tokens, labels & weights as tensors, original word ids (2-dim integer list)
     """
-    sample_numbers = get_samples(strategy=sampling_strategy)
-    sample_dicts = [pet_reader.token_dataset.GetSampleDictWithNerLabels(sample_number) for sample_number in
-                    sample_numbers]
+    if sample_numbers and not sampling_strategy:
+        sample_numbers = sample_numbers
+    elif not sample_numbers and sampling_strategy:
+        sample_numbers = get_samples(strategy=sampling_strategy, use_synonyms=use_synonyms)
+    else:
+        raise ValueError("Tokenization either based on conrete samples OR sampling strategy from whole data (not both)")
+
+    # 1) prepare sample data
+    sample_dicts = []
+    synonym_samples = get_synonym_samples()
+    for sample_number in sample_numbers:
+        # in case sample is normal sample
+        if sample_number < config[SYNONYM_SAMPLES_START_NUMBER]:
+            sample_dicts.append(pet_reader.token_dataset.GetSampleDictWithNerLabels(sample_number))
+        # in case sample is synonym sample
+        else:
+            sample_dicts.append(synonym_samples[sample_number])
+
     sample_sentences = [sample_dict['tokens'] for sample_dict in sample_dicts]
 
-    # 1) transform tokens tags into IDs classification
+    # 2) transform tokens tags into IDs classification
     dataset_tokens = _tokenizer(sample_sentences, is_split_into_words=True, padding=True, return_tensors='tf')
     max_sentence_length = dataset_tokens['input_ids'].shape[1]
 
-    # 2) transform NER token tags into labels for classification
+    # 3) transform NER token tags into labels for classification
     dataset_labels = []
     dataset_sample_weights = []
     dataset_word_ids = []
-    for i, sample_number in enumerate(sample_numbers):
-        sample_dict = pet_reader.token_dataset.GetSampleDictWithNerLabels(sample_number)
-        # transformer_tokens = tokenizer.convert_ids_to_tokens(tokens['input_ids'][i])
+    for i, sample_dict in enumerate(sample_dicts):
         # tokenize again every single sample to get access to .word_ids()
         tokenization = _tokenizer(sample_dict['tokens'], is_split_into_words=True,
                                   padding='max_length', max_length=max_sentence_length, return_tensors='tf')
@@ -203,12 +233,13 @@ def _create_dataset(input_ids: tf.Tensor, attention_masks: tf.Tensor, labels: tf
                                                sample_weights))
 
 
-def create_full_training_dataset(sampling_strategy: str, other_labels_weight: float = None,
+def create_full_training_dataset(sampling_strategy: str, use_synonyms: bool = False, other_labels_weight: float = None,
                                  label_set: str = 'filtered', batch_size: int = None, shuffle: bool = True)\
         -> tf.data.Dataset:
     """
     create one training set of the whole data without separating a dev set
     :param sampling_strategy: strategy how to sample samples: 'normal', 'up', 'down', 'og' (only gateways)
+    :param use_synonyms: flag if synonym samples should be included;
     :param other_labels_weight: sample weight to assign samples with tokens != gateway tokens
     :param label_set: flag if to use all labels ('all') or only gateway labels and one rest label ('filtered')
     :param batch_size: apply batching to size if given
@@ -217,7 +248,8 @@ def create_full_training_dataset(sampling_strategy: str, other_labels_weight: fl
     """
     logger.info(f"Create full training dataset dataset (other_labels_weight: {other_labels_weight} - "
                 f"label_set: {label_set} - batch_size: {batch_size} - shuffle: {shuffle})")
-    tokens, labels, sample_weights, _ = preprocess_tokenization_data(sampling_strategy=sampling_strategy,
+    tokens, labels, sample_weights, _ = preprocess_tokenization_data(use_synonyms=use_synonyms,
+                                                                     sampling_strategy=sampling_strategy,
                                                                      other_labels_weight=other_labels_weight,
                                                                      label_set=label_set)
     dataset = _create_dataset(tokens["input_ids"], tokens["attention_mask"], labels, sample_weights)
@@ -226,13 +258,15 @@ def create_full_training_dataset(sampling_strategy: str, other_labels_weight: fl
     return dataset
 
 
-def create_token_classification_dataset_cv(sampling_strategy: str, other_labels_weight: float = None,
-                                           label_set: str = 'filtered', kfolds: int = 5, batch_size: int = None,
-                                           shuffle: bool = True) -> List[Tuple[tf.data.Dataset, tf.data.Dataset]]:
+def create_token_classification_dataset_cv(sampling_strategy: str, use_synonyms: bool = False,
+                                           other_labels_weight: float = None, label_set: str = 'filtered',
+                                           kfolds: int = 5, batch_size: int = None, shuffle: bool = True, ) \
+        -> List[Tuple[tf.data.Dataset, tf.data.Dataset]]:
     """
     create the dataset for token classification with huggingface transformers bert like models
     split into kfolds splits to use for cross validation
     :param sampling_strategy: strategy how to sample samples: 'normal', 'up', 'down', 'og' (only gateways)
+    :param use_synonyms: flag if synonym samples should be included;
     :param other_labels_weight: sample weight to assign samples with tokens != gateway tokens
     :param label_set: flag if to use all labels ('all') or only gateway labels and one rest label ('filtered')
     :param kfolds: number of folds
@@ -243,6 +277,7 @@ def create_token_classification_dataset_cv(sampling_strategy: str, other_labels_
     logger.info(f"Create CV (folds={kfolds}) dataset (other_labels_weight: {float} - label_set: {label_set} "
                 f"- batch_size: {batch_size} - shuffle: {shuffle})")
     tokens, labels, sample_weights, _ = preprocess_tokenization_data(sampling_strategy=sampling_strategy,
+                                                                     use_synonyms=use_synonyms,
                                                                      other_labels_weight=other_labels_weight,
                                                                      label_set=label_set)
     input_ids, attention_masks = tokens['input_ids'], tokens['attention_mask']
@@ -274,14 +309,16 @@ def create_token_classification_dataset_cv(sampling_strategy: str, other_labels_
     return folded_datasets
 
 
-def create_token_classification_dataset(sampling_strategy: str, other_labels_weight: float = None,
-                                        label_set: str = 'filtered', dev_share: float = 0.1, batch_size: int = None,
-                                        shuffle: bool = True) -> Tuple[tf.data.Dataset, tf.data.Dataset]:
+def create_token_classification_dataset(sampling_strategy: str, use_synonyms: bool = False,
+                                        other_labels_weight: float = None, label_set: str = 'filtered',
+                                        dev_share: float = 0.1, batch_size: int = None, shuffle: bool = True)\
+        -> Tuple[tf.data.Dataset, tf.data.Dataset]:
     """
     create the dataset for token classification with huggingface transformers bert like models
     split into train and dev/validation by the given share in dev_share
     tokens are labeled into XOR, AND and OTHER. Additionally a label for bert specific tokens such as CLS, SEP and PAD
     :param sampling_strategy: strategy how to sample samples: 'normal', 'up', 'down', 'og' (only gateways)
+    :param use_synonyms: flag if synonym samples should be included;
     :param other_labels_weight: sample weight to assign samples with tokens != gateway tokens
     :param label_set: flag if to use all labels ('all') or only gateway labels and one rest label ('filtered')
     :param dev_share: share of validation/development dataset
@@ -291,7 +328,8 @@ def create_token_classification_dataset(sampling_strategy: str, other_labels_wei
     """
     logger.info(f"Create simple split (dev_share={dev_share}) dataset ((other_labels_weight: {float} "
                 f"- label_set: {label_set} - batch_size: {batch_size} - shuffle: {shuffle})")
-    tokens, labels, sample_weights, _ = preprocess_tokenization_data(sampling_strategy=sampling_strategy,
+    tokens, labels, sample_weights, _ = preprocess_tokenization_data(use_synonyms=use_synonyms,
+                                                                     sampling_strategy=sampling_strategy,
                                                                      other_labels_weight=other_labels_weight,
                                                                      label_set=label_set)
 
@@ -323,7 +361,8 @@ if __name__ == '__main__':
                                                          dev_share=.1, batch_size=8)
 
     if True:
-        folded_datasets = create_token_classification_dataset_cv(other_labels_weight=.2, kfolds=5,
-                                                                 label_set='filtered', batch_size=8)
+        folded_datasets = create_token_classification_dataset_cv(sampling_strategy=NORMAL, use_synonyms=True,
+                                                                 other_labels_weight=.2, kfolds=5,
+                                                                 label_set='all', batch_size=8)
         for t, d in folded_datasets:
             print(len(t), len(d))
