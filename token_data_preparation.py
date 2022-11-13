@@ -273,11 +273,11 @@ def create_full_training_dataset(args: argparse.Namespace, shuffle: bool = True)
     :return: one tensorflow dataset
     """
     logger.info(f"Create full training dataset dataset (other_labels_weight: {args.other_labels_weight} - "
-                f"label_set: {args.label_set} - batch_size: {args.batch_size} - shuffle: {shuffle})")
+                f"labels: {args.labels} - batch_size: {args.batch_size} - shuffle: {shuffle})")
     tokens, labels, sample_weights, _ = preprocess_tokenization_data(use_synonyms=args.use_synonyms,
                                                                      sampling_strategy=args.sampling_strategy,
                                                                      other_labels_weight=args.other_labels_weight,
-                                                                     label_set=args.label_set,
+                                                                     label_set=args.labels,
                                                                      activity_usage=args.activity_usage)
     dataset = _create_dataset(tokens["input_ids"], tokens["attention_mask"], labels, sample_weights)
     if args.batch_size:
@@ -294,12 +294,12 @@ def create_token_classification_dataset_cv(args: argparse.Namespace, shuffle: bo
     :param shuffle: flag if shuffle the data
     :return: list of tuples (train, dev) as tf.data.Dataset objects
     """
-    logger.info(f"Create CV (folds={args.kfolds}) dataset (other_labels_weight: {args.other_labels_weight} "
-                f"- label_set: {args.label_set} - batch_size: {args.batch_size} - shuffle: {shuffle})")
+    logger.info(f"Create CV (folds={args.folds}) dataset (other_labels_weight: {args.other_labels_weight} "
+                f"- labels: {args.labels} - batch_size: {args.batch_size} - shuffle: {shuffle})")
     tokens, labels, sample_weights, _ = preprocess_tokenization_data(sampling_strategy=args.sampling_strategy,
                                                                      use_synonyms=args.use_synonyms,
                                                                      other_labels_weight=args.other_labels_weight,
-                                                                     label_set=args.label_set,
+                                                                     label_set=args.labels,
                                                                      activity_usage=args.activity_usage)
     input_ids, attention_masks = tokens['input_ids'], tokens['attention_mask']
 
@@ -309,7 +309,7 @@ def create_token_classification_dataset_cv(args: argparse.Namespace, shuffle: bo
                                                                                         labels, sample_weights)
 
     # Define the K-fold Cross Validator
-    kfold = KFold(n_splits=args.kfolds)
+    kfold = KFold(n_splits=args.folds)
 
     # create folds
     folded_datasets = []
