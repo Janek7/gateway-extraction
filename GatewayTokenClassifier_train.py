@@ -176,8 +176,7 @@ def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
 
         # b) fit ensemble model (train multiple seeds for current fold)
         else:
-            ensemble_model = GatewayTokenClassifierEnsemble(args, token_cls_model,
-                                                            train_size=len(train_dataset[0]))
+            ensemble_model = GatewayTokenClassifierEnsemble(args, token_cls_model, train_size=len(train_dataset))
             # history = ensemble_model.fit(args, fold_i_seed_datasets)
             history = ensemble_model.fit(args, train_dataset=train_dataset, dev_dataset=dev_dataset, fold=i)
 

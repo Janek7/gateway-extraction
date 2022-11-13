@@ -5,10 +5,16 @@ export CUDA_VISIBLE_DEVICES=1
 
 # conda activate thesis
 
-cmd="python ../GatewayTokenClassifier_train.py --batch_size=8 --epochs=3 --ensemble=True --routine=cv --folds=5 --routine=cv \
-            --labels=all --other_labels_weight=0.1 --sampling_strategy=normal"
-echo $cmd
-eval $cmd
+for LABELS in "all" "filtered"; do
+    for WEIGHT in 0.1 0.2 0.3 0.4 0.5 0.75 1.0; do
+      cmd="python ../GatewayTokenClassifier_train.py --batch_size=8 --epochs=3 --ensemble=True --routine=cv --folds=5 --routine=cv \
+          --labels=$LABELS --other_labels_weight=$WEIGHT --sampling_strategy=normal"
+      echo $cmd
+      eval $cmd
+    done
+done
+
+exit 1
 
 # try all sampling methods with ensembles and best combination of label/weight
 for SAMPLING in "normal" "up" "down" "og"; do
