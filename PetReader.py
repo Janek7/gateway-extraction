@@ -1,4 +1,5 @@
 import itertools
+import collections
 import os
 from typing import List, Tuple
 from petreader.RelationsExtraction import RelationsExtraction
@@ -94,6 +95,16 @@ class PetReader:
                 sentence_activity_tokens.append((activity, activity_token_triple[1]))
             doc_activity_tokens.append(sentence_activity_tokens)
         return doc_activity_tokens
+
+    @property
+    def most_common_activities(self) -> List[str]:
+        """
+        returns a list of all activities in data set ordered descended by their counts
+        :return: list of activities
+        """
+        activities_flattened = [' '.join(a) for a in list(itertools.chain(*self.token_dataset.GetActivities()))]
+        activity_counts = collections.Counter(activities_flattened)
+        return [activity for activity, count in activity_counts.most_common()]
 
 
 # Load / create and save pet_reader (for faster loading)

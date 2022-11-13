@@ -73,3 +73,10 @@ NORMAL = 'normal'
 UP_SAMPLING = 'up'
 DOWN_SAMPLING = 'down'
 ONLY_GATEWAYS = 'og'
+
+# Variants how to include activity data
+NOT = 'not'
+DUMMY = 'dummy'
+SINGLE_MASK = 'single_mask'
+MULTI_MASK = 'multi_mask'
+INDEX = 'index'
