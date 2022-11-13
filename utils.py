@@ -221,6 +221,17 @@ def set_seeds(seed: int, caller: str = None) -> None:
     CURRENT_USED_SEED = seed
 
 
+def get_seed_list(seed_param_str: str):
+    """
+    create a list of seeds in the range between the start and end given in the string
+    :param seed_param_str: start/end seed -> format: "0-10"
+    :return: list of seeds
+    """
+    split = seed_param_str.split("-")
+    start, end = int(split[0]), int(split[1])
+    return list(range(start-1, end+1))
+
+
 # set as backup if seed was not set in running script
 # call of this method is sure, because all runnable scripts include loading of some utilities
 set_seeds(config[SEED], "default config")

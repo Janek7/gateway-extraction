@@ -14,7 +14,7 @@ import transformers
 from GatewayTokenClassifier import GatewayTokenClassifier, GatewayTokenClassifierEnsemble
 from token_data_preparation import create_token_classification_dataset_cv, create_full_training_dataset
 from metrics import *
-from utils import config, set_seeds
+from utils import config, set_seeds, get_seed_list
 
 logger = logging.getLogger('Gateway Token Classifier')
 logger_ensemble = logging.getLogger('Gateway Token Classifier Ensemble')
@@ -23,11 +23,11 @@ parser = argparse.ArgumentParser()
 # Standard params
 parser.add_argument("--batch_size", default=8, type=int, help="Batch size.")
 parser.add_argument("--epochs", default=1, type=int, help="Number of epochs.")
-parser.add_argument("--seed", default=42, type=int, help="Random seed.")
+parser.add_argument("--seed_general", default=42, type=int, help="Random seed.")
+parser.add_argument("--seeds_ensemble", default="0-10", type=str, help="Random seed range to use for ensembles")
 # routine params
 parser.add_argument("--routine", default="cv", type=str, help="Simple split training 'sp', cross validation 'cv' or "
                                                               "full training without validation 'ft'.")
-parser.add_argument("--dev_share", default=0.1, type=float, help="Share of dev dataset in simple training routine.")
 parser.add_argument("--folds", default=2, type=int, help="Number of folds in cross validation routine.")
 parser.add_argument("--store_weights", default=False, type=bool, help="Flag if best weights should be stored.")
 # Architecture / data params
@@ -136,7 +136,8 @@ def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
 
         # b) fit ensemble model (train multiple seeds for current fold)
         else:
-            ensemble_model = GatewayTokenClassifierEnsemble(args, token_cls_model, train_size=len(train_dataset))
+            ensemble_model = GatewayTokenClassifierEnsemble(args, token_cls_model, train_size=len(train_dataset),
+                                                            seeds=get_seed_list(args.seeds_ensemble))
             # history = ensemble_model.fit(args, fold_i_seed_datasets)
             history = ensemble_model.fit(args, train_dataset=train_dataset, dev_dataset=dev_dataset, fold=i)
 
@@ -189,7 +190,8 @@ def full_training(args: argparse.Namespace, token_cls_model) -> None:
     else:
         # train
         args_dir_original = args.logdir
-        ensemble_model = GatewayTokenClassifierEnsemble(args, token_cls_model, train_size=len(train))
+        ensemble_model = GatewayTokenClassifierEnsemble(args, token_cls_model, train_size=len(train),
+                                                        seeds=get_seed_list(args.seeds_ensemble))
         history = ensemble_model.fit(args, train_dataset=train, save_single_models=args.store_weights)
 
         # store metrics
@@ -201,6 +203,6 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     args = parser.parse_args([] if "__file__" not in globals() else None)
     # this seed is used for shuffling training data
-    set_seeds(args.seed, "args - used for dataset split/shuffling")
+    set_seeds(args.seed_general, "args - used for dataset split/shuffling")
 
     train_routine(args)
