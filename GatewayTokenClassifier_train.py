@@ -12,8 +12,7 @@ import tensorflow as tf
 import transformers
 
 from GatewayTokenClassifier import GatewayTokenClassifier, GatewayTokenClassifierEnsemble
-from token_data_preparation import create_token_classification_dataset, create_token_classification_dataset_cv, \
-    create_full_training_dataset
+from token_data_preparation import create_token_classification_dataset_cv, create_full_training_dataset
 from metrics import *
 from utils import config, set_seeds
 
@@ -37,6 +36,7 @@ parser.add_argument("--labels", default=ALL, type=str, help="Label set to use.")
 parser.add_argument("--other_labels_weight", default=0.1, type=float, help="Sample weight for non gateway tokens.")
 parser.add_argument("--sampling_strategy", default=NORMAL, type=str, help="How to sample samples.")
 parser.add_argument("--use_synonyms", default=False, type=str, help="Include synonym samples.")
+parser.add_argument("--activity_usage", default=NOT, type=str, help="How to include activity data.")
 
 
 def train_routine(args: argparse.Namespace) -> None:
@@ -64,48 +64,11 @@ def train_routine(args: argparse.Namespace) -> None:
     # cross validation
     if args.routine == 'cv':
         cross_validation(args, token_cls_model)
-    # simple split training
-    elif args.routine == 'sp':
-        simple_split_training(args, token_cls_model)
     # full training wihtout validation
     elif args.routine == 'ft':
         full_training(args, token_cls_model)
     else:
         raise ValueError(f"Invalid training routine: {args.routine}")
-
-
-def simple_split_training(args: argparse.Namespace, token_cls_model) -> None:
-    """
-    run a training based on a simple train / test split
-    :param args: namespace args
-    :param token_cls_model: token classification model
-    :return:
-    """
-    logger.info(f"Run simple training (num_labels={args.num_labels}; other_labels_weight={args.other_labels_weight}; "
-                f"dev_share={args.dev_share})")
-    train, dev = create_token_classification_dataset(args.sampling_strategy,
-                                                     other_labels_weight=args.other_labels_weight,
-                                                     label_set=args.labels, dev_share=args.dev_share,
-                                                     batch_size=args.batch_size)
-
-    # Create the model and train it
-    model = GatewayTokenClassifier(args, token_cls_model, len(train))
-
-    history = model.fit(
-        train, epochs=args.epochs, validation_data=dev,
-        callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq="batch", profile_batch=0),
-                   # tf.keras.callbacks.EarlyStopping(monitor='val_overall_accuracy', min_delta=1e-4, patience=1,
-                   #                                  verbose=0, mode="max", restore_best_weights=True)
-                   ]
-    )
-
-    # store model
-    if args.store_weights:
-        model.save_weights(os.path.join(args.logdir, "weights/weights"))
-
-    # store metrics
-    with open(os.path.join(args.logdir, "metrics.json"), 'w') as file:
-        json.dump(history.history, file, indent=4)
 
 
 def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
@@ -118,10 +81,7 @@ def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
     logger.info(f"Run {args.folds}-fold cross validation (num_labels={args.num_labels}; "
                 f"other_labels_weight={args.other_labels_weight})")
 
-    folded_datasets = create_token_classification_dataset_cv(args.sampling_strategy, use_synonyms=args.use_synonyms,
-                                                             other_labels_weight=args.other_labels_weight,
-                                                             label_set=args.labels, kfolds=args.folds,
-                                                             batch_size=args.batch_size)
+    folded_datasets = create_token_classification_dataset_cv(args)
 
     os.makedirs(args.logdir, exist_ok=True)
     args_logdir_original = args.logdir
@@ -204,12 +164,10 @@ def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
 def full_training(args: argparse.Namespace, token_cls_model) -> None:
     logger.info(f"Run full training (num_labels={args.num_labels}; other_labels_weight={args.other_labels_weight})")
 
-    if not args.ensemble:
-        # create dataset
-        train = create_full_training_dataset(args.sampling_strategy, use_synonyms=args.use_synonyms,
-                                             other_labels_weight=args.other_labels_weight, label_set=args.labels,
-                                             batch_size=args.batch_size)
+    # create dataset
+    train = create_full_training_dataset(args)
 
+    if not args.ensemble:
         # train
         model = GatewayTokenClassifier(args, token_cls_model, len(train))
         history = model.fit(
@@ -229,18 +187,10 @@ def full_training(args: argparse.Namespace, token_cls_model) -> None:
             json.dump(history.history, file, indent=4)
 
     else:
-        # create datasets
-        train_datasets = []
-        for seed in config[ENSEMBLE_SEEDS]:
-            set_seeds(seed, "GatewayTokenClassifierEnsemble - dataset creation")
-            train_datasets.append(create_full_training_dataset(args.sampling_strategy, use_synonyms=args.use_synonyms,
-                                                               other_labels_weight=args.other_labels_weight,
-                                                               label_set=args.labels, batch_size=args.batch_size))
         # train
         args_dir_original = args.logdir
-        ensemble_model = GatewayTokenClassifierEnsemble(args, token_cls_model,
-                                                        train_size=len(train_datasets[0]))
-        history = ensemble_model.fit(args, train_datasets, save_single_models=args.store_weights)
+        ensemble_model = GatewayTokenClassifierEnsemble(args, token_cls_model, train_size=len(train))
+        history = ensemble_model.fit(args, train_dataset=train, save_single_models=args.store_weights)
 
         # store metrics
         with open(os.path.join(args_dir_original, "metrics.json"), 'w') as file:
@@ -251,8 +201,6 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     args = parser.parse_args([] if "__file__" not in globals() else None)
     # this seed is used for shuffling training data
-    set_seeds(args.seed, "args")
+    set_seeds(args.seed, "args - used for dataset split/shuffling")
 
     train_routine(args)
-
-    # ensemble = GatewayTokenClassifierEnsemble(ensemble_path="C:\\Users\\janek\\Development\\Git\\master-thesis\\data\\logs\\GatewayTokenClassifier_train.py-2022-11-10_070547-bs=8,ds=0.1,e=True,e=1,f=2,l=all,olw=0.1,r=ft,s=42,sw=True")

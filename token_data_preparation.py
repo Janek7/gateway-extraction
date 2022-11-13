@@ -1,3 +1,4 @@
+import argparse
 import logging
 from typing import Tuple, List
 import random
@@ -233,53 +234,41 @@ def _create_dataset(input_ids: tf.Tensor, attention_masks: tf.Tensor, labels: tf
                                                sample_weights))
 
 
-def create_full_training_dataset(sampling_strategy: str, use_synonyms: bool = False, other_labels_weight: float = None,
-                                 label_set: str = 'filtered', batch_size: int = None, shuffle: bool = True)\
+def create_full_training_dataset(args: argparse.Namespace, shuffle: bool = True)\
         -> tf.data.Dataset:
     """
     create one training set of the whole data without separating a dev set
-    :param sampling_strategy: strategy how to sample samples: 'normal', 'up', 'down', 'og' (only gateways)
-    :param use_synonyms: flag if synonym samples should be included;
-    :param other_labels_weight: sample weight to assign samples with tokens != gateway tokens
-    :param label_set: flag if to use all labels ('all') or only gateway labels and one rest label ('filtered')
-    :param batch_size: apply batching to size if given
+    :param args: args namespace
     :param shuffle: flag if shuffle the data
     :return: one tensorflow dataset
     """
-    logger.info(f"Create full training dataset dataset (other_labels_weight: {other_labels_weight} - "
-                f"label_set: {label_set} - batch_size: {batch_size} - shuffle: {shuffle})")
-    tokens, labels, sample_weights, _ = preprocess_tokenization_data(use_synonyms=use_synonyms,
-                                                                     sampling_strategy=sampling_strategy,
-                                                                     other_labels_weight=other_labels_weight,
-                                                                     label_set=label_set)
+    logger.info(f"Create full training dataset dataset (other_labels_weight: {args.other_labels_weight} - "
+                f"label_set: {args.label_set} - batch_size: {args.batch_size} - shuffle: {shuffle})")
+    tokens, labels, sample_weights, _ = preprocess_tokenization_data(use_synonyms=args.use_synonyms,
+                                                                     sampling_strategy=args.sampling_strategy,
+                                                                     other_labels_weight=args.other_labels_weight,
+                                                                     label_set=args.label_set)
     dataset = _create_dataset(tokens["input_ids"], tokens["attention_mask"], labels, sample_weights)
-    if batch_size:
-        dataset = dataset.batch(batch_size)
+    if args.batch_size:
+        dataset = dataset.batch(args.batch_size)
     return dataset
 
 
-def create_token_classification_dataset_cv(sampling_strategy: str, use_synonyms: bool = False,
-                                           other_labels_weight: float = None, label_set: str = 'filtered',
-                                           kfolds: int = 5, batch_size: int = None, shuffle: bool = True, ) \
+def create_token_classification_dataset_cv(args: argparse.Namespace, shuffle: bool = True) \
         -> List[Tuple[tf.data.Dataset, tf.data.Dataset]]:
     """
     create the dataset for token classification with huggingface transformers bert like models
     split into kfolds splits to use for cross validation
-    :param sampling_strategy: strategy how to sample samples: 'normal', 'up', 'down', 'og' (only gateways)
-    :param use_synonyms: flag if synonym samples should be included;
-    :param other_labels_weight: sample weight to assign samples with tokens != gateway tokens
-    :param label_set: flag if to use all labels ('all') or only gateway labels and one rest label ('filtered')
-    :param kfolds: number of folds
-    :param batch_size: apply batching to size if given
+    :param args: args namespace
     :param shuffle: flag if shuffle the data
     :return: list of tuples (train, dev) as tf.data.Dataset objects
     """
-    logger.info(f"Create CV (folds={kfolds}) dataset (other_labels_weight: {other_labels_weight} "
-                f"- label_set: {label_set} - batch_size: {batch_size} - shuffle: {shuffle})")
-    tokens, labels, sample_weights, _ = preprocess_tokenization_data(sampling_strategy=sampling_strategy,
-                                                                     use_synonyms=use_synonyms,
-                                                                     other_labels_weight=other_labels_weight,
-                                                                     label_set=label_set)
+    logger.info(f"Create CV (folds={args.kfolds}) dataset (other_labels_weight: {args.other_labels_weight} "
+                f"- label_set: {args.label_set} - batch_size: {args.batch_size} - shuffle: {shuffle})")
+    tokens, labels, sample_weights, _ = preprocess_tokenization_data(sampling_strategy=args.sampling_strategy,
+                                                                     use_synonyms=args.use_synonyms,
+                                                                     other_labels_weight=args.other_labels_weight,
+                                                                     label_set=args.label_set)
     input_ids, attention_masks = tokens['input_ids'], tokens['attention_mask']
 
     # shuffle inputs before splitting in train/dev
@@ -288,7 +277,7 @@ def create_token_classification_dataset_cv(sampling_strategy: str, use_synonyms:
                                                                                         labels, sample_weights)
 
     # Define the K-fold Cross Validator
-    kfold = KFold(n_splits=kfolds)
+    kfold = KFold(n_splits=args.kfolds)
 
     # create folds
     folded_datasets = []
@@ -301,56 +290,12 @@ def create_token_classification_dataset_cv(sampling_strategy: str, use_synonyms:
                                          tf.gather(attention_masks, test),
                                          tf.gather(labels, test),
                                          tf.gather(sample_weights, test))
-        if batch_size:
-            train_tf_dataset = train_tf_dataset.batch(batch_size)
-            dev_tf_dataset = dev_tf_dataset.batch(batch_size)
+        if args.batch_size:
+            train_tf_dataset = train_tf_dataset.batch(args.batch_size)
+            dev_tf_dataset = dev_tf_dataset.batch(args.batch_size)
         folded_datasets.append((train_tf_dataset, dev_tf_dataset))
 
     return folded_datasets
-
-
-def create_token_classification_dataset(sampling_strategy: str, use_synonyms: bool = False,
-                                        other_labels_weight: float = None, label_set: str = 'filtered',
-                                        dev_share: float = 0.1, batch_size: int = None, shuffle: bool = True)\
-        -> Tuple[tf.data.Dataset, tf.data.Dataset]:
-    """
-    create the dataset for token classification with huggingface transformers bert like models
-    split into train and dev/validation by the given share in dev_share
-    tokens are labeled into XOR, AND and OTHER. Additionally a label for bert specific tokens such as CLS, SEP and PAD
-    :param sampling_strategy: strategy how to sample samples: 'normal', 'up', 'down', 'og' (only gateways)
-    :param use_synonyms: flag if synonym samples should be included;
-    :param other_labels_weight: sample weight to assign samples with tokens != gateway tokens
-    :param label_set: flag if to use all labels ('all') or only gateway labels and one rest label ('filtered')
-    :param dev_share: share of validation/development dataset
-    :param batch_size: apply batching to size if given
-    :param shuffle: flag if shuffle the data
-    :return: train dataset as tf.data.Dataset, dev dataset as tf.data.Dataset
-    """
-    logger.info(f"Create simple split (dev_share={dev_share}) dataset ((other_labels_weight: {float} "
-                f"- label_set: {label_set} - batch_size: {batch_size} - shuffle: {shuffle})")
-    tokens, labels, sample_weights, _ = preprocess_tokenization_data(use_synonyms=use_synonyms,
-                                                                     sampling_strategy=sampling_strategy,
-                                                                     other_labels_weight=other_labels_weight,
-                                                                     label_set=label_set)
-
-    # create tensorflow dataset and split into train and dev
-    dataset = _create_dataset(tokens["input_ids"], tokens["attention_mask"], labels, sample_weights)
-    number_samples = tokens['input_ids'].shape[0]
-    val_samples = round(number_samples * dev_share)
-    val_dataset = dataset.take(val_samples)
-    train_dataset = dataset.skip(val_samples)
-
-    logger.info(f"Created token classification dataset of shape {tokens['input_ids'].shape} splitted into "
-                f"{1 - dev_share}/{dev_share} -> {number_samples - val_samples}/{val_samples} (train/dev)")
-    if batch_size:
-        train_dataset = train_dataset.batch(batch_size)
-        val_dataset = val_dataset.batch(batch_size)
-        logger.info(f"Batch datasets (size {batch_size}) -> {len(train_dataset)}/{len(val_dataset)}")
-
-    if shuffle:
-        train_dataset = train_dataset.shuffle(buffer_size=10000)
-
-    return train_dataset, val_dataset
 
 
 if __name__ == '__main__':
@@ -360,9 +305,3 @@ if __name__ == '__main__':
         samples = get_samples(strategy="og", use_synonyms=True)
         print(len(samples))
 
-    if False:
-        folded_datasets = create_token_classification_dataset_cv(sampling_strategy=NORMAL, use_synonyms=True,
-                                                                 other_labels_weight=.2, kfolds=5,
-                                                                 label_set='all', batch_size=8)
-        for t, d in folded_datasets:
-            print(len(t), len(d))
