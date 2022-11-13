@@ -5,8 +5,6 @@ BERT_MODEL_NAME = 'bert-model-name'
 LABEL_SET = 'label-set'
 OTHER_LABELS_WEIGHT = 'other-labels-weight'
 NUM_LABELS = 'num-labels'
-SEED = 'seed'
-ENSEMBLE_SEEDS = 'ensemble-seeds'
 SYNONYM_SAMPLES_START_NUMBER = 'synonym-samples-start-number'
 
 # B) LABELS FOR KEYWORDSAPPROACH
@@ -79,4 +77,3 @@ NOT = 'not'
 DUMMY = 'dummy'
 SINGLE_MASK = 'single_mask'
 MULTI_MASK = 'multi_mask'
-INDEX = 'index'

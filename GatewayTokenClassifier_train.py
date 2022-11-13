@@ -57,25 +57,21 @@ def train_routine(args: argparse.Namespace) -> None:
 
     # Load the model
     logger.info(f"Load transformer model and tokenizer ({config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME]})")
-    token_cls_model = transformers.TFAutoModelForTokenClassification.from_pretrained(
-        config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME],
-        num_labels=args.num_labels)
 
     # cross validation
     if args.routine == 'cv':
-        cross_validation(args, token_cls_model)
+        cross_validation(args)
     # full training wihtout validation
     elif args.routine == 'ft':
-        full_training(args, token_cls_model)
+        full_training(args)
     else:
         raise ValueError(f"Invalid training routine: {args.routine}")
 
 
-def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
+def cross_validation(args: argparse.Namespace) -> None:
     """
     run training in a cross validation routine -> averaged results are outputted into logdir
     :param args: namespace args
-    :param token_cls_model: token classification model
     :return:
     """
     logger.info(f"Run {args.folds}-fold cross validation (num_labels={args.num_labels}; "
@@ -122,7 +118,7 @@ def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
         train_dataset, dev_dataset = folded_datasets[i][0], folded_datasets[i][1]
         # a) fit normal models
         if not args.ensemble:
-            model = GatewayTokenClassifier(args, token_cls_model, len(train_dataset))
+            model = GatewayTokenClassifier(args, len(train_dataset))
             history = model.fit(
                 train_dataset, epochs=args.epochs, validation_data=dev_dataset,
                 callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq='batch', profile_batch=0),
@@ -136,7 +132,7 @@ def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
 
         # b) fit ensemble model (train multiple seeds for current fold)
         else:
-            ensemble_model = GatewayTokenClassifierEnsemble(args, token_cls_model, train_size=len(train_dataset),
+            ensemble_model = GatewayTokenClassifierEnsemble(args, train_size=len(train_dataset),
                                                             seeds=get_seed_list(args.seeds_ensemble))
             # history = ensemble_model.fit(args, fold_i_seed_datasets)
             history = ensemble_model.fit(args, train_dataset=train_dataset, dev_dataset=dev_dataset, fold=i)
@@ -162,7 +158,7 @@ def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
         json.dump(metrics_per_fold, file, indent=4)
 
 
-def full_training(args: argparse.Namespace, token_cls_model) -> None:
+def full_training(args: argparse.Namespace) -> None:
     logger.info(f"Run full training (num_labels={args.num_labels}; other_labels_weight={args.other_labels_weight})")
 
     # create dataset
@@ -170,7 +166,7 @@ def full_training(args: argparse.Namespace, token_cls_model) -> None:
 
     if not args.ensemble:
         # train
-        model = GatewayTokenClassifier(args, token_cls_model, len(train))
+        model = GatewayTokenClassifier(args, len(train))
         history = model.fit(
             train, epochs=args.epochs,
             callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq="batch", profile_batch=0)

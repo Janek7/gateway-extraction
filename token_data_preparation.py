@@ -245,7 +245,7 @@ def _mask_activities(sample_dicts: List[Dict], activity_usage: str) -> List[Dict
 def _shuffle_tokenization_data(input_ids: tf.Tensor, attention_masks: tf.Tensor, labels: tf.Tensor,
                                sample_weights: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor]:
     """
-    shuffle tensors of tokenized data
+    shuffle tensors of tokenized data; seed for shuffling is seed_general from args
     :return: data tensors in same format but shuffled
     """
     indices = tf.range(start=0, limit=input_ids.shape[0], dtype=tf.int32)

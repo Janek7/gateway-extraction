@@ -232,11 +232,6 @@ def get_seed_list(seed_param_str: str):
     return list(range(start-1, end+1))
 
 
-# set as backup if seed was not set in running script
-# call of this method is sure, because all runnable scripts include loading of some utilities
-set_seeds(config[SEED], "default config")
-
-
 if __name__ == '__main__':
     # goldstandards_to_json()
 

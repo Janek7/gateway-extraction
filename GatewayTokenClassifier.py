@@ -18,19 +18,16 @@ logger_ensemble = logging.getLogger('Gateway Token Classifier Ensemble')
 
 class GatewayTokenClassifierEnsemble:
 
-    def __init__(self, args: argparse.Namespace = None, bert_model=None, train_size: int = None,
-                 seeds: List = None, ensemble_path: str = None) -> None:
+    def __init__(self, args: argparse.Namespace = None, train_size: int = None, seeds: List = None,
+                 ensemble_path: str = None) -> None:
         """
         initializes a ensemble of GatewayTokenClassifier
         :param args: args Namespace
-        :param bert_model: bert like transformer for token classification model
         :param train_size: train dataset size
         :param seeds: list of seeds for which to create models (default: config seeds)
         :param ensemble_path: path of trained ensemble with stored weights. If set, load model weights from there
         """
         logger_ensemble.info("Create and initialize a GatewayTokenClassifierEnsemble")
-        if seeds is None:
-            seeds = config[ENSEMBLE_SEEDS]
         self.seeds = seeds
         self.ensemble_path = ensemble_path
         self.models = []
@@ -40,7 +37,7 @@ class GatewayTokenClassifierEnsemble:
         # create single models based on seeds
         for i, seed in enumerate(self.seeds):
             set_seeds(seed, "GatewayTokenClassifierEnsemble - model initialization")
-            model = GatewayTokenClassifier(args=args, bert_model=bert_model, train_size=train_size)
+            model = GatewayTokenClassifier(args=args, train_size=train_size)
             # if path to trained ensemble is passed, restore weights
             if self.ensemble_path:
                 model.load_weights(os.path.join(self.ensemble_path, str(seed), "weights/weights")).expect_partial()
@@ -120,28 +117,30 @@ class GatewayTokenClassifierEnsemble:
 
 class GatewayTokenClassifier(tf.keras.Model):
 
-    def __init__(self, args: argparse.Namespace = None, bert_model=None, train_size: int = None,
-                 weights_path: str = None) -> None:
+    def __init__(self, args: argparse.Namespace, train_size: int = None, weights_path: str = None) -> None:
         """
         creates a GatewayTokenClassifier
         :param args: args Namespace
-        :param bert_model: bert like transformer for token classification model
         :param train_size: train dataset size
         :param weights_path: path of stored weights. If set, load from there
         """
         logger.info("Create and initialize a GatewayTokenClassifier")
         self.weights_path = weights_path
-        num_labels = args.num_labels if args else config[KEYWORDS_FILTERED_APPROACH][NUM_LABELS]
 
         # A) ARCHITECTURE
         inputs = {
             "input_ids": tf.keras.layers.Input(shape=[None], dtype=tf.int32),
             "attention_mask": tf.keras.layers.Input(shape=[None], dtype=tf.int32)
         }
-        if not bert_model:
-            bert_model = transformers.TFAutoModelForTokenClassification.from_pretrained(
-                config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME], num_labels=num_labels)
-        predictions = bert_model(inputs).logits  # includes one dense layer with linear activation function
+
+        # head of the following model is random initialized by the seed.
+        #   - in case of single model, seed is set at the beginning of the script
+        #   - in case of model in ensemble, seed is set before this constructor call
+        token_cls_model = transformers.TFAutoModelForTokenClassification.from_pretrained(
+            config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME], num_labels=args.num_labels)
+
+        # includes one dense layer with linear activation function
+        predictions = token_cls_model(inputs).logits
         super().__init__(inputs=inputs, outputs=predictions)
 
         # B) COMPILE (only needed when training is intended)
