@@ -274,8 +274,8 @@ def create_token_classification_dataset_cv(sampling_strategy: str, use_synonyms:
     :param shuffle: flag if shuffle the data
     :return: list of tuples (train, dev) as tf.data.Dataset objects
     """
-    logger.info(f"Create CV (folds={kfolds}) dataset (other_labels_weight: {float} - label_set: {label_set} "
-                f"- batch_size: {batch_size} - shuffle: {shuffle})")
+    logger.info(f"Create CV (folds={kfolds}) dataset (other_labels_weight: {other_labels_weight} "
+                f"- label_set: {label_set} - batch_size: {batch_size} - shuffle: {shuffle})")
     tokens, labels, sample_weights, _ = preprocess_tokenization_data(sampling_strategy=sampling_strategy,
                                                                      use_synonyms=use_synonyms,
                                                                      other_labels_weight=other_labels_weight,

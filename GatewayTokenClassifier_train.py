@@ -118,21 +118,10 @@ def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
     logger.info(f"Run {args.folds}-fold cross validation (num_labels={args.num_labels}; "
                 f"other_labels_weight={args.other_labels_weight})")
 
-    # laod data multiple times when using ensembles because seed influences shuffling
-    if not args.ensemble:
-        folded_datasets = create_token_classification_dataset_cv(args.sampling_strategy, use_synonyms=args.use_synonyms,
-                                                                 other_labels_weight=args.other_labels_weight,
-                                                                 label_set=args.labels, kfolds=args.folds,
-                                                                 batch_size=args.batch_size)
-    else:
-        seed_dataset_lists = []
-        for seed in config[ENSEMBLE_SEEDS]:
-            set_seeds(seed, "GatewayTokenClassifierEnsemble - dataset creation")
-            seed_dataset_lists.append(
-                create_token_classification_dataset_cv(args.sampling_strategy, use_synonyms=args.use_synonyms,
-                                                       other_labels_weight=args.other_labels_weight,
-                                                       label_set=args.labels, kfolds=args.folds,
-                                                       batch_size=args.batch_size))
+    folded_datasets = create_token_classification_dataset_cv(args.sampling_strategy, use_synonyms=args.use_synonyms,
+                                                             other_labels_weight=args.other_labels_weight,
+                                                             label_set=args.labels, kfolds=args.folds,
+                                                             batch_size=args.batch_size)
 
     os.makedirs(args.logdir, exist_ok=True)
     args_logdir_original = args.logdir
@@ -170,9 +159,9 @@ def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
             args.logdir = f"{args_logdir_original}/{i + 1}"
             os.makedirs(args.logdir, exist_ok=True)
 
+        train_dataset, dev_dataset = folded_datasets[i][0], folded_datasets[i][1]
         # a) fit normal models
         if not args.ensemble:
-            train_dataset, dev_dataset = folded_datasets[i][0], folded_datasets[i][1]
             model = GatewayTokenClassifier(args, token_cls_model, len(train_dataset))
             history = model.fit(
                 train_dataset, epochs=args.epochs, validation_data=dev_dataset,
@@ -187,13 +176,10 @@ def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
 
         # b) fit ensemble model (train multiple seeds for current fold)
         else:
-            # extract fold i train/dev pair for the current seed and pass this list to fit of ensemble classifier
-            fold_i_seed_train_datasets = [seed_folded_datasets[i][0] for seed_folded_datasets in seed_dataset_lists]
-            fold_i_seed_dev_datasets = [seed_folded_datasets[i][1] for seed_folded_datasets in seed_dataset_lists]
             ensemble_model = GatewayTokenClassifierEnsemble(args, token_cls_model,
-                                                            train_size=len(fold_i_seed_train_datasets[0]))
+                                                            train_size=len(train_dataset[0]))
             # history = ensemble_model.fit(args, fold_i_seed_datasets)
-            history = ensemble_model.fit(args, fold_i_seed_train_datasets, fold_i_seed_dev_datasets)
+            history = ensemble_model.fit(args, train_dataset=train_dataset, dev_dataset=dev_dataset, fold=i)
 
         # record fold results (record only validation results; drop training metrics)
         for metric, values in history.history.items():
@@ -265,8 +251,9 @@ def full_training(args: argparse.Namespace, token_cls_model) -> None:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     args = parser.parse_args([] if "__file__" not in globals() else None)
+    # this seed is used for shuffling training data
     set_seeds(args.seed, "args")
 
-    # train_routine(args)
+    train_routine(args)
 
-    ensemble = GatewayTokenClassifierEnsemble(ensemble_path="C:\\Users\\janek\\Development\\Git\\master-thesis\\data\\logs\\GatewayTokenClassifier_train.py-2022-11-10_070547-bs=8,ds=0.1,e=True,e=1,f=2,l=all,olw=0.1,r=ft,s=42,sw=True")
+    # ensemble = GatewayTokenClassifierEnsemble(ensemble_path="C:\\Users\\janek\\Development\\Git\\master-thesis\\data\\logs\\GatewayTokenClassifier_train.py-2022-11-10_070547-bs=8,ds=0.1,e=True,e=1,f=2,l=all,olw=0.1,r=ft,s=42,sw=True")

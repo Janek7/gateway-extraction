@@ -46,7 +46,7 @@ class GatewayTokenClassifierEnsemble:
                 model.load_weights(os.path.join(self.ensemble_path, str(seed), "weights/weights")).expect_partial()
             self.models.append(model)
 
-    def fit(self, args, train_datasets, dev_datasets=None, save_single_models=False):
+    def fit(self, args, train_dataset, dev_dataset=None, save_single_models=False, fold=None):
         """
         fit method that fits every single seed model and averages metrics in history
         :param train_datasets: list of train datasets (differ in seed; but same fold)
@@ -59,11 +59,9 @@ class GatewayTokenClassifierEnsemble:
                            "was not saved")
         args_logdir_original = args.logdir
         histories = []
-        if not dev_datasets:
-            dev_datasets = [None for i in range(len(self.seeds))]
 
-        for i, (model, seed, train, dev) in enumerate(zip(self.models, self.seeds, train_datasets, dev_datasets)):
-            logger_ensemble.info(f" Fit Model {i} with seed {self.seeds[i]} ".center(50, '*'))
+        for i, (model, seed) in enumerate(zip(self.models, self.seeds)):
+            logger_ensemble.info(f" Fold {fold}: Fit Model {i} with seed {self.seeds[i]} ".center(50, '*'))
             set_seeds(seed, "GatewayTokenClassifierEnsemble - model fit")
 
             callbacks = []  # [tf.keras.callbacks.EarlyStopping(monitor='overall_accuracy', min_delta=1e-4, patience=1, verbose=0, mode="max", restore_best_weights=True)]
@@ -73,7 +71,7 @@ class GatewayTokenClassifierEnsemble:
                 os.makedirs(args.logdir, exist_ok=True)
                 callbacks.append(tf.keras.callbacks.TensorBoard(args.logdir, update_freq='batch', profile_batch=0))
 
-            history = model.fit(train, epochs=args.epochs, validation_data=dev, callbacks=callbacks)
+            history = model.fit(train_dataset, epochs=args.epochs, validation_data=dev_dataset, callbacks=callbacks)
             histories.append(history)
 
             if save_single_models:
