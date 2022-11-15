@@ -229,7 +229,7 @@ def get_seed_list(seed_param_str: str):
     """
     split = seed_param_str.split("-")
     start, end = int(split[0]), int(split[1])
-    return list(range(start-1, end+1))
+    return list(range(start, end+1))
 
 
 if __name__ == '__main__':

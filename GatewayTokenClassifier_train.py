@@ -186,7 +186,7 @@ def full_training(args: argparse.Namespace) -> None:
     else:
         # train
         args_dir_original = args.logdir
-        ensemble_model = GatewayTokenClassifierEnsemble(args, token_cls_model, train_size=len(train),
+        ensemble_model = GatewayTokenClassifierEnsemble(args, train_size=len(train),
                                                         seeds=get_seed_list(args.seeds_ensemble))
         history = ensemble_model.fit(args, train_dataset=train, save_single_models=args.store_weights)
 
@@ -198,7 +198,7 @@ def full_training(args: argparse.Namespace) -> None:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     args = parser.parse_args([] if "__file__" not in globals() else None)
-    # this seed is used for shuffling training data
+    # this seed is used by default (only overwritten in case of ensemble)
     set_seeds(args.seed_general, "args - used for dataset split/shuffling")
 
     train_routine(args)
