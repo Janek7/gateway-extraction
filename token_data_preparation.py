@@ -34,21 +34,26 @@ def get_samples(strategy: str = None, use_synonyms: bool = False) -> List[int]:
     :return: list of sample numbers
     """
     # extend all sample ids with created synonym sample ids
+    global all_sample_ids
+    all_sample_ids_original = all_sample_ids
     if use_synonyms:
         synonym_samples = get_synonym_samples()
-        all_sample_ids.extend(list(synonym_samples.keys()))
+        all_sample_ids = all_sample_ids + list(synonym_samples.keys())
 
     # modify all_sample_ids list based on sampling strategy
     if strategy == NORMAL or strategy is None:
-        return all_sample_ids
+        result = all_sample_ids
     elif strategy == UP_SAMPLING:
-        return _up_sample_gateway_samples()
+        result = _up_sample_gateway_samples()
     elif strategy == DOWN_SAMPLING:
-        return _down_sample_other_samples()
+        result = _down_sample_other_samples()
     elif strategy == ONLY_GATEWAYS:
-        return _only_gateway_samples(use_synonyms=use_synonyms)
+        result = _only_gateway_samples(use_synonyms=use_synonyms)
     else:
         raise ValueError(f"{strategy} is not a valid sampling strategy")
+
+    all_sample_ids = all_sample_ids_original
+    return result
 
 
 def _up_sample_gateway_samples() -> List[int]:
@@ -140,7 +145,8 @@ def preprocess_tokenization_data(sample_numbers: List = None, sampling_strategy:
 
     # 1) prepare sample data
     sample_dicts = []
-    synonym_samples = get_synonym_samples()
+    if use_synonyms:
+        synonym_samples = get_synonym_samples()
     for sample_number in sample_numbers:
         # in case sample is normal sample
         if sample_number < config[SYNONYM_SAMPLES_START_NUMBER]:
