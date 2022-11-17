@@ -237,7 +237,7 @@ def _mask_activities(sample_dicts: List[Dict], activity_usage: str) -> List[Dict
         for token, tag in zip(dictionary["tokens"], dictionary["ner-tags"]):
             if tag.endswith(ACTIVITY):
                 if activity_usage == DUMMY:
-                    token = 'dummy'
+                    token = 'activity'
                 elif activity_usage == SINGLE_MASK:
                     token = pet_reader.most_common_activities[0]
                 elif activity_usage == MULTI_MASK:
