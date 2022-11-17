@@ -23,6 +23,10 @@ def f1(precision, recall):
     return 2 * (tf.math.multiply(precision, recall) / (precision + recall + K.epsilon()))
 
 
+def f1_normal(precision, recall):
+    return 2 * (precision * recall) / (precision + recall + K.epsilon())
+
+
 def xor_precision(y_true, y_pred):
     if len(tf.shape(y_pred)) == 3:
         y_pred = tf.math.argmax(y_pred, axis=2)
@@ -88,10 +92,10 @@ def and_f1(y_true, y_pred):
 def compute_avg_metrics(metrics_per_fold):
     # compute f1 score manually again
     for i in range(len(metrics_per_fold['val_xor_precision'])):
-        metrics_per_fold['val_xor_f1_m'].append(f1(metrics_per_fold['val_xor_precision'][i],
-                                                   metrics_per_fold['val_xor_recall'][i]))
-        metrics_per_fold['val_and_f1_m'].append(f1(metrics_per_fold['val_and_precision'][i],
-                                                   metrics_per_fold['val_and_recall'][i]))
+        metrics_per_fold['val_xor_f1_m'].append(f1_normal(metrics_per_fold['val_xor_precision'][i],
+                                                          metrics_per_fold['val_xor_recall'][i]))
+        metrics_per_fold['val_and_f1_m'].append(f1_normal(metrics_per_fold['val_and_precision'][i],
+                                                          metrics_per_fold['val_and_recall'][i]))
 
     # average metrics over folds
     for metric, value in metrics_per_fold.items():
