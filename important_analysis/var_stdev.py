@@ -33,7 +33,7 @@ def compute_seed_stats():
     # output to dataframe
     df = pd.DataFrame.from_dict(rows)
     print(df.head(10))
-    df.to_excel("seed_differences.xlsx",sheet_name="seeds=0-29", index=False)
+    df.to_excel("../data/paper_stats/seed_differences.xlsx",sheet_name="seeds=0-29", index=False)
 
 
 def compute_gpu_run_diffs():
@@ -69,7 +69,7 @@ def compute_gpu_run_diffs():
     # output to dataframe
     df = pd.DataFrame.from_dict(rows)
     print(df.head(10))
-    df.to_excel("gpu_run_differences.xlsx", sheet_name="6 runs", index=False)
+    df.to_excel("../data/paper_stats/gpu_run_differences.xlsx", sheet_name="6 runs", index=False)
 
 
 if __name__ == '__main__':

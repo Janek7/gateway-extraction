@@ -78,4 +78,4 @@ for strategy, use_synonyms in [(NORMAL, False), (UP_SAMPLING, False), (DOWN_SAMP
 df = pd.DataFrame.from_dict(rows)
 df.head(10)
 
-df.to_excel("token_cls_stats.xlsx", index=False)
+df.to_excel("../data/paper_stats/token_cls_stats.xlsx", index=False)
