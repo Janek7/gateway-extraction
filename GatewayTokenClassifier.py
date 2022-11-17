@@ -18,7 +18,7 @@ logger_ensemble = logging.getLogger('Gateway Token Classifier Ensemble')
 
 class GatewayTokenClassifierEnsemble:
 
-    def __init__(self, args: argparse.Namespace = None, train_size: int = None, seeds: List = None,
+    def __init__(self, args: argparse.Namespace = None, token_cls_model = None, train_size: int = None, seeds: List = None,
                  ensemble_path: str = None) -> None:
         """
         initializes a ensemble of GatewayTokenClassifier
@@ -37,7 +37,7 @@ class GatewayTokenClassifierEnsemble:
         # create single models based on seeds
         for i, seed in enumerate(self.seeds):
             set_seeds(seed, "GatewayTokenClassifierEnsemble - model initialization")
-            model = GatewayTokenClassifier(args=args, train_size=train_size)
+            model = GatewayTokenClassifier(args=args, token_cls_model=token_cls_model, train_size=train_size)
             # if path to trained ensemble is passed, restore weights
             if self.ensemble_path:
                 model.load_weights(os.path.join(self.ensemble_path, str(seed), "weights/weights")).expect_partial()
@@ -117,7 +117,7 @@ class GatewayTokenClassifierEnsemble:
 
 class GatewayTokenClassifier(tf.keras.Model):
 
-    def __init__(self, args: argparse.Namespace, train_size: int = None, weights_path: str = None) -> None:
+    def __init__(self, args: argparse.Namespace, token_cls_model, train_size: int = None, weights_path: str = None) -> None:
         """
         creates a GatewayTokenClassifier
         :param args: args Namespace
@@ -136,8 +136,6 @@ class GatewayTokenClassifier(tf.keras.Model):
         # head of the following model is random initialized by the seed.
         #   - in case of single model, seed is set at the beginning of the script
         #   - in case of model in ensemble, seed is set before this constructor call
-        token_cls_model = transformers.TFAutoModelForTokenClassification.from_pretrained(
-            config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME], num_labels=args.num_labels)
 
         # includes one dense layer with linear activation function
         predictions = token_cls_model(inputs).logits

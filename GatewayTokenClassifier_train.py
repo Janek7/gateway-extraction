@@ -24,7 +24,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--batch_size", default=8, type=int, help="Batch size.")
 parser.add_argument("--epochs", default=1, type=int, help="Number of epochs.")
 parser.add_argument("--seed_general", default=42, type=int, help="Random seed.")
-parser.add_argument("--seeds_ensemble", default="0-10", type=str, help="Random seed range to use for ensembles")
+parser.add_argument("--seeds_ensemble", default="0-1", type=str, help="Random seed range to use for ensembles")
 # routine params
 parser.add_argument("--routine", default="cv", type=str, help="Simple split training 'sp', cross validation 'cv' or "
                                                               "full training without validation 'ft'.")
@@ -57,10 +57,12 @@ def train_routine(args: argparse.Namespace) -> None:
 
     # Load the model
     logger.info(f"Load transformer model and tokenizer ({config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME]})")
+    token_cls_model = transformers.TFAutoModelForTokenClassification.from_pretrained(
+        config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME], num_labels=args.num_labels)
 
     # cross validation
     if args.routine == 'cv':
-        cross_validation(args)
+        cross_validation(args, token_cls_model)
     # full training wihtout validation
     elif args.routine == 'ft':
         full_training(args)
@@ -68,7 +70,7 @@ def train_routine(args: argparse.Namespace) -> None:
         raise ValueError(f"Invalid training routine: {args.routine}")
 
 
-def cross_validation(args: argparse.Namespace) -> None:
+def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
     """
     run training in a cross validation routine -> averaged results are outputted into logdir
     :param args: namespace args
@@ -118,7 +120,7 @@ def cross_validation(args: argparse.Namespace) -> None:
         train_dataset, dev_dataset = folded_datasets[i][0], folded_datasets[i][1]
         # a) fit normal models
         if not args.ensemble:
-            model = GatewayTokenClassifier(args, len(train_dataset))
+            model = GatewayTokenClassifier(args, token_cls_model, len(train_dataset))
             history = model.fit(
                 train_dataset, epochs=args.epochs, validation_data=dev_dataset,
                 callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq='batch', profile_batch=0),
@@ -132,7 +134,7 @@ def cross_validation(args: argparse.Namespace) -> None:
 
         # b) fit ensemble model (train multiple seeds for current fold)
         else:
-            ensemble_model = GatewayTokenClassifierEnsemble(args, train_size=len(train_dataset),
+            ensemble_model = GatewayTokenClassifierEnsemble(args, token_cls_model, train_size=len(train_dataset),
                                                             seeds=get_seed_list(args.seeds_ensemble))
             # history = ensemble_model.fit(args, fold_i_seed_datasets)
             history = ensemble_model.fit(args, train_dataset=train_dataset, dev_dataset=dev_dataset, fold=i)
