@@ -39,7 +39,7 @@ def compute_seed_stats():
 def compute_gpu_run_diffs():
     # read cv metric files from runs in dir
     runs = []
-    for sub_dir in [x[0] for x in os.walk("C:\\Users\\janek\\Development\\Git\\master-thesis\\data\\logs_server\\FINAL_example_differences")]:
+    for sub_dir in [x[0] for x in os.walk("/data/logs_server/_final/FINAL_example_differences")]:
         if sub_dir.endswith("False"):
             with open(os.path.join(sub_dir, "cv_metrics.json"), "r") as file:
                 cv_metrics = json.load(file)
