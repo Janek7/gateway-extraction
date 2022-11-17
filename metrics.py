@@ -1,3 +1,4 @@
+import numpy as np
 from keras import backend as K
 import tensorflow as tf
 
@@ -80,6 +81,35 @@ def and_f1(y_true, y_pred):
     precision = and_precision(y_true, y_pred)
     recall = and_recall(y_true, y_pred)
     return tf.cast(f1(precision, recall), tf.float32)
+
+
+# HELPER METHODS FOR CROSS VALIDATION
+
+def compute_avg_metrics(metrics_per_fold):
+    # compute f1 score manually again
+    for i in range(len(metrics_per_fold['val_xor_precision'])):
+        metrics_per_fold['val_xor_f1_m'].append(f1(metrics_per_fold['val_xor_precision'][i],
+                                                   metrics_per_fold['val_xor_recall'][i]))
+        metrics_per_fold['val_and_f1_m'].append(f1(metrics_per_fold['val_and_precision'][i],
+                                                   metrics_per_fold['val_and_recall'][i]))
+
+    # average metrics over folds
+    for metric, value in metrics_per_fold.items():
+        if not metric.startswith("avg_") and not metric.startswith("seed-results-"):
+            metrics_per_fold[f"avg_{metric}"] = round(np.mean(value), 4)
+
+
+def print_metrics(metrics_per_fold):
+    print(' Score per fold '.center(100, '-'))
+    for i in range(len(metrics_per_fold['val_xor_precision'])):
+        if i > 0: print('-' * 100)
+        metric_str = ' - '.join([f"{metric}: {round(value[i], 4)}" for metric, value in metrics_per_fold.items() if
+                                 not metric.startswith("avg_") and not metric.startswith("seed-results-")])
+        print(f"> Fold {i + 1} - {metric_str}")
+    print()
+    print(' Average scores '.center(100, '-'))
+    print(' - '.join([f"{metric}: {round(value, 4)}" for metric, value in metrics_per_fold.items() if
+                      metric.startswith("avg_")]))
 
 
 if __name__ == '__main__':

@@ -7,7 +7,6 @@ import datetime
 import re
 import logging
 
-import numpy as np
 import tensorflow as tf
 import transformers
 
@@ -65,7 +64,7 @@ def train_routine(args: argparse.Namespace) -> None:
         cross_validation(args, token_cls_model)
     # full training wihtout validation
     elif args.routine == 'ft':
-        full_training(args)
+        full_training(args, token_cls_model)
     else:
         raise ValueError(f"Invalid training routine: {args.routine}")
 
@@ -74,10 +73,10 @@ def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
     """
     run training in a cross validation routine -> averaged results are outputted into logdir
     :param args: namespace args
+    :param token_cls_model: bert like transformer token classification model
     :return:
     """
-    logger.info(f"Run {args.folds}-fold cross validation (num_labels={args.num_labels}; "
-                f"other_labels_weight={args.other_labels_weight})")
+    logger.info(f"Run {args.folds}-fold cross validation")
 
     folded_datasets = create_token_classification_dataset_cv(args)
 
@@ -85,27 +84,10 @@ def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
     args_logdir_original = args.logdir
 
     # models = []  # not used because of memory limitations
-    metrics_per_fold = {'avg_val_loss': 0, 'avg_val_xor_precision': 0, 'avg_val_xor_recall': 0, 'avg_val_xor_f1': 0,
-                        'avg_val_and_recall': 0, 'avg_val_and_precision': 0, 'avg_val_and_f1': 0, 'avg_val_overall_accuracy': 0,
-                        'val_loss': [], 'val_xor_precision': [], 'val_xor_recall': [], 'val_xor_f1': [], 'val_and_recall': [],
-                        'val_and_precision': [], 'val_and_f1': [], 'val_overall_accuracy': []}
-
-    def update_avg_metrics(metrics_per_fold):
-        for metric, value in metrics_per_fold.items():
-            if not metric.startswith("avg_") and not metric.startswith("seed-results-"):
-                metrics_per_fold[f"avg_{metric}"] = round(np.mean(value), 4)
-
-    def print_metrics(metrics_per_fold):
-        print(' Score per fold '.center(100, '-'))
-        for i in range(args.folds):
-            if i > 0: print('-' * 100)
-            metric_str = ' - '.join([f"{metric}: {round(value[i], 4)}" for metric, value in metrics_per_fold.items() if
-                                     not metric.startswith("avg_") and not metric.startswith("seed-results-")])
-            print(f"> Fold {i + 1} - {metric_str}")
-        print()
-        print(' Average scores '.center(100, '-'))
-        print(' - '.join([f"{metric}: {round(value, 4)}" for metric, value in metrics_per_fold.items() if
-                          metric.startswith("avg_")]))
+    metrics_per_fold = {'avg_val_loss': 0, 'avg_val_xor_precision': 0, 'avg_val_xor_recall': 0, 'avg_val_xor_f1': 0, 'avg_val_xor_f1_m': 0,
+                        'avg_val_and_recall': 0, 'avg_val_and_precision': 0, 'avg_val_and_f1': 0, 'avg_val_and_f1_m': 0, 'avg_val_overall_accuracy': 0,
+                        'val_loss': [], 'val_xor_precision': [], 'val_xor_recall': [], 'val_xor_f1': [], 'val_xor_f1_m': [],
+                        'val_and_recall': [], 'val_and_precision': [], 'val_and_f1': [], 'val_and_f1_m': [], 'val_overall_accuracy': []}
 
     # perform k-fold CV
 
@@ -136,12 +118,11 @@ def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
         else:
             ensemble_model = GatewayTokenClassifierEnsemble(args, token_cls_model, train_size=len(train_dataset),
                                                             seeds=get_seed_list(args.seeds_ensemble))
-            # history = ensemble_model.fit(args, fold_i_seed_datasets)
             history = ensemble_model.fit(args, train_dataset=train_dataset, dev_dataset=dev_dataset, fold=i)
 
         # record fold results (record only validation results; drop training metrics)
         for metric, values in history.history.items():
-            # record value of last epoch for each metric
+            # record validation value of last epoch for each metric
             if metric.startswith("val_"):
                 # values = values of metric in each epoch (in case of ensemble, values is already averaged over seeds)
                 metrics_per_fold[metric].append(round(values[-1], 4))
@@ -149,10 +130,8 @@ def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
                 # values = list of results of metric for every seed (last epoch)
                 metrics_per_fold[f"{metric}-{i}"] = values
 
-        # models.append(model)
-
     logger.info("Finished CV, average, print and save results")
-    update_avg_metrics(metrics_per_fold)
+    compute_avg_metrics(metrics_per_fold)
     print_metrics(metrics_per_fold)
 
     # save metrics
@@ -160,7 +139,13 @@ def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
         json.dump(metrics_per_fold, file, indent=4)
 
 
-def full_training(args: argparse.Namespace) -> None:
+def full_training(args: argparse.Namespace, token_cls_model) -> None:
+    """
+    run training with full dataset without validation
+    :param args: namespace args
+    :param token_cls_model: bert like transformer token classification model
+    :return:
+    """
     logger.info(f"Run full training (num_labels={args.num_labels}; other_labels_weight={args.other_labels_weight})")
 
     # create dataset
@@ -168,7 +153,7 @@ def full_training(args: argparse.Namespace) -> None:
 
     if not args.ensemble:
         # train
-        model = GatewayTokenClassifier(args, len(train))
+        model = GatewayTokenClassifier(args, token_cls_model=token_cls_model, train_size=len(train))
         history = model.fit(
             train, epochs=args.epochs,
             callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq="batch", profile_batch=0)
@@ -188,7 +173,7 @@ def full_training(args: argparse.Namespace) -> None:
     else:
         # train
         args_dir_original = args.logdir
-        ensemble_model = GatewayTokenClassifierEnsemble(args, train_size=len(train),
+        ensemble_model = GatewayTokenClassifierEnsemble(args, token_cls_model=token_cls_model, train_size=len(train),
                                                         seeds=get_seed_list(args.seeds_ensemble))
         history = ensemble_model.fit(args, train_dataset=train, save_single_models=args.store_weights)
 
