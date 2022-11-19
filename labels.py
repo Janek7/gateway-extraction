@@ -1,5 +1,6 @@
 # A) CONFIG KEYS
 
+SEED = 'general-seed'
 KEYWORDS_FILTERED_APPROACH = 'keywords-filtered-approach'
 BERT_MODEL_NAME = 'bert-model-name'
 LABEL_SET = 'label-set'

@@ -9,7 +9,7 @@ from GatewayTokenClassifier import GatewayTokenClassifier, GatewayTokenClassifie
 from KeywordsApproach import KeywordsApproach
 from PetReader import pet_reader
 from token_data_preparation import preprocess_tokenization_data
-from utils import config
+from utils import config, set_seeds
 from labels import *
 
 logger = logging.getLogger('Keywords Filtered Approach')
@@ -39,6 +39,7 @@ class KeywordsFilteredApproach(KeywordsApproach):
         super().__init__(approach_name=approach_name, keywords=keywords, output_format=output_format,
                          same_xor_gateway_threshold=same_xor_gateway_threshold, output_folder=output_folder)
         self.token_classifier = GatewayTokenClassifierEnsemble(ensemble_path=ensemble_path)
+        set_seeds(config[SEED], "Reset after initialization of GatewayTokenClassifierEnsemble")
         self.mode = mode
         self.filtering_log_level = filtering_log_level
 
@@ -103,6 +104,7 @@ class KeywordsFilteredApproach(KeywordsApproach):
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
+    set_seeds(config[SEED], "Set first seed")
     keyword_filtered_approach = KeywordsFilteredApproach(approach_name='key_words_literature_tc_filtered_og_syn',
                                                          keywords=LITERATURE, output_format=BENCHMARK,
                                                          ensemble_path="/home/japutz/master-thesis/scripts/token_cls/data/logs/GatewayTokenClassifier_train.py-2022-11-19_074241-au=not,bs=8,e=True,e=1,f=2,l=all,olw=0.1,r=ft,ss=og,sg=42,se=0-29,sw=True,us=True",

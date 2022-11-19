@@ -1,4 +1,5 @@
 {
+  "general-seed": 42,
   "keywords-filtered-approach": {
     "bert-model-name": "distilbert-base-uncased",
     "label-set": "all",

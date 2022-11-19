@@ -3,6 +3,7 @@
 import argparse
 import logging
 import os
+import re
 from typing import List
 
 import numpy as np
@@ -29,13 +30,20 @@ class GatewayTokenClassifierEnsemble:
         :param ensemble_path: path of trained ensemble with stored weights. If set, load model weights from there
         """
         logger_ensemble.info("Create and initialize a GatewayTokenClassifierEnsemble")
-        self.seeds = seeds
+        if seeds:
+            self.seeds = seeds
+        elif not seeds and ensemble_path:
+            seed_range_pattern = re.compile("se=(\d+)-(\d+)")
+            result = seed_range_pattern.search(ensemble_path)
+            self.seeds = list(range(int(result.group(1)), int(result.group(2))))
         self.ensemble_path = ensemble_path
         self.models = []
 
-        # create single models based on seeds
+        # create single models based on seeds or reload from saved weights
         for i, seed in enumerate(self.seeds):
-            set_seeds(seed, "GatewayTokenClassifierEnsemble - model initialization")
+            # set only if weights are not loaded from path
+            if not self.ensemble_path:
+                set_seeds(seed, "GatewayTokenClassifierEnsemble - model initialization")
             model = GatewayTokenClassifier(args=args, token_cls_model=token_cls_model, train_size=train_size)
             # if path to trained ensemble is passed, restore weights
             if self.ensemble_path:
