@@ -69,7 +69,8 @@ class GatewayTokenClassifierEnsemble:
             if save_single_models:
                 args.logdir = f"{args_logdir_original}/{seed}"
                 os.makedirs(args.logdir, exist_ok=True)
-                callbacks.append(tf.keras.callbacks.TensorBoard(args.logdir, update_freq='batch', profile_batch=0))
+                if i < 5:
+                    callbacks.append(tf.keras.callbacks.TensorBoard(args.logdir, update_freq='batch', profile_batch=0))
 
             history = model.fit(train_dataset, epochs=args.epochs, validation_data=dev_dataset, callbacks=callbacks)
             histories.append(history)
