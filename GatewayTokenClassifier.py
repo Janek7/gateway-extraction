@@ -32,8 +32,6 @@ class GatewayTokenClassifierEnsemble:
         self.seeds = seeds
         self.ensemble_path = ensemble_path
         self.models = []
-        if self.ensemble_path:
-            logger.info(f"Restored weights from trained ensemble {ensemble_path}")
 
         # create single models based on seeds
         for i, seed in enumerate(self.seeds):
@@ -41,7 +39,9 @@ class GatewayTokenClassifierEnsemble:
             model = GatewayTokenClassifier(args=args, token_cls_model=token_cls_model, train_size=train_size)
             # if path to trained ensemble is passed, restore weights
             if self.ensemble_path:
-                model.load_weights(os.path.join(self.ensemble_path, str(seed), "weights/weights")).expect_partial()
+                path = os.path.join(self.ensemble_path, str(seed), "weights/weights")
+                model.load_weights(path).expect_partial()
+                logger_ensemble.info(f"Restored weights from trained ensemble {path}")
             self.models.append(model)
 
     def fit(self, args, train_dataset, dev_dataset=None, save_single_models=False, fold=None):
