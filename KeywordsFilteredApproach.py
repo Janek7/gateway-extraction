@@ -87,7 +87,7 @@ class KeywordsFilteredApproach(KeywordsApproach):
             if self.filtering_log_level == FILE:
                 if os.path.isdir(self.results_folder):
                     with open(os.path.join(self.results_folder, f"dropped_{gateway_type}s.txt"), "a") as file:
-                        file.writelines(log_messages)
+                        file.write('\n'.join(log_messages) + '\n')
                 else:
                     logger.warning("Can not write to result file when evaluating single documents")
             # write filter logs into console

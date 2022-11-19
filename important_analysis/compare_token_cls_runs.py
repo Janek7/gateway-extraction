@@ -12,7 +12,8 @@ def compare_runs(root_dir, name, order_by=None):
     # create dict with param string as key and related cv_metrics dict as value
     runs = []
     for sub_dir in run_subdirs:
-        if sub_dir.endswith("False"):
+        if "GatewayTokenClassifier" in sub_dir:
+            print(sub_dir)
             # cut generic parts & parse
             bs_index = sub_dir.index("au")
             param_list_short = sub_dir[bs_index:]
@@ -27,11 +28,11 @@ def compare_runs(root_dir, name, order_by=None):
 
     # save results
     df = pd.DataFrame.from_dict(runs)
-    print(df.head(10))
-    df.to_excel(f"../data/paper_stats/run_results_{name}.xlsx", sheet_name="seeds=0-29", index=False)
+    print(df.head(100))
+    df.to_excel(f"../data/paper_stats/token_cls/run_results_{name}.xlsx", sheet_name="seeds=0-29", index=False)
 
 
 if __name__ == '__main__':
-    compare_runs(os.path.join(ROOT_DIR, "data/logs_server/_final/token_cls/label_weights"),
+    compare_runs(os.path.join(ROOT_DIR, "data/logs_server/_final/token_cls"),
                  order_by="avg_val_xor_recall",
-                 name="label_weights")
+                 name="all")
