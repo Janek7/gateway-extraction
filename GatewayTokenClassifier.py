@@ -152,7 +152,8 @@ class GatewayTokenClassifier(tf.keras.Model):
         #   - in case of model in ensemble, seed is set before this constructor call
         if not token_cls_model:
             token_cls_model = transformers.TFAutoModelForTokenClassification.from_pretrained(
-                config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME], num_labels=args.num_labels)
+                config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME],
+                num_labels=config[KEYWORDS_FILTERED_APPROACH][LABEL_NUMBER])
 
         # includes one dense layer with linear activation function
         predictions = token_cls_model(inputs).logits

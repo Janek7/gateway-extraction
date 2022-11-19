@@ -3,6 +3,7 @@
   "keywords-filtered-approach": {
     "bert-model-name": "distilbert-base-uncased",
     "label-set": "all",
+    "label-number": 9,
     "other-labels-weight": 0.1
   },
   "synonym-samples-start-number": 500
