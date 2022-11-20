@@ -40,7 +40,7 @@ parser.add_argument("--activity_usage", default=NOT, type=str, help="How to incl
 
 def train_routine(args: argparse.Namespace) -> None:
     # Create logdir name
-    args.logdir = os.path.join("data/logs", "{}-{}-{}".format(
+    args.logdir = os.path.join("../data/logs", "{}-{}-{}".format(
         os.path.basename(globals().get("__file__", "notebook")),
         datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S"),
         ",".join(("{}={}".format(re.sub("(.)[^_]*_?", r"\1", k), v) for k, v in sorted(vars(args).items())))

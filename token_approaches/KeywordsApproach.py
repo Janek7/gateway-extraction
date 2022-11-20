@@ -789,7 +789,7 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     keyword_approach = KeywordsApproach(approach_name='key_words_custom', keywords=CUSTOM,
                                         same_xor_gateway_threshold=1, output_format=BENCHMARK)
-    if True:
+    if False:
         # doc_names = ['doc-3.2']
         keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
 
@@ -797,7 +797,7 @@ if __name__ == '__main__':
     # 'doc-3.2' for exclusive gateway with two branches and overlapping concurrent gateway -> presentation candidate
     # 'doc-10.2' for or gateway in sentence
     # 'doc-9.5' for single exclusive gateway and two exclusive gateways with each two branches -> presentation candidate
-    if False:
+    if True:
         doc_name = 'doc-3.2'
 
         xor_gateways, and_gateways, doc_flows, same_gateway_relations = keyword_approach.process_document(doc_name)
