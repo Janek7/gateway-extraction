@@ -5,7 +5,7 @@ from typing import List, Tuple
 import tensorflow as tf
 from petreader.labels import *
 
-from GatewayTokenClassifier import GatewayTokenClassifier, GatewayTokenClassifierEnsemble
+from GatewayTokenClassifier import GatewayTokenClassifierEnsemble
 from KeywordsApproach import KeywordsApproach
 from PetReader import pet_reader
 from token_data_preparation import preprocess_tokenization_data
