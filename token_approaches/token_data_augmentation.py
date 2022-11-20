@@ -59,7 +59,7 @@ def get_synonym_samples() -> Dict:
     read synonym samples from file; if it does not exist yet, create and save
     :return: synonym_samples dictionary
     """
-    path = os.path.join(ROOT_DIR, "data/other/synonym_samples.pkl")
+    path = os.path.join(ROOT_DIR, "../data/other/synonym_samples.pkl")
     if os.path.exists(path):
         logger.info(f"Reload synonym_samples from {path}")
         synonym_samples = load_pickle(path)

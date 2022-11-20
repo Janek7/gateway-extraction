@@ -7,8 +7,8 @@ import pandas as pd
 from PetReader import pet_reader
 from petreader.labels import *
 from labels import *
-from token_data_preparation import get_samples
-from token_data_augmentation import get_synonym_samples
+from token_approaches.token_data_preparation import get_samples
+from token_approaches.token_data_augmentation import get_synonym_samples
 from utils import config
 
 
