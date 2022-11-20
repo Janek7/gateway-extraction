@@ -1,7 +1,7 @@
 import itertools
 import collections
 import os
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 from petreader.RelationsExtraction import RelationsExtraction
 from petreader.TokenClassification import TokenClassification
 import logging
@@ -72,6 +72,14 @@ class PetReader:
         """
         return [self.token_dataset.GetTokens(sample)
                 for sample in self.token_dataset.get_n_sample_of_a_document(doc_name)]
+
+    def get_doc_relations(self, doc_name: str) -> Dict:
+        """
+        return dictionary of relations of a document
+        :param doc_name: doc name
+        :return: relations dictionary
+        """
+        return self.relations_dataset.GetRelations(self.get_document_number(doc_name))
 
     def get_ner_tags(self, sample_number: int):
         return self.relations_dataset.GetSentencesWithIdsAndNerTagLabels(sample_number)

@@ -270,8 +270,7 @@ def _create_dataset(input_ids: tf.Tensor, attention_masks: tf.Tensor, labels: tf
                                                sample_weights))
 
 
-def create_full_training_dataset(args: argparse.Namespace, shuffle: bool = True)\
-        -> tf.data.Dataset:
+def create_full_training_dataset(args: argparse.Namespace, shuffle: bool = True) -> tf.data.Dataset:
     """
     create one training set of the whole data without separating a dev set
     :param args: args namespace
