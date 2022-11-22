@@ -26,6 +26,10 @@ parser.add_argument("--routine", default="cv", type=str, help="Simple split trai
                                                               "full training without validation 'ft'.")
 parser.add_argument("--folds", default=2, type=int, help="Number of folds in cross validation routine.")
 parser.add_argument("--store_weights", default=False, type=bool, help="Flag if best weights should be stored.")
+# Architecture / data params
+parser.add_argument("--context_size", default=1, type=int, help="Number of sentences around to include in text.")
+parser.add_argument("--mode", default=CONCAT, type=str, help="How to include gateway information.")
+parser.add_argument("--n_gram", default=1, type=int, help="Number of tokens to include for gateway in CONCAT mode.")
 
 
 class SameGatewayClassifier(tf.keras.Model):

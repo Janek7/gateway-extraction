@@ -14,7 +14,7 @@ from labels import *
 from token_data_augmentation import get_synonym_samples
 from utils import config, CURRENT_USED_SEED
 
-logger = logging.getLogger('Data Preparation')
+logger = logging.getLogger('Data Preparation [Token CLS]')
 
 
 _tokenizer = transformers.AutoTokenizer.from_pretrained(config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME])
