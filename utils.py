@@ -1,7 +1,10 @@
+import argparse
 import itertools
 import json
 import os
 import pickle
+import re
+import datetime
 from typing import List, Tuple, Dict, IO
 import logging
 
@@ -199,6 +202,19 @@ def goldstandards_to_json(objects: str = 'relevant') -> None:
                                                                            CONDITION_SPECIFICATION])
     with open(os.path.join(ROOT_DIR, "data/other/token_goldstandard.json"), 'w') as file:
         json.dump(token_goldstandard, file, indent=4)
+
+
+def generate_args_logdir(args: argparse.Namespace) -> str:
+    """
+    generates a log directory for saving training results based on filename, date und arguments
+    :param args: args
+    :return: logdir as string
+    """
+    return os.path.join(ROOT_DIR, "/data/logs", "{}-{}-{}".format(
+        os.path.basename(globals().get("__file__", "notebook")),
+        datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S"),
+        ",".join(("{}={}".format(re.sub("(.)[^_]*_?", r"\1", k), v) for k, v in sorted(vars(args).items())))
+    ))
 
 
 # save in variable, because it has to be always called random.seed(...) before every random.X call

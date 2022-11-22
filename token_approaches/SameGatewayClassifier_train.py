@@ -3,8 +3,6 @@
 import argparse
 import json
 import os
-import datetime
-import re
 import logging
 
 import tensorflow as tf
@@ -15,7 +13,7 @@ from SameGatewayClassifier import SameGatewayClassifier
 from labels import *
 from metrics import compute_avg_metrics, print_metrics
 from same_gateway_data_preparation import create_same_gateway_cls_dataset_full, create_same_gateway_cls_dataset_cv
-from utils import config, set_seeds, get_seed_list
+from utils import config, set_seeds, get_seed_list, generate_args_logdir
 
 logger = logging.getLogger('Same Gateway Classifier')
 # logger_ensemble = logging.getLogger('Same Gateway Classifier Ensemble')
@@ -38,14 +36,6 @@ parser.add_argument("--n_gram", default=1, type=int, help="Number of tokens to i
 
 
 def train_routine(gateway_type: str, args: argparse.Namespace) -> None:
-    # Create logdir name
-    # TODO: move to utils and include root path
-    args.logdir = os.path.join("../data/logs", "{}-{}-{}".format(
-        os.path.basename(globals().get("__file__", "notebook")),
-        datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S"),
-        ",".join(("{}={}".format(re.sub("(.)[^_]*_?", r"\1", k), v) for k, v in sorted(vars(args).items())))
-    ))
-    print(args)
 
     # Load the model
     logger.info(f"Load transformer model and tokenizer ({config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME]})")
@@ -182,7 +172,9 @@ def full_training(gateway_type: str, args: argparse.Namespace, bert_model) -> No
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     args = parser.parse_args([] if "__file__" not in globals() else None)
+    args.logdir = generate_args_logdir(args)
+    print(args)
     # this seed is used by default (only overwritten in case of ensemble)
     set_seeds(args.seed_general, "args - used for dataset split/shuffling")
 
-    train_routine(XOR_GATEWAY, args)
+    # train_routine(XOR_GATEWAY, args)

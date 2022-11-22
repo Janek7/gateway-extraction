@@ -3,8 +3,6 @@
 import argparse
 import json
 import os
-import datetime
-import re
 import logging
 
 import tensorflow as tf
@@ -13,7 +11,7 @@ import transformers
 from GatewayTokenClassifier import GatewayTokenClassifier, GatewayTokenClassifierEnsemble
 from token_data_preparation import create_token_cls_dataset_cv, create_token_cls_dataset_full
 from metrics import *
-from utils import config, set_seeds, get_seed_list
+from utils import config, set_seeds, get_seed_list, generate_args_logdir
 
 logger = logging.getLogger('Gateway Token Classifier')
 logger_ensemble = logging.getLogger('Gateway Token Classifier Ensemble')
@@ -39,12 +37,6 @@ parser.add_argument("--activity_usage", default=NOT, type=str, help="How to incl
 
 
 def train_routine(args: argparse.Namespace) -> None:
-    # Create logdir name
-    args.logdir = os.path.join("../data/logs", "{}-{}-{}".format(
-        os.path.basename(globals().get("__file__", "notebook")),
-        datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S"),
-        ",".join(("{}={}".format(re.sub("(.)[^_]*_?", r"\1", k), v) for k, v in sorted(vars(args).items())))
-    ))
     if args.labels == 'filtered':
         args.num_labels = 4
     elif args.labels == 'all':
@@ -180,6 +172,8 @@ def full_training(args: argparse.Namespace, token_cls_model) -> None:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     args = parser.parse_args([] if "__file__" not in globals() else None)
+    args.logdir = generate_args_logdir(args)
+
     # this seed is used by default (only overwritten in case of ensemble)
     set_seeds(args.seed_general, "args - used for dataset split/shuffling")
 
