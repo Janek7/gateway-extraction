@@ -12,28 +12,12 @@ import transformers
 from labels import *
 from utils import config, set_seeds
 
-logger = logging.getLogger('Same Gateway Classifier')
-# logger_ensemble = logging.getLogger('Same Gateway Classifier Ensemble')
-
-
-parser = argparse.ArgumentParser()
-# Standard params
-parser.add_argument("--batch_size", default=8, type=int, help="Batch size.")
-parser.add_argument("--epochs", default=1, type=int, help="Number of epochs.")
-parser.add_argument("--seed_general", default=42, type=int, help="Random seed.")
-# routine params
-parser.add_argument("--routine", default="cv", type=str, help="Simple split training 'sp', cross validation 'cv' or "
-                                                              "full training without validation 'ft'.")
-parser.add_argument("--folds", default=2, type=int, help="Number of folds in cross validation routine.")
-parser.add_argument("--store_weights", default=False, type=bool, help="Flag if best weights should be stored.")
-# Architecture / data params
-parser.add_argument("--context_size", default=1, type=int, help="Number of sentences around to include in text.")
-parser.add_argument("--mode", default=CONCAT, type=str, help="How to include gateway information.")
-parser.add_argument("--n_gram", default=1, type=int, help="Number of tokens to include for gateway in CONCAT mode.")
-
 
 class SameGatewayClassifier(tf.keras.Model):
-    def __init__(self, args: argparse.Namespace, mode: str = CONCAT, train_size: int = None):
+    """
+    binary classification model to classify if two gateways belong to the same gateway construct
+    """
+    def __init__(self, args: argparse.Namespace, bert_model, mode: str = CONCAT, train_size: int = None):
 
         # A) ARCHITECTURE
         inputs = {
@@ -42,7 +26,8 @@ class SameGatewayClassifier(tf.keras.Model):
             "indexes": tf.keras.layers.Input(shape=[2], dtype=tf.int32)
         }
 
-        bert_model = transformers.TFAutoModel.from_pretrained(config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME])
+        if not bert_model:
+            bert_model = transformers.TFAutoModel.from_pretrained(config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME])
         # includes one dense layer with linear activation function
         bert_output = bert_model({"input_ids": inputs["input_ids"],
                                   "attention_mask": inputs["attention_mask"]}).last_hidden_state
@@ -57,13 +42,15 @@ class SameGatewayClassifier(tf.keras.Model):
             hidden_layer = tf.keras.layers.Dense(32, activation=tf.nn.relu)(concatted)
             dropout2 = tf.keras.layers.Dropout(0.2)(hidden_layer)
             predictions = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(dropout2)
+        else:
+            raise ValueError(f"mode must be {INDEX} or {CONCAT}")
 
         super().__init__(inputs=inputs, outputs=predictions)
 
         # B) COMPILE (only needed when training is intended)
         optimizer, lr_schedule = transformers.create_optimizer(
             init_lr=2e-5,
-            num_train_steps=(train_size // 8) * 1,
+            num_train_steps=(train_size // args.batch_size) * 1,
             weight_decay_rate=0.01,
             num_warmup_steps=0,
         )
@@ -73,21 +60,3 @@ class SameGatewayClassifier(tf.keras.Model):
                      metrics=[tf.keras.metrics.BinaryAccuracy()])
 
         self.summary()
-
-
-def train_routine(args: argparse.Namespace) -> None:
-    # Create logdir name
-    args.logdir = os.path.join("../data/logs", "{}-{}-{}".format(
-        os.path.basename(globals().get("__file__", "notebook")),
-        datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S"),
-        ",".join(("{}={}".format(re.sub("(.)[^_]*_?", r"\1", k), v) for k, v in sorted(vars(args).items())))
-    ))
-
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    args = parser.parse_args([] if "__file__" not in globals() else None)
-    # this seed is used by default (only overwritten in case of ensemble)
-    set_seeds(args.seed_general, "args - used for dataset split/shuffling")
-
-    train_routine(args)
