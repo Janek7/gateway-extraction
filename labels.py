@@ -79,3 +79,9 @@ NOT = 'not'
 DUMMY = 'dummy'
 SINGLE_MASK = 'single_mask'
 MULTI_MASK = 'multi_mask'
+
+
+# C) LABELS FOR SAME GATEWAY CLASSIFICATION TASK
+INDEX = 'index'
+CONCAT = 'concat'
+

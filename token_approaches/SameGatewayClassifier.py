@@ -29,42 +29,46 @@ parser.add_argument("--store_weights", default=False, type=bool, help="Flag if b
 
 
 class SameGatewayClassifier(tf.keras.Model):
-    def __init__(self, args: argparse.Namespace, bert_model=None, train_size: int = None) -> None:
-        """
-        creates a SameGatewayClassifier
-        :param args: args Namespace
-        :param bert_model: bert like transformer model
-        :param train_size: train dataset size
-        """
-        logger.info("Create and initialize a SameGatewayClassifier")
+    def __init__(self, args: argparse.Namespace, mode: str = CONCAT, train_size: int = None):
 
         # A) ARCHITECTURE
         inputs = {
             "input_ids": tf.keras.layers.Input(shape=[None], dtype=tf.int32),
-            "attention_mask": tf.keras.layers.Input(shape=[None], dtype=tf.int32)
+            "attention_mask": tf.keras.layers.Input(shape=[None], dtype=tf.int32),
+            "indexes": tf.keras.layers.Input(shape=[2], dtype=tf.int32)
         }
 
-        if not bert_model:
-            token_cls_model = transformers.TFAutoModelForTokenClassification.from_pretrained(
-                config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME],
-                num_labels=config[KEYWORDS_FILTERED_APPROACH][LABEL_NUMBER])
+        bert_model = transformers.TFAutoModel.from_pretrained(config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME])
+        # includes one dense layer with linear activation function
+        bert_output = bert_model({"input_ids": inputs["input_ids"],
+                                  "attention_mask": inputs["attention_mask"]}).last_hidden_state
+        # extract cls token for every sample
+        cls_token = bert_output[:, 0]
+        dropout1 = tf.keras.layers.Dropout(0.2)(cls_token)
+        if mode == CONCAT:
+            predictions = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(dropout1)
+        elif mode == INDEX:
+            indexes = tf.cast(inputs["indexes"], tf.float32)
+            concatted = tf.keras.layers.Concatenate()([dropout1, indexes])
+            hidden_layer = tf.keras.layers.Dense(32, activation=tf.nn.relu)(concatted)
+            dropout2 = tf.keras.layers.Dropout(0.2)(hidden_layer)
+            predictions = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(dropout2)
 
-        bert_output = bert_model(inputs).logits
-        super().__init__(inputs=inputs, outputs=bert_output)
+        super().__init__(inputs=inputs, outputs=predictions)
 
         # B) COMPILE (only needed when training is intended)
-        if args and train_size:
-            optimizer, lr_schedule = transformers.create_optimizer(
-                init_lr=2e-5,
-                num_train_steps=(train_size // args.batch_size) * args.epochs,
-                weight_decay_rate=0.01,
-                num_warmup_steps=0,
-            )
+        optimizer, lr_schedule = transformers.create_optimizer(
+            init_lr=2e-5,
+            num_train_steps=(train_size // 8) * 1,
+            weight_decay_rate=0.01,
+            num_warmup_steps=0,
+        )
 
-            self.compile(optimizer=optimizer,
-                         loss=tf.keras.losses.SparseCategoricalCrossentropy())
-            # token_cls_model.summary()
-            # self.summary()
+        self.compile(optimizer=optimizer,
+                     loss=tf.keras.losses.BinaryCrossentropy(),
+                     metrics=[tf.keras.metrics.BinaryAccuracy()])
+
+        self.summary()
 
 
 def train_routine(args: argparse.Namespace) -> None:
