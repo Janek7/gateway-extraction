@@ -69,7 +69,7 @@ def compute_gpu_run_diffs():
     # output to dataframe
     df = pd.DataFrame.from_dict(rows)
     print(df.head(10))
-    df.to_excel("../data/paper_stats/gpu_run_differences.xlsx", sheet_name="6 runs", index=False)
+    df.to_excel(os.path.join(ROOT_DIR, "/data/paper_stats/gpu_run_differences.xlsx"), sheet_name="6 runs", index=False)
 
 
 if __name__ == '__main__':

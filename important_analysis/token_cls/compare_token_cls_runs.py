@@ -29,7 +29,8 @@ def compare_runs(root_dir, name, order_by=None):
     # save results
     df = pd.DataFrame.from_dict(runs)
     print(df.head(100))
-    df.to_excel(f"../data/paper_stats/token_cls/run_results_{name}.xlsx", sheet_name="seeds=0-29", index=False)
+    df.to_excel(os.path.join(ROOT_DIR, f"data/paper_stats/token_cls/run_results_{name}.xlsx"),
+                sheet_name="seeds=0-29", index=False)
 
 
 if __name__ == '__main__':

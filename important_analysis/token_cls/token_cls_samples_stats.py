@@ -9,7 +9,7 @@ from petreader.labels import *
 from labels import *
 from token_approaches.token_data_preparation import get_samples
 from token_approaches.token_data_augmentation import get_synonym_samples
-from utils import config
+from utils import config, ROOT_DIR
 
 
 def analyze_samples(strategy, use_synonyms=False):
@@ -78,4 +78,4 @@ for strategy, use_synonyms in [(NORMAL, False), (UP_SAMPLING, False), (DOWN_SAMP
 df = pd.DataFrame.from_dict(rows)
 df.head(10)
 
-df.to_excel("../data/paper_stats/token_cls_stats.xlsx", index=False)
+df.to_excel(os.path.join(ROOT_DIR, "/data/paper_stats/token_cls_stats.xlsx"), index=False)
