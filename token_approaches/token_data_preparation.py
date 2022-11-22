@@ -270,7 +270,7 @@ def _create_dataset(input_ids: tf.Tensor, attention_masks: tf.Tensor, labels: tf
                                                sample_weights))
 
 
-def create_full_training_dataset(args: argparse.Namespace, shuffle: bool = True) -> tf.data.Dataset:
+def create_token_cls_dataset_full(args: argparse.Namespace, shuffle: bool = True) -> tf.data.Dataset:
     """
     create one training set of the whole data without separating a dev set
     :param args: args namespace
@@ -290,7 +290,7 @@ def create_full_training_dataset(args: argparse.Namespace, shuffle: bool = True)
     return dataset
 
 
-def create_token_classification_dataset_cv(args: argparse.Namespace, shuffle: bool = True) \
+def create_token_cls_dataset_cv(args: argparse.Namespace, shuffle: bool = True) \
         -> List[Tuple[tf.data.Dataset, tf.data.Dataset]]:
     """
     create the dataset for token classification with huggingface transformers bert like models

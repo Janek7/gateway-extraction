@@ -11,7 +11,7 @@ import tensorflow as tf
 import transformers
 
 from GatewayTokenClassifier import GatewayTokenClassifier, GatewayTokenClassifierEnsemble
-from token_data_preparation import create_token_classification_dataset_cv, create_full_training_dataset
+from token_data_preparation import create_token_cls_dataset_cv, create_token_cls_dataset_full
 from metrics import *
 from utils import config, set_seeds, get_seed_list
 
@@ -78,7 +78,7 @@ def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
     """
     logger.info(f"Run {args.folds}-fold cross validation")
 
-    folded_datasets = create_token_classification_dataset_cv(args)
+    folded_datasets = create_token_cls_dataset_cv(args)
 
     os.makedirs(args.logdir, exist_ok=True)
     args_logdir_original = args.logdir
@@ -149,7 +149,7 @@ def full_training(args: argparse.Namespace, token_cls_model) -> None:
     logger.info(f"Run full training (num_labels={args.num_labels}; other_labels_weight={args.other_labels_weight})")
 
     # create dataset
-    train = create_full_training_dataset(args)
+    train = create_token_cls_dataset_full(args)
 
     if not args.ensemble:
         # train
