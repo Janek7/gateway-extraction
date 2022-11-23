@@ -7,6 +7,7 @@ __pycache__/
 results/
 data/logs/
 data/logs_server/
+data/final_models/
 scripts/data/logs/
 data/other/
 

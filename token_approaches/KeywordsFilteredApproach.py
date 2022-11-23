@@ -7,7 +7,8 @@ from typing import List, Tuple
 import tensorflow as tf
 from petreader.labels import *
 
-from GatewayTokenClassifier import GatewayTokenClassifierEnsemble
+from GatewayTokenClassifier import GatewayTokenClassifier, convert_predictions_into_labels
+from Ensemble import Ensemble
 from KeywordsApproach import KeywordsApproach
 from PetReader import pet_reader
 from token_data_preparation import preprocess_tokenization_data
@@ -40,7 +41,7 @@ class KeywordsFilteredApproach(KeywordsApproach):
         """
         super().__init__(approach_name=approach_name, keywords=keywords, output_format=output_format,
                          same_xor_gateway_threshold=same_xor_gateway_threshold, output_folder=output_folder)
-        self.token_classifier = GatewayTokenClassifierEnsemble(ensemble_path=ensemble_path)
+        self.token_classifier = Ensemble(model_class=GatewayTokenClassifier, ensemble_path=ensemble_path)
         set_seeds(config[SEED], "Reset after initialization of GatewayTokenClassifierEnsemble")
         self.mode = mode
         self.filtering_log_level = filtering_log_level
@@ -59,7 +60,8 @@ class KeywordsFilteredApproach(KeywordsApproach):
         tokens, _, _, word_ids = preprocess_tokenization_data(sample_numbers=pet_reader.get_doc_sample_ids(doc_name))
 
         # predict token labels with GatewayTokenClassifier
-        predictions = self.token_classifier.predict_converted(tokens, word_ids)
+        predictions = self.token_classifier.predict(tokens)
+        predictions = convert_predictions_into_labels(predictions, word_ids)
 
         # filter gateway lists using predictions
         def filter_gateways(gateways, gateway_type):
@@ -109,7 +111,7 @@ if __name__ == '__main__':
     set_seeds(config[SEED], "Set first seed")
     keyword_filtered_approach = KeywordsFilteredApproach(approach_name='key_words_literature_tc_filtered_og_syn',
                                                          keywords=LITERATURE, output_format=BENCHMARK,
-                                                         ensemble_path="/home/japutz/master-thesis/scripts/token_cls/data/logs/GatewayTokenClassifier_train.py-2022-11-19_074241-au=not,bs=8,e=True,e=1,f=2,l=all,olw=0.1,r=ft,ss=og,sg=42,se=0-29,sw=True,us=True",
+                                                         ensemble_path="/home/japutz/master-thesis/data/final_models/token_cls/GatewayTokenClassifier_train.py-2022-11-19_074241-au=not,bs=8,e=True,e=1,f=2,l=all,olw=0.1,r=ft,ss=og,sg=42,se=0-29,sw=True,us=True",
                                                          mode=DROP, filtering_log_level=FILE)
     if True:
         keyword_filtered_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
