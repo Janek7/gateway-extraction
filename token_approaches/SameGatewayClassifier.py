@@ -69,4 +69,4 @@ class SameGatewayClassifier(tf.keras.Model):
                      metrics=[tf.keras.metrics.BinaryAccuracy(),
                               tf.keras.metrics.Precision(name="precision"), tf.keras.metrics.Recall(name="recall")])
 
-        self.summary()
+        # self.summary()

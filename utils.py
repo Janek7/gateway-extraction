@@ -204,15 +204,17 @@ def goldstandards_to_json(objects: str = 'relevant') -> None:
         json.dump(token_goldstandard, file, indent=4)
 
 
-def generate_args_logdir(script_name: str, args: argparse.Namespace) -> str:
+def generate_args_logdir(args: argparse.Namespace, script_name: str = None) -> str:
     """
     generates a log directory for saving training results based on filename, date und arguments
     :param script_name: script name for which to generate logdir for
     :param args: args
     :return: logdir as string
     """
+    if not script_name:
+        script_name = os.path.basename(globals().get(script_name, "notebook"))
     return os.path.join(ROOT_DIR, "data/logs", "{}-{}-{}".format(
-        os.path.basename(globals().get(script_name, "notebook")),
+        script_name,
         datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S"),
         ",".join(("{}={}".format(re.sub("(.)[^_]*_?", r"\1", k), v) for k, v in sorted(vars(args).items())))
     ))

@@ -176,7 +176,7 @@ def full_training(args: argparse.Namespace, token_cls_model) -> None:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     args = parser.parse_args([] if "__file__" not in globals() else None)
-    args.logdir = generate_args_logdir(__file__, args)
+    args.logdir = generate_args_logdir(args, script_name="GatewayTokenClassifier")
 
     # this seed is used by default (only overwritten in case of ensemble)
     set_seeds(args.seed_general, "args - used for dataset split/shuffling")
