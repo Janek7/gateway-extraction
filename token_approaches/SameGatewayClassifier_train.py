@@ -30,6 +30,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--batch_size", default=8, type=int, help="Batch size.")
 parser.add_argument("--epochs", default=1, type=int, help="Number of epochs.")
 parser.add_argument("--seed_general", default=42, type=int, help="Random seed.")
+parser.add_argument("--ensemble", default=True, type=bool, help="Use ensemble learning with config.json seeds.")
+parser.add_argument("--seeds_ensemble", default="0-1", type=str, help="Random seed range to use for ensembles")
+
 # routine params
 parser.add_argument("--routine", default="cv", type=str, help="Simple split training 'sp', cross validation 'cv' or "
                                                               "full training without validation 'ft'.")
@@ -49,7 +52,7 @@ def train_routine(gateway_type: str, args: argparse.Namespace) -> None:
 
     # cross validation
     if args.routine == 'cv':
-        cross_validation(gateway_type, args, bert_model)
+        cross_validation(gateway_type, args, None)
     # full training wihtout validation
     elif args.routine == 'ft':
         full_training(gateway_type, args, bert_model)
@@ -104,7 +107,6 @@ def cross_validation(gateway_type: str, args: argparse.Namespace, bert_model) ->
             history = ensemble_model.fit(args, train_dataset=train_dataset, dev_dataset=dev_dataset, fold=i)
 
         # record fold results (record only validation results; drop training metrics)
-        # TODO: update
         for metric, values in history.history.items():
             # record validation value of last epoch for each metric
             if metric.startswith("val_"):

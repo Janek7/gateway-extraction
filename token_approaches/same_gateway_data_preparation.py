@@ -70,6 +70,7 @@ def _preprocess_gateway_pairs(gateway_type: str, context_sentences: int = 1, mod
                               f"data/other/same_gateway_data_{gateway_type}_{context_sentences}_{mode}_{n_gram}")
     if os.path.exists(cache_path):
         tokens, indexes, labels = load_pickle(cache_path)
+        logger.info("Reloaded same gateway data from cache")
         return tokens, indexes, labels
 
     # lists to store results
