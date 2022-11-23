@@ -5,7 +5,8 @@ from typing import List, Tuple
 
 from petreader.labels import *
 
-from GatewayTokenClassifier import GatewayTokenClassifier, GatewayTokenClassifierEnsemble
+from GatewayTokenClassifier import GatewayTokenClassifier, convert_predictions_into_labels
+from Ensemble import Ensemble
 from KeywordsApproach import KeywordsApproach
 from PetReader import pet_reader
 from token_approaches.token_data_preparation import preprocess_tokenization_data
@@ -41,7 +42,7 @@ class TokenClsApproach(KeywordsApproach):
                          same_xor_gateway_threshold=same_xor_gateway_threshold, output_folder=output_folder)
         self.include_and = include_and
         if ensemble_path:
-            self.token_classifier = GatewayTokenClassifierEnsemble(ensemble_path=ensemble_path)
+            self.token_classifier = Ensemble(model_class=GatewayTokenClassifier, ensemble_path=ensemble_path)
         else:  # only for debugging
             self.token_classifier = GatewayTokenClassifier(args=None)
         set_seeds(config[SEED], "Reset after initialization of GatewayTokenClassifierEnsemble")
@@ -61,7 +62,8 @@ class TokenClsApproach(KeywordsApproach):
         original_tokens = pet_reader.get_doc_sentences(doc_name)
 
         # predict token labels with GatewayTokenClassifier
-        predictions = self.token_classifier.predict_converted(tokens, word_ids)
+        predictions = self.token_classifier.predict(tokens)
+        predictions = convert_predictions_into_labels(predictions, word_ids)
 
         # transform into PET format
         xor_gateways = []

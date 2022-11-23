@@ -8,7 +8,8 @@ import logging
 import tensorflow as tf
 import transformers
 
-from GatewayTokenClassifier import GatewayTokenClassifier, GatewayTokenClassifierEnsemble
+from GatewayTokenClassifier import GatewayTokenClassifier
+from Ensemble import Ensemble
 from token_data_preparation import create_token_cls_dataset_cv, create_token_cls_dataset_full
 from metrics import *
 from utils import config, set_seeds, get_seed_list, generate_args_logdir
@@ -96,10 +97,7 @@ def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
             model = GatewayTokenClassifier(args, token_cls_model, len(train_dataset))
             history = model.fit(
                 train_dataset, epochs=args.epochs, validation_data=dev_dataset,
-                callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq='batch', profile_batch=0),
-                           # tf.keras.callbacks.EarlyStopping(monitor='val_overall_accuracy', min_delta=1e-4, patience=1,
-                           #                                  verbose=0, mode="max", restore_best_weights=True)
-                           ]
+                callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq='batch', profile_batch=0)]
             )
             # store model
             if args.store_weights:
@@ -107,8 +105,8 @@ def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
 
         # b) fit ensemble model (train multiple seeds for current fold)
         else:
-            ensemble_model = GatewayTokenClassifierEnsemble(args, token_cls_model, train_size=len(train_dataset),
-                                                            seeds=get_seed_list(args.seeds_ensemble))
+            ensemble_model = Ensemble(GatewayTokenClassifier, seeds=get_seed_list(args.seeds_ensemble),
+                                      args=args, token_cls_model=token_cls_model, train_size=len(train_dataset))
             history = ensemble_model.fit(args, train_dataset=train_dataset, dev_dataset=dev_dataset, fold=i)
 
         # record fold results (record only validation results; drop training metrics)
@@ -148,10 +146,7 @@ def full_training(args: argparse.Namespace, token_cls_model) -> None:
         model = GatewayTokenClassifier(args, token_cls_model=token_cls_model, train_size=len(train))
         history = model.fit(
             train, epochs=args.epochs,
-            callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq="batch", profile_batch=0)
-                       # tf.keras.callbacks.EarlyStopping(monitor='val_overall_accuracy', min_delta=1e-4, patience=1,
-                       #                                  verbose=0, mode="max", restore_best_weights=True)
-                                             ]
+            callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq="batch", profile_batch=0)]
         )
 
         # store model
@@ -160,8 +155,8 @@ def full_training(args: argparse.Namespace, token_cls_model) -> None:
 
     else:
         # train
-        ensemble_model = GatewayTokenClassifierEnsemble(args, token_cls_model=token_cls_model, train_size=len(train),
-                                                        seeds=get_seed_list(args.seeds_ensemble))
+        ensemble_model = Ensemble(GatewayTokenClassifier, seeds=get_seed_list(args.seeds_ensemble),
+                                  args=args, token_cls_model=token_cls_model, train_size=len(train))
         history = ensemble_model.fit(args, train_dataset=train, save_single_models=args.store_weights)
 
     # store metrics
