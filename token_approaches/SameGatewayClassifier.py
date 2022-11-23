@@ -1,16 +1,22 @@
 #!/usr/bin/env python3
 
+# add parent dir to sys path for import of modules
+import os
+import sys
+parent_dir = os.path.abspath(os.path.join(os.path.abspath(''), os.pardir))
+sys.path.insert(0, parent_dir)
+
 import argparse
 import logging
-import os
-import datetime
-import re
 
 import tensorflow as tf
 import transformers
 
 from labels import *
-from utils import config, set_seeds
+from utils import config
+
+logger = logging.getLogger('Same Gateway Classifier')
+logger_ensemble = logging.getLogger('Same Gateway Classifier Ensemble')
 
 
 class SameGatewayClassifier(tf.keras.Model):
@@ -50,13 +56,14 @@ class SameGatewayClassifier(tf.keras.Model):
         # B) COMPILE (only needed when training is intended)
         optimizer, lr_schedule = transformers.create_optimizer(
             init_lr=2e-5,
-            num_train_steps=(train_size // args.batch_size) * 1,
+            num_train_steps=(train_size // args.batch_size) * args.epochs,
             weight_decay_rate=0.01,
             num_warmup_steps=0,
         )
 
         self.compile(optimizer=optimizer,
                      loss=tf.keras.losses.BinaryCrossentropy(),
-                     metrics=[tf.keras.metrics.BinaryAccuracy()])
+                     metrics=[tf.keras.metrics.BinaryAccuracy(),
+                              tf.keras.metrics.Precision(name="precision"), tf.keras.metrics.Recall(name="recall")])
 
         self.summary()

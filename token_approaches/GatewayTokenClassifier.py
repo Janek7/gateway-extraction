@@ -14,7 +14,7 @@ import tensorflow as tf
 import transformers
 
 from metrics import *
-from utils import config, set_seeds
+from utils import config
 
 logger = logging.getLogger('Gateway Token Classifier')
 

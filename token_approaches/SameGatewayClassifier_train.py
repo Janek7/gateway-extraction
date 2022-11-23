@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
 
+# add parent dir to sys path for import of modules
+import os
+import sys
+parent_dir = os.path.abspath(os.path.join(os.path.abspath(''), os.pardir))
+sys.path.insert(0, parent_dir)
+
 import argparse
 import json
 import os
@@ -9,15 +15,15 @@ import tensorflow as tf
 import transformers
 from petreader.labels import *
 
+from Ensemble import Ensemble
 from SameGatewayClassifier import SameGatewayClassifier
 from labels import *
 from metrics import compute_avg_metrics, print_metrics
 from same_gateway_data_preparation import create_same_gateway_cls_dataset_full, create_same_gateway_cls_dataset_cv
 from utils import config, set_seeds, get_seed_list, generate_args_logdir
 
-logger = logging.getLogger('Same Gateway Classifier')
-# logger_ensemble = logging.getLogger('Same Gateway Classifier Ensemble')
 
+logger = logging.getLogger('Same Gateway Classifier [Training]')
 
 parser = argparse.ArgumentParser()
 # Standard params
@@ -66,11 +72,8 @@ def cross_validation(gateway_type: str, args: argparse.Namespace, bert_model) ->
     os.makedirs(args.logdir, exist_ok=True)
     args_logdir_original = args.logdir
 
-    # TODO: update
-    metrics_per_fold = {'avg_val_loss': 0, 'avg_val_xor_precision': 0, 'avg_val_xor_recall': 0, 'avg_val_xor_f1': 0, 'avg_val_xor_f1_m': 0,
-                        'avg_val_and_recall': 0, 'avg_val_and_precision': 0, 'avg_val_and_f1': 0, 'avg_val_and_f1_m': 0, 'avg_val_overall_accuracy': 0,
-                        'val_loss': [], 'val_xor_precision': [], 'val_xor_recall': [], 'val_xor_f1': [], 'val_xor_f1_m': [],
-                        'val_and_recall': [], 'val_and_precision': [], 'val_and_f1': [], 'val_and_f1_m': [], 'val_overall_accuracy': []}
+    metrics_per_fold = {'avg_val_loss': 0, 'avg_val_binary_accuracy': 0, 'avg_val_precision': 0, 'avg_val_recall': 0,
+                        'val_loss': [], 'val_binary_accuracy': [], 'val_precision': [], 'val_recall': []}
 
     # perform k-fold CV
 
@@ -88,10 +91,7 @@ def cross_validation(gateway_type: str, args: argparse.Namespace, bert_model) ->
             model = SameGatewayClassifier(args, bert_model, mode=args.mode, train_size=len(train_dataset))
             history = model.fit(
                 train_dataset, epochs=args.epochs, validation_data=dev_dataset,
-                callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq='batch', profile_batch=0),
-                           # tf.keras.callbacks.EarlyStopping(monitor='val_overall_accuracy', min_delta=1e-4, patience=1,
-                           #                                  verbose=0, mode="max", restore_best_weights=True)
-                           ]
+                callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq='batch', profile_batch=0)]
             )
             # store model
             if args.store_weights:
@@ -99,11 +99,9 @@ def cross_validation(gateway_type: str, args: argparse.Namespace, bert_model) ->
 
         # b) fit ensemble model (train multiple seeds for current fold)
         else:
-            # TODO: update
-            raise NotImplementedError("TODO")
-            # ensemble_model = GatewayTokenClassifierEnsemble(args, token_cls_model, train_size=len(train_dataset),
-            #                                                 seeds=get_seed_list(args.seeds_ensemble))
-            # history = ensemble_model.fit(args, train_dataset=train_dataset, dev_dataset=dev_dataset, fold=i)
+            ensemble_model = Ensemble(model_class=SameGatewayClassifier, seeds=get_seed_list(args.seeds_ensemble),
+                                      args=args, bert_model=bert_model, mode=args.mode, train_size=len(train_dataset))
+            history = ensemble_model.fit(args, train_dataset=train_dataset, dev_dataset=dev_dataset, fold=i)
 
         # record fold results (record only validation results; drop training metrics)
         # TODO: update
@@ -117,9 +115,8 @@ def cross_validation(gateway_type: str, args: argparse.Namespace, bert_model) ->
                 metrics_per_fold[f"{metric}-{i}"] = values
 
     logger.info("Finished CV, average, print and save results")
-    # TODO: update
-    # compute_avg_metrics(metrics_per_fold)
-    # print_metrics(metrics_per_fold)
+    compute_avg_metrics(metrics_per_fold)
+    print_metrics(metrics_per_fold)
 
     # save metrics
     with open(os.path.join(args_logdir_original, "cv_metrics.json"), 'w') as file:
@@ -145,10 +142,7 @@ def full_training(gateway_type: str, args: argparse.Namespace, bert_model) -> No
         model = SameGatewayClassifier(args, bert_model, train_size=len(train))
         history = model.fit(
             train, epochs=args.epochs,
-            callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq="batch", profile_batch=0)
-                       # tf.keras.callbacks.EarlyStopping(monitor='val_overall_accuracy', min_delta=1e-4, patience=1,
-                       #                                  verbose=0, mode="max", restore_best_weights=True)
-                                             ]
+            callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq="batch", profile_batch=0)]
         )
 
         # store model
@@ -157,12 +151,10 @@ def full_training(gateway_type: str, args: argparse.Namespace, bert_model) -> No
 
     else:
         # train
-        # TODO: update
-        raise NotImplementedError("TODO")
-        # args_dir_original = args.logdir
-        # ensemble_model = GatewayTokenClassifierEnsemble(args, token_cls_model=token_cls_model, train_size=len(train),
-        #                                                 seeds=get_seed_list(args.seeds_ensemble))
-        # history = ensemble_model.fit(args, train_dataset=train, save_single_models=args.store_weights)
+        args_dir_original = args.logdir
+        ensemble_model = Ensemble(model_class=SameGatewayClassifier, seeds=get_seed_list(args.seeds_ensemble),
+                                  args=args, bert_model=bert_model, mode=args.mode, train_size=len(train))
+        history = ensemble_model.fit(args, train_dataset=train, save_single_models=args.store_weights)
 
     # store metrics
     with open(os.path.join(args_dir_original, "metrics.json"), 'w') as file:
@@ -172,9 +164,9 @@ def full_training(gateway_type: str, args: argparse.Namespace, bert_model) -> No
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     args = parser.parse_args([] if "__file__" not in globals() else None)
-    args.logdir = generate_args_logdir(args)
-    print(args)
+    args.logdir = generate_args_logdir(__file__, args)
+
     # this seed is used by default (only overwritten in case of ensemble)
     set_seeds(args.seed_general, "args - used for dataset split/shuffling")
 
-    # train_routine(XOR_GATEWAY, args)
+    train_routine(XOR_GATEWAY, args)
