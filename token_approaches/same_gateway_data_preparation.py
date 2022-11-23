@@ -1,24 +1,23 @@
 # add parent dir to sys path for import of modules
 import os
 import sys
+
 parent_dir = os.path.abspath(os.path.join(os.path.abspath(''), os.pardir))
 sys.path.insert(0, parent_dir)
 
-import argparse
 import itertools
 import logging
-
-import tensorflow as tf
-import transformers
 import argparse
 from typing import Tuple, List
 
+import tensorflow as tf
+import transformers
 from sklearn.model_selection import KFold
 from petreader.labels import *
 from transformers import BatchEncoding
 
 from labels import *
-from utils import config
+from utils import config, ROOT_DIR, load_pickle, save_as_pickle
 from PetReader import pet_reader
 
 logger = logging.getLogger('Data Preparation [Same Gateway CLS]')
@@ -66,6 +65,13 @@ def _preprocess_gateway_pairs(gateway_type: str, context_sentences: int = 1, mod
     :param n_gram: n of n_grams to include from gateways in CONCAT mode
     :return: tokens as batch encoding, list of index pairs, list of labels
     """
+    # reload from cache if already exists
+    cache_path = os.path.join(ROOT_DIR,
+                              f"data/other/same_gateway_data_{gateway_type}_{context_sentences}_{mode}_{n_gram}")
+    if os.path.exists(cache_path):
+        tokens, indexes, labels = load_pickle(cache_path)
+        return tokens, indexes, labels
+
     # lists to store results
     texts = []  # context texts
     n_gram_tuples = []  # tuples of gateway n_grams (only necessary for mode=CONCAT)
@@ -152,10 +158,15 @@ def _preprocess_gateway_pairs(gateway_type: str, context_sentences: int = 1, mod
     else:
         raise ValueError(f"mode must be {INDEX} or {CONCAT}")
 
-    return tokens, tf.constant(indexes), tf.constant(labels)
+    results = (tokens, tf.constant(indexes), tf.constant(labels))
+
+    # save in cache
+    save_as_pickle(results, cache_path)
+
+    return results
 
 
-def create_same_gateway_cls_dataset_full(gateway_type: str, args: argparse.Namespace = None, shuffle: bool = True)\
+def create_same_gateway_cls_dataset_full(gateway_type: str, args: argparse.Namespace = None, shuffle: bool = True) \
         -> tf.data.Dataset:
     """
     create one training set of the whole data without separating a dev set
@@ -179,7 +190,7 @@ def create_same_gateway_cls_dataset_full(gateway_type: str, args: argparse.Names
     return dataset
 
 
-def create_same_gateway_cls_dataset_cv(gateway_type: str, args: argparse.Namespace = None, shuffle: bool = True)\
+def create_same_gateway_cls_dataset_cv(gateway_type: str, args: argparse.Namespace = None, shuffle: bool = True) \
         -> List[Tuple[tf.data.Dataset, tf.data.Dataset]]:
     """
     create the dataset for same gateway classification based on huggingface transformers bert like models
