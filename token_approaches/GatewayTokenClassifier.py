@@ -3,11 +3,8 @@
 # add parent dir to sys path for import of modules
 import os
 import sys
-
 # find recursively the project root dir
-from CustomModel import CustomModel
-
-parent_dir = os.path.abspath(os.path.join(os.path.abspath(''), os.pardir))
+parent_dir = str(os.getcwdb())
 while not os.path.exists(os.path.join(parent_dir, "README.md")):
     parent_dir = os.path.abspath(os.path.join(parent_dir, os.pardir))
 sys.path.insert(0, parent_dir)
@@ -25,7 +22,7 @@ from utils import config
 logger = logging.getLogger('Gateway Token Classifier')
 
 
-class GatewayTokenClassifier(tf.keras.Model, CustomModel):
+class GatewayTokenClassifier(tf.keras.Model):
     """
     model to classify (gateway) tokens from input sequence
     """
@@ -65,7 +62,7 @@ class GatewayTokenClassifier(tf.keras.Model, CustomModel):
 
         # includes one dense layer with linear activation function
         predictions = token_cls_model(inputs).logits
-        tf.keras.Model.__init__(inputs=inputs, outputs=predictions)
+        super().__init__(self, inputs=inputs, outputs=predictions)
 
         # B) COMPILE (only needed when training is intended)
         if args and train_size:

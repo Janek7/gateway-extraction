@@ -4,7 +4,7 @@
 import os
 import sys
 # find recursively the project root dir
-parent_dir = os.path.abspath(os.path.join(os.path.abspath(''), os.pardir))
+parent_dir = str(os.getcwdb())
 while not os.path.exists(os.path.join(parent_dir, "README.md")):
     parent_dir = os.path.abspath(os.path.join(parent_dir, os.pardir))
 sys.path.insert(0, parent_dir)
@@ -104,7 +104,7 @@ def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
             history = model.fit(
                 train_dataset, epochs=args.epochs, validation_data=dev_dataset,
                 callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq='batch', profile_batch=0),
-                           tf.keras.callbacks.EarlyStopping(monitor=GatewayTokenClassifier.get_monitor(),
+                           tf.keras.callbacks.EarlyStopping(monitor="val_xor_precision",
                                                             min_delta=1e-4, patience=2, mode="max",
                                                             restore_best_weights=True)]
             )
@@ -156,7 +156,7 @@ def full_training(args: argparse.Namespace, token_cls_model) -> None:
         history = model.fit(
             train, epochs=args.epochs,
             callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq="batch", profile_batch=0),
-                       tf.keras.callbacks.EarlyStopping(monitor=GatewayTokenClassifier.get_monitor(),
+                       tf.keras.callbacks.EarlyStopping(monitor="val_xor_precision",
                                                         min_delta=1e-4, patience=2, mode="max",
                                                         restore_best_weights=True)]
         )

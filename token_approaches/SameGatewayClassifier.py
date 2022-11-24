@@ -3,8 +3,8 @@
 # add parent dir to sys path for import of modules
 import os
 import sys
-# find recursively the project root dir
 
+# find recursively the project root dir
 parent_dir = str(os.getcwdb())
 while not os.path.exists(os.path.join(parent_dir, "README.md")):
     parent_dir = os.path.abspath(os.path.join(parent_dir, os.pardir))
@@ -16,7 +16,6 @@ import logging
 import tensorflow as tf
 import transformers
 
-from CustomModel import CustomModel
 from labels import *
 from utils import config
 
@@ -24,7 +23,7 @@ logger = logging.getLogger('Same Gateway Classifier')
 logger_ensemble = logging.getLogger('Same Gateway Classifier Ensemble')
 
 
-class SameGatewayClassifier(tf.keras.Model, CustomModel):
+class SameGatewayClassifier(tf.keras.Model):
     """
     binary classification model to classify if two gateways belong to the same gateway construct
     """
@@ -62,7 +61,7 @@ class SameGatewayClassifier(tf.keras.Model, CustomModel):
         else:
             raise ValueError(f"mode must be {INDEX} or {CONCAT}")
 
-        tf.keras.Model.__init__(inputs=inputs, outputs=predictions)
+        super().__init__(self, inputs=inputs, outputs=predictions)
 
         # B) COMPILE (only needed when training is intended)
         optimizer, lr_schedule = transformers.create_optimizer(

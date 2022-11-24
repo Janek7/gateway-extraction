@@ -77,7 +77,7 @@ class Ensemble:
                 os.makedirs(args.logdir, exist_ok=True)
 
             history = model.fit(train_dataset, epochs=args.epochs, validation_data=dev_dataset,
-                                callbacks=[tf.keras.callbacks.EarlyStopping(monitor=self.model_class.get_monitor(),
+                                callbacks=[tf.keras.callbacks.EarlyStopping(monitor="val_loss",
                                                                             min_delta=1e-4, patience=2, mode="max",
                                                                             restore_best_weights=True)])
             histories.append(history)
