@@ -4,9 +4,6 @@
 import os
 import sys
 # find recursively the project root dir
-from token_approaches.token_data_preparation import create_token_cls_dataset_cv, create_token_cls_dataset_full
-from training import cross_validation, full_training
-
 parent_dir = str(os.getcwdb())
 while not os.path.exists(os.path.join(parent_dir, "README.md")):
     parent_dir = os.path.abspath(os.path.join(parent_dir, os.pardir))
@@ -19,6 +16,8 @@ from typing import List
 import tensorflow as tf
 import transformers
 
+from token_approaches.token_data_preparation import create_token_cls_dataset_cv, create_token_cls_dataset_full
+from training import cross_validation, full_training
 from metrics import *
 from utils import config, generate_args_logdir, set_seeds
 

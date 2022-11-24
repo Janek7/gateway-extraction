@@ -3,14 +3,6 @@
 # add parent dir to sys path for import of modules
 import os
 import sys
-
-# find recursively the project root dir
-from petreader.labels import XOR_GATEWAY
-
-from token_approaches.same_gateway_data_preparation import create_same_gateway_cls_dataset_full, \
-    create_same_gateway_cls_dataset_cv
-from training import cross_validation, full_training
-
 parent_dir = str(os.getcwdb())
 while not os.path.exists(os.path.join(parent_dir, "README.md")):
     parent_dir = os.path.abspath(os.path.join(parent_dir, os.pardir))
@@ -21,7 +13,11 @@ import logging
 
 import tensorflow as tf
 import transformers
+from petreader.labels import XOR_GATEWAY
 
+from token_approaches.same_gateway_data_preparation import create_same_gateway_cls_dataset_full, \
+    create_same_gateway_cls_dataset_cv
+from training import cross_validation, full_training
 from labels import *
 from utils import config, generate_args_logdir, set_seeds
 
