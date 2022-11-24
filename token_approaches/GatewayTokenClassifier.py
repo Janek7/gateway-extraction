@@ -4,6 +4,9 @@
 import os
 import sys
 # find recursively the project root dir
+from token_approaches.token_data_preparation import create_token_cls_dataset_cv, create_token_cls_dataset_full
+from training import cross_validation, full_training
+
 parent_dir = str(os.getcwdb())
 while not os.path.exists(os.path.join(parent_dir, "README.md")):
     parent_dir = os.path.abspath(os.path.join(parent_dir, os.pardir))
@@ -17,22 +20,35 @@ import tensorflow as tf
 import transformers
 
 from metrics import *
-from utils import config
+from utils import config, generate_args_logdir, set_seeds
 
 logger = logging.getLogger('Gateway Token Classifier')
+
+
+parser = argparse.ArgumentParser()
+# Standard params
+parser.add_argument("--batch_size", default=8, type=int, help="Batch size.")
+parser.add_argument("--epochs", default=1, type=int, help="Number of epochs.")
+parser.add_argument("--seed_general", default=42, type=int, help="Random seed.")
+parser.add_argument("--seeds_ensemble", default="0-1", type=str, help="Random seed range to use for ensembles")
+# routine params
+parser.add_argument("--routine", default="cv", type=str, help="Simple split training 'sp', cross validation 'cv' or "
+                                                              "full training without validation 'ft'.")
+parser.add_argument("--folds", default=2, type=int, help="Number of folds in cross validation routine.")
+parser.add_argument("--store_weights", default=False, type=bool, help="Flag if best weights should be stored.")
+# Architecture / data params
+parser.add_argument("--ensemble", default=True, type=bool, help="Use ensemble learning with config.json seeds.")
+parser.add_argument("--labels", default=ALL, type=str, help="Label set to use.")
+parser.add_argument("--other_labels_weight", default=0.1, type=float, help="Sample weight for non gateway tokens.")
+parser.add_argument("--sampling_strategy", default=NORMAL, type=str, help="How to sample samples.")
+parser.add_argument("--use_synonyms", default=False, type=str, help="Include synonym samples.")
+parser.add_argument("--activity_usage", default=NOT, type=str, help="How to include activity data.")
 
 
 class GatewayTokenClassifier(tf.keras.Model):
     """
     model to classify (gateway) tokens from input sequence
     """
-
-    _monitor_metric = "val_xor_precision"
-    _metrics_per_fold = ['avg_val_loss', 'avg_val_xor_precision', 'avg_val_xor_recall', 'avg_val_xor_f1',
-                         'avg_val_xor_f1_m', 'avg_val_and_recall', 'avg_val_and_precision', 'avg_val_and_f1',
-                         'avg_val_and_f1_m', 'avg_val_overall_accuracy', 'val_loss', 'val_xor_precision',
-                         'val_xor_recall', 'val_xor_f1', 'val_xor_f1_m', 'val_and_recall', 'val_and_precision',
-                         'val_and_f1', 'val_and_f1_m', 'val_overall_accuracy']
 
     def __init__(self, args: argparse.Namespace, token_cls_model=None, train_size: int = None,
                  weights_path: str = None) -> None:
@@ -135,3 +151,48 @@ def convert_predictions_into_labels(predictions: np.ndarray, word_ids: List[List
         converted_results.append(converted_sample)
 
     return converted_results
+
+
+def train_routine(args: argparse.Namespace) -> None:
+    """
+    run GatewayTokenClassifier training based on passed args
+    :param args: namespace args
+    :return:
+    """
+    if args.labels == 'filtered':
+        args.num_labels = 4
+    elif args.labels == 'all':
+        args.num_labels = 9
+    else:
+        raise ValueError(f"args.labels must be 'filtered' or 'all' and not '{args.labels}'")
+    logger.info(f"Use {args.labels} labels ({args.num_labels})")
+    print(args)
+
+    # Load the model
+    logger.info(f"Load transformer model and tokenizer ({config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME]})")
+    token_cls_model = transformers.TFAutoModelForTokenClassification.from_pretrained(
+        config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME], num_labels=args.num_labels)
+
+    # cross validation
+    if args.routine == 'cv':
+        folded_datasets = create_token_cls_dataset_cv(args)
+        cross_validation(args, GatewayTokenClassifier, folded_datasets, token_cls_model)
+
+    # full training without validation
+    elif args.routine == 'ft':
+        train = create_token_cls_dataset_full(args)
+        full_training(args, GatewayTokenClassifier, train, token_cls_model)
+
+    else:
+        raise ValueError(f"Invalid training routine: {args.routine}")
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    args = parser.parse_args([] if "__file__" not in globals() else None)
+    args.logdir = generate_args_logdir(args, script_name="GatewayTokenClassifier")
+
+    # this seed is used by default (only overwritten in case of ensemble)
+    set_seeds(args.seed_general, "args - used for dataset split/shuffling")
+
+    train_routine(args)
