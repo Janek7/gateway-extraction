@@ -7,9 +7,10 @@ import numpy as np
 import tensorflow as tf
 import transformers
 
+from CustomModel import CustomModel
 from utils import set_seeds
 
-logger = logging.getLogger('Gateway Token Classifier Ensemble')
+logger = logging.getLogger('Ensemble')
 
 
 class Ensemble:
@@ -18,11 +19,14 @@ class Ensemble:
         """
         initializes a ensemble of multiple models of a passed model class
         :param model_class: class of models from which to create an ensemble
+                            must inherit from CustomModel and tf.keras.Model
         :param seeds: list of seeds for which to create models (default: config seeds)
         :param ensemble_path: path of trained ensemble with stored weights. If set, load model weights from there
         :param kwargs: param list that will be passed to constructor of single models
         """
         logger.info(f"Create and initialize a Ensemble for model {model_class.__name__}")
+        assert issubclass(model_class, CustomModel)
+        assert issubclass(model_class, tf.keras.Model)
         self.model_class = model_class
         if seeds:
             self.seeds = seeds
@@ -40,7 +44,7 @@ class Ensemble:
         for i, seed in enumerate(self.seeds):
             # set only if weights are not loaded from path
             if not self.ensemble_path:
-                set_seeds(seed, "GatewayTokenClassifierEnsemble - model initialization")
+                set_seeds(seed, "Ensemble - model initialization")
             model = self.model_class(**kwargs)
             # if path to trained ensemble is passed, restore weights
             if self.ensemble_path:
@@ -72,7 +76,10 @@ class Ensemble:
                 args.logdir = f"{args_logdir_original}/{seed}"
                 os.makedirs(args.logdir, exist_ok=True)
 
-            history = model.fit(train_dataset, epochs=args.epochs, validation_data=dev_dataset)
+            history = model.fit(train_dataset, epochs=args.epochs, validation_data=dev_dataset,
+                                callbacks=[tf.keras.callbacks.EarlyStopping(monitor=self.model_class.get_monitor(),
+                                                                            min_delta=1e-4, patience=2, mode="max",
+                                                                            restore_best_weights=True)])
             histories.append(history)
 
             if save_single_models:

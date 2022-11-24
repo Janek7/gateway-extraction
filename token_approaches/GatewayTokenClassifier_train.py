@@ -85,10 +85,7 @@ def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
     os.makedirs(args.logdir, exist_ok=True)
     args_logdir_original = args.logdir
 
-    metrics_per_fold = {'avg_val_loss': 0, 'avg_val_xor_precision': 0, 'avg_val_xor_recall': 0, 'avg_val_xor_f1': 0, 'avg_val_xor_f1_m': 0,
-                        'avg_val_and_recall': 0, 'avg_val_and_precision': 0, 'avg_val_and_f1': 0, 'avg_val_and_f1_m': 0, 'avg_val_overall_accuracy': 0,
-                        'val_loss': [], 'val_xor_precision': [], 'val_xor_recall': [], 'val_xor_f1': [], 'val_xor_f1_m': [],
-                        'val_and_recall': [], 'val_and_precision': [], 'val_and_f1': [], 'val_and_f1_m': [], 'val_overall_accuracy': []}
+    metrics_per_fold = GatewayTokenClassifier.get_empty_metrics_per_fold()
 
     # perform k-fold CV
 
@@ -106,7 +103,10 @@ def cross_validation(args: argparse.Namespace, token_cls_model) -> None:
             model = GatewayTokenClassifier(args, token_cls_model, len(train_dataset))
             history = model.fit(
                 train_dataset, epochs=args.epochs, validation_data=dev_dataset,
-                callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq='batch', profile_batch=0)]
+                callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq='batch', profile_batch=0),
+                           tf.keras.callbacks.EarlyStopping(monitor=GatewayTokenClassifier.get_monitor(),
+                                                            min_delta=1e-4, patience=2, mode="max",
+                                                            restore_best_weights=True)]
             )
             # store model
             if args.store_weights:
@@ -155,7 +155,10 @@ def full_training(args: argparse.Namespace, token_cls_model) -> None:
         model = GatewayTokenClassifier(args, token_cls_model=token_cls_model, train_size=len(train))
         history = model.fit(
             train, epochs=args.epochs,
-            callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq="batch", profile_batch=0)]
+            callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq="batch", profile_batch=0),
+                       tf.keras.callbacks.EarlyStopping(monitor=GatewayTokenClassifier.get_monitor(),
+                                                        min_delta=1e-4, patience=2, mode="max",
+                                                        restore_best_weights=True)]
         )
 
         # store model

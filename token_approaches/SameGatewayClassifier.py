@@ -4,7 +4,8 @@
 import os
 import sys
 # find recursively the project root dir
-parent_dir = os.path.abspath(os.path.join(os.path.abspath(''), os.pardir))
+
+parent_dir = str(os.getcwdb())
 while not os.path.exists(os.path.join(parent_dir, "README.md")):
     parent_dir = os.path.abspath(os.path.join(parent_dir, os.pardir))
 sys.path.insert(0, parent_dir)
@@ -15,6 +16,7 @@ import logging
 import tensorflow as tf
 import transformers
 
+from CustomModel import CustomModel
 from labels import *
 from utils import config
 
@@ -22,11 +24,17 @@ logger = logging.getLogger('Same Gateway Classifier')
 logger_ensemble = logging.getLogger('Same Gateway Classifier Ensemble')
 
 
-class SameGatewayClassifier(tf.keras.Model):
+class SameGatewayClassifier(tf.keras.Model, CustomModel):
     """
     binary classification model to classify if two gateways belong to the same gateway construct
     """
+
+    _monitor_metric = "val_binary_accuracy"
+    _metrics_per_fold = ['avg_val_loss', 'avg_val_binary_accuracy', 'avg_val_precision', 'avg_val_recall', 'val_loss',
+                        'val_binary_accuracy', 'val_precision', 'val_recall']
+
     def __init__(self, args: argparse.Namespace, bert_model, mode: str = CONCAT, train_size: int = None):
+        logger.info("Create and initialize a SameGatewayClassifier")
 
         # A) ARCHITECTURE
         inputs = {
@@ -54,7 +62,7 @@ class SameGatewayClassifier(tf.keras.Model):
         else:
             raise ValueError(f"mode must be {INDEX} or {CONCAT}")
 
-        super().__init__(inputs=inputs, outputs=predictions)
+        tf.keras.Model.__init__(inputs=inputs, outputs=predictions)
 
         # B) COMPILE (only needed when training is intended)
         optimizer, lr_schedule = transformers.create_optimizer(

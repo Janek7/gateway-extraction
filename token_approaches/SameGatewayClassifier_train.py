@@ -78,8 +78,7 @@ def cross_validation(gateway_type: str, args: argparse.Namespace, bert_model) ->
     os.makedirs(args.logdir, exist_ok=True)
     args_logdir_original = args.logdir
 
-    metrics_per_fold = {'avg_val_loss': 0, 'avg_val_binary_accuracy': 0, 'avg_val_precision': 0, 'avg_val_recall': 0,
-                        'val_loss': [], 'val_binary_accuracy': [], 'val_precision': [], 'val_recall': []}
+    metrics_per_fold = SameGatewayClassifier.get_empty_metrics_per_fold()
 
     # perform k-fold CV
 
@@ -97,7 +96,10 @@ def cross_validation(gateway_type: str, args: argparse.Namespace, bert_model) ->
             model = SameGatewayClassifier(args, bert_model, mode=args.mode, train_size=len(train_dataset))
             history = model.fit(
                 train_dataset, epochs=args.epochs, validation_data=dev_dataset,
-                callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq='batch', profile_batch=0)]
+                callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq='batch', profile_batch=0),
+                           tf.keras.callbacks.EarlyStopping(monitor=SameGatewayClassifier.get_monitor(),
+                                                            min_delta=1e-4, patience=2, mode="max",
+                                                            restore_best_weights=True)]
             )
             # store model
             if args.store_weights:
@@ -147,7 +149,10 @@ def full_training(gateway_type: str, args: argparse.Namespace, bert_model) -> No
         model = SameGatewayClassifier(args, bert_model, train_size=len(train))
         history = model.fit(
             train, epochs=args.epochs,
-            callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq="batch", profile_batch=0)]
+            callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq="batch", profile_batch=0),
+                       tf.keras.callbacks.EarlyStopping(monitor=SameGatewayClassifier.get_monitor(),
+                                                        min_delta=1e-4, patience=2, mode="max",
+                                                        restore_best_weights=True)]
         )
 
         # store model

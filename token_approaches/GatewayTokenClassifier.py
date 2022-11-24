@@ -3,7 +3,10 @@
 # add parent dir to sys path for import of modules
 import os
 import sys
+
 # find recursively the project root dir
+from CustomModel import CustomModel
+
 parent_dir = os.path.abspath(os.path.join(os.path.abspath(''), os.pardir))
 while not os.path.exists(os.path.join(parent_dir, "README.md")):
     parent_dir = os.path.abspath(os.path.join(parent_dir, os.pardir))
@@ -22,7 +25,17 @@ from utils import config
 logger = logging.getLogger('Gateway Token Classifier')
 
 
-class GatewayTokenClassifier(tf.keras.Model):
+class GatewayTokenClassifier(tf.keras.Model, CustomModel):
+    """
+    model to classify (gateway) tokens from input sequence
+    """
+
+    _monitor_metric = "val_xor_precision"
+    _metrics_per_fold = ['avg_val_loss', 'avg_val_xor_precision', 'avg_val_xor_recall', 'avg_val_xor_f1',
+                         'avg_val_xor_f1_m', 'avg_val_and_recall', 'avg_val_and_precision', 'avg_val_and_f1',
+                         'avg_val_and_f1_m', 'avg_val_overall_accuracy', 'val_loss', 'val_xor_precision',
+                         'val_xor_recall', 'val_xor_f1', 'val_xor_f1_m', 'val_and_recall', 'val_and_precision',
+                         'val_and_f1', 'val_and_f1_m', 'val_overall_accuracy']
 
     def __init__(self, args: argparse.Namespace, token_cls_model=None, train_size: int = None,
                  weights_path: str = None) -> None:
@@ -52,7 +65,7 @@ class GatewayTokenClassifier(tf.keras.Model):
 
         # includes one dense layer with linear activation function
         predictions = token_cls_model(inputs).logits
-        super().__init__(inputs=inputs, outputs=predictions)
+        tf.keras.Model.__init__(inputs=inputs, outputs=predictions)
 
         # B) COMPILE (only needed when training is intended)
         if args and train_size:
@@ -70,7 +83,6 @@ class GatewayTokenClassifier(tf.keras.Model):
                          weighted_metrics=[tf.metrics.SparseCategoricalAccuracy(name="overall_accuracy")],
                          # metrics for classes of interest
                          metrics=[xor_precision, xor_recall, xor_f1, and_recall, and_precision, and_f1])
-            # token_cls_model.summary()
             # self.summary()
 
         # if model path is passed, restore weights
@@ -84,7 +96,7 @@ class GatewayTokenClassifier(tf.keras.Model):
         :param tokens: tokens as BatchEncoding
         :return: numpy array of predictions
         """
-        return super().predict({"input_ids": tokens["input_ids"], "attention_mask": tokens["attention_mask"]})
+        return tf.keras.Model.predict({"input_ids": tokens["input_ids"], "attention_mask": tokens["attention_mask"]})
 
 
 def convert_predictions_into_labels(predictions: np.ndarray, word_ids: List[List[int]]) -> List[List[int]]:
