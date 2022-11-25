@@ -50,6 +50,7 @@ class SameGatewayClassifier(tf.keras.Model):
 
     def __init__(self, args: argparse.Namespace, bert_model, mode: str = CONCAT, train_size: int = None):
         logger.info("Create and initialize a SameGatewayClassifier")
+        self.mode = mode
 
         # A) ARCHITECTURE
         inputs = {
@@ -60,24 +61,21 @@ class SameGatewayClassifier(tf.keras.Model):
 
         if not bert_model:
             bert_model = transformers.TFAutoModel.from_pretrained(config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME])
-        # includes one dense layer with linear activation function
-        bert_output = bert_model({"input_ids": inputs["input_ids"],
-                                  "attention_mask": inputs["attention_mask"]}).last_hidden_state
+        self.bert_model = bert_model
+        self.dropout1 = tf.keras.layers.Dropout(0.2)
+
         # extract cls token for every sample
-        cls_token = bert_output[:, 0]
-        dropout1 = tf.keras.layers.Dropout(0.2)(cls_token)
+
         if mode == CONCAT:
-            predictions = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(dropout1)
+            self.predictions = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)
         elif mode == INDEX:
-            indexes = tf.cast(inputs["indexes"], tf.float32)
-            concatted = tf.keras.layers.Concatenate()([dropout1, indexes])
-            hidden_layer = tf.keras.layers.Dense(32, activation=tf.nn.relu)(concatted)
-            dropout2 = tf.keras.layers.Dropout(0.2)(hidden_layer)
-            predictions = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(dropout2)
+            self.hidden_layer = tf.keras.layers.Dense(32, activation=tf.nn.relu)
+            self.dropout2 = tf.keras.layers.Dropout(0.2)
+            self.predictions = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)
         else:
             raise ValueError(f"mode must be {INDEX} or {CONCAT}")
 
-        super().__init__(self, inputs=inputs, outputs=predictions)
+        super().__init__(self, inputs, self.predictions)
 
         # B) COMPILE (only needed when training is intended)
         optimizer, lr_schedule = transformers.create_optimizer(
@@ -93,6 +91,22 @@ class SameGatewayClassifier(tf.keras.Model):
                               tf.keras.metrics.Precision(name="precision"), tf.keras.metrics.Recall(name="recall")])
 
         # self.summary()
+
+    def call(self, inputs):
+        bert_output = self.bert_model({"input_ids": inputs["input_ids"],
+                                       "attention_mask": inputs["attention_mask"]}).last_hidden_state
+        # extract cls token for every sample
+        cls_token = bert_output[:, 0]
+        dropout1 = self.dropout1(cls_token)
+
+        if self.mode == CONCAT:
+            return self.predictions(dropout1)
+        elif self.mode == INDEX:
+            indexes = tf.cast(inputs["indexes"], tf.float32)
+            concatted = tf.keras.layers.Concatenate()([dropout1, indexes])
+            hidden_layer = self.hidden_layer(concatted)
+            dropout2 = self.dropout2(hidden_layer)
+            return self.predictions(dropout2)
 
 
 def train_routine(args: argparse.Namespace) -> None:

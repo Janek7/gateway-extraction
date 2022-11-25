@@ -77,7 +77,7 @@ class GatewayTokenClassifier(tf.keras.Model):
 
         # includes one dense layer with linear activation function
         predictions = token_cls_model(inputs).logits
-        super().__init__(self, inputs=inputs, outputs=predictions)
+        super().__init__(self, inputs, predictions)
 
         # B) COMPILE (only needed when training is intended)
         if args and train_size:
