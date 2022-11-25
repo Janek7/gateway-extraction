@@ -4,38 +4,6 @@ import tensorflow as tf
 
 from labels import *
 
-
-# HELPER METHODS FOR CROSS VALIDATION
-
-def compute_avg_metrics(metrics_per_fold):
-    # compute f1 score manually again
-    for i in range(len(metrics_per_fold['val_xor_precision'])):
-        if 'val_xor_f1_m' in metrics_per_fold:
-            metrics_per_fold['val_xor_f1_m'].append(f1_normal(metrics_per_fold['val_xor_precision'][i],
-                                                              metrics_per_fold['val_xor_recall'][i]))
-        if 'val_and_f1_m' in metrics_per_fold:
-            metrics_per_fold['val_and_f1_m'].append(f1_normal(metrics_per_fold['val_and_precision'][i],
-                                                              metrics_per_fold['val_and_recall'][i]))
-
-    # average metrics over folds
-    for metric, value in metrics_per_fold.items():
-        if not metric.startswith("avg_") and not metric.startswith("seed-results-"):
-            metrics_per_fold[f"avg_{metric}"] = round(np.mean(value), 4)
-
-
-def print_metrics(metrics_per_fold):
-    print(' Score per fold '.center(100, '-'))
-    for i in range(len(metrics_per_fold['val_loss'])):
-        if i > 0: print('-' * 100)
-        metric_str = ' - '.join([f"{metric}: {round(value[i], 4)}" for metric, value in metrics_per_fold.items() if
-                                 not metric.startswith("avg_") and not metric.startswith("seed-results-")])
-        print(f"> Fold {i + 1} - {metric_str}")
-    print()
-    print(' Average scores '.center(100, '-'))
-    print(' - '.join([f"{metric}: {round(value, 4)}" for metric, value in metrics_per_fold.items() if
-                      metric.startswith("avg_")]))
-
-
 # CUSTOM METRICS FOR TOKEN CLS
 
 
