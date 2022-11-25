@@ -56,7 +56,7 @@ def get_monitor(model_class: type(tf.keras.Model)) -> str:
 
 def compute_avg_metrics(metrics_per_fold):
     # compute f1 score manually again
-    for i in range(len(metrics_per_fold['val_xor_precision'])):
+    for i in range(len(metrics_per_fold['val_loss'])):
         if 'val_xor_f1_m' in metrics_per_fold:
             metrics_per_fold['val_xor_f1_m'].append(f1_normal(metrics_per_fold['val_xor_precision'][i],
                                                               metrics_per_fold['val_xor_recall'][i]))
