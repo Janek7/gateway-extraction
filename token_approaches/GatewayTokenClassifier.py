@@ -49,12 +49,12 @@ class GatewayTokenClassifier(tf.keras.Model):
     model to classify (gateway) tokens from input sequence
     """
 
-    def __init__(self, args: argparse.Namespace, token_cls_model=None, train_size: int = None,
+    def __init__(self, args: argparse.Namespace, bert_model=None, train_size: int = None,
                  weights_path: str = None) -> None:
         """
         creates a GatewayTokenClassifier
         :param args: args Namespace
-        :param token_cls_model: bert like transformer token classification model
+        :param bert_model: bert like transformer token classification model
         :param train_size: train dataset size
         :param weights_path: path of stored weights. If set, load from there
         """
@@ -70,13 +70,13 @@ class GatewayTokenClassifier(tf.keras.Model):
         # head of the following model is random initialized by the seed.
         #   - in case of single model, seed is set at the beginning of the script
         #   - in case of model in ensemble, seed is set before this constructor call
-        if not token_cls_model:
-            token_cls_model = transformers.TFAutoModelForTokenClassification.from_pretrained(
+        if not bert_model:
+            bert_model = transformers.TFAutoModelForTokenClassification.from_pretrained(
                 config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME],
                 num_labels=config[KEYWORDS_FILTERED_APPROACH][LABEL_NUMBER])
 
         # includes one dense layer with linear activation function
-        predictions = token_cls_model(inputs).logits
+        predictions = bert_model(inputs).logits
         super().__init__(self, inputs, predictions)
 
         # B) COMPILE (only needed when training is intended)

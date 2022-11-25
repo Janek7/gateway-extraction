@@ -132,7 +132,7 @@ def cross_validation(args: argparse.Namespace, model_class: type(tf.keras.Model)
         # b) fit ensemble model (train multiple seeds for current fold)
         else:
             ensemble_model = Ensemble(model_class=model_class, seeds=get_seed_list(args.seeds_ensemble),
-                                      args=args, bert_model=bert_model, mode=args.mode, train_size=len(train_dataset))
+                                      args=args, bert_model=bert_model, train_size=len(train_dataset))
             history = ensemble_model.fit(args, train_dataset=train_dataset, dev_dataset=dev_dataset, fold=i)
 
         # record fold results (record only validation results; drop training metrics)
