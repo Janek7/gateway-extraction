@@ -5,13 +5,10 @@ import os
 from typing import List, Tuple, Dict
 
 import tensorflow as tf
-from petreader.labels import XOR_GATEWAY
+import numpy as np
 
 from Ensemble import Ensemble
 from metrics import f1_normal
-from token_approaches.GatewayTokenClassifier import GatewayTokenClassifier
-from token_approaches.SameGatewayClassifier import SameGatewayClassifier
-from token_approaches.same_gateway_data_preparation import create_same_gateway_cls_dataset_cv
 from utils import get_seed_list
 
 logger = logging.getLogger('Training')
@@ -24,7 +21,7 @@ MONITOR_METRICS = 'monitor_metric'
 METRICS_PER_FOLD = 'metrics_per_fold'
 
 _model_metrics = {
-    GatewayTokenClassifier: {
+    "GatewayTokenClassifier": {
         MONITOR_METRICS: "val_xor_precision",
         METRICS_PER_FOLD: ['avg_val_loss', 'avg_val_xor_precision', 'avg_val_xor_recall', 'avg_val_xor_f1',
                            'avg_val_xor_f1_m', 'avg_val_and_recall', 'avg_val_and_precision', 'avg_val_and_f1',
@@ -32,7 +29,7 @@ _model_metrics = {
                            'val_xor_recall', 'val_xor_f1', 'val_xor_f1_m', 'val_and_recall', 'val_and_precision',
                            'val_and_f1', 'val_and_f1_m', 'val_overall_accuracy']
     },
-    SameGatewayClassifier: {
+    "SameGatewayClassifier": {
         MONITOR_METRICS: "val_binary_accuracy",
         METRICS_PER_FOLD: ['avg_val_loss', 'avg_val_binary_accuracy', 'avg_val_precision', 'avg_val_recall', 'val_loss',
                            'val_binary_accuracy', 'val_precision', 'val_recall']
@@ -45,7 +42,7 @@ def get_empty_metrics_per_fold(model_class: type(tf.keras.Model)) -> Dict:
     creates empty dictionary for metrics to monitor for each fold during cross validation of the model
     :return: dictionary
     """
-    return {m: 0 if m.startswith("avg") else [] for m in _model_metrics[model_class][METRICS_PER_FOLD]}
+    return {m: 0 if m.startswith("avg") else [] for m in _model_metrics[model_class.__name__][METRICS_PER_FOLD]}
 
 
 def get_monitor(model_class: type(tf.keras.Model)) -> str:
@@ -54,7 +51,7 @@ def get_monitor(model_class: type(tf.keras.Model)) -> str:
     :param model_class: model
     :return: metric name
     """
-    return _model_metrics[model_class][MONITOR_METRICS]
+    return _model_metrics[model_class.__name__][MONITOR_METRICS]
 
 
 def compute_avg_metrics(metrics_per_fold):
@@ -172,7 +169,7 @@ def full_training(args: argparse.Namespace, model_class: type(tf.keras.Model), d
 
     if not args.ensemble:
         # train
-        model = SameGatewayClassifier(args, bert_model, train_size=len(dataset))
+        model = model_class(args, bert_model, train_size=len(dataset))
         history = model.fit(
             dataset, epochs=args.epochs,
             callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq="batch", profile_batch=0),
@@ -195,8 +192,3 @@ def full_training(args: argparse.Namespace, model_class: type(tf.keras.Model), d
     # store metrics
     with open(os.path.join(args_dir_original, "metrics.json"), 'w') as file:
         json.dump(history.history, file, indent=4)
-
-
-if __name__ == '__main__':
-    folded_datasets_sg = create_same_gateway_cls_dataset_cv(XOR_GATEWAY, None, shuffle=True)
-    cross_validation(None, SameGatewayClassifier, folded_datasets_sg)

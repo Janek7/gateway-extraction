@@ -7,7 +7,6 @@ import numpy as np
 import tensorflow as tf
 import transformers
 
-from CustomModel import CustomModel
 from utils import set_seeds
 
 logger = logging.getLogger('Ensemble')
@@ -25,7 +24,6 @@ class Ensemble:
         :param kwargs: param list that will be passed to constructor of single models
         """
         logger.info(f"Create and initialize a Ensemble for model {model_class.__name__}")
-        assert issubclass(model_class, CustomModel)
         assert issubclass(model_class, tf.keras.Model)
         self.model_class = model_class
         if seeds:
