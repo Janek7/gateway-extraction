@@ -4,7 +4,7 @@
 import os
 import sys
 # find recursively the project root dir
-parent_dir = os.path.abspath(os.path.join(os.path.abspath(''), os.pardir))
+parent_dir = str(os.getcwdb())
 while not os.path.exists(os.path.join(parent_dir, "README.md")):
     parent_dir = os.path.abspath(os.path.join(parent_dir, os.pardir))
 sys.path.insert(0, parent_dir)
@@ -16,20 +16,41 @@ from typing import List
 import tensorflow as tf
 import transformers
 
+from token_approaches.token_data_preparation import create_token_cls_dataset_full, create_token_cls_dataset_cv
+from training import cross_validation, full_training
 from metrics import *
-from utils import config
+from utils import config, generate_args_logdir, set_seeds
 
 logger = logging.getLogger('Gateway Token Classifier')
+
+parser = argparse.ArgumentParser()
+# Standard params
+parser.add_argument("--batch_size", default=8, type=int, help="Batch size.")
+parser.add_argument("--epochs", default=1, type=int, help="Number of epochs.")
+parser.add_argument("--seed_general", default=42, type=int, help="Random seed.")
+parser.add_argument("--seeds_ensemble", default="0-1", type=str, help="Random seed range to use for ensembles")
+# routine params
+parser.add_argument("--routine", default="cv", type=str, help="Simple split training 'sp', cross validation 'cv' or "
+                                                              "full training without validation 'ft'.")
+parser.add_argument("--folds", default=2, type=int, help="Number of folds in cross validation routine.")
+parser.add_argument("--store_weights", default=False, type=bool, help="Flag if best weights should be stored.")
+# Architecture / data params
+parser.add_argument("--ensemble", default=True, type=bool, help="Use ensemble learning with config.json seeds.")
+parser.add_argument("--labels", default=ALL, type=str, help="Label set to use.")
+parser.add_argument("--other_labels_weight", default=0.1, type=float, help="Sample weight for non gateway tokens.")
+parser.add_argument("--sampling_strategy", default=NORMAL, type=str, help="How to sample samples.")
+parser.add_argument("--use_synonyms", default=False, type=str, help="Include synonym samples.")
+parser.add_argument("--activity_usage", default=NOT, type=str, help="How to include activity data.")
 
 
 class GatewayTokenClassifier(tf.keras.Model):
 
-    def __init__(self, args: argparse.Namespace, token_cls_model=None, train_size: int = None,
+    def __init__(self, args: argparse.Namespace, bert_model=None, train_size: int = None,
                  weights_path: str = None) -> None:
         """
         creates a GatewayTokenClassifier
         :param args: args Namespace
-        :param token_cls_model: bert like transformer token classification model
+        :param bert_model: bert like transformer token classification model
         :param train_size: train dataset size
         :param weights_path: path of stored weights. If set, load from there
         """
@@ -45,13 +66,13 @@ class GatewayTokenClassifier(tf.keras.Model):
         # head of the following model is random initialized by the seed.
         #   - in case of single model, seed is set at the beginning of the script
         #   - in case of model in ensemble, seed is set before this constructor call
-        if not token_cls_model:
-            token_cls_model = transformers.TFAutoModelForTokenClassification.from_pretrained(
+        if not bert_model:
+            bert_model = transformers.TFAutoModelForTokenClassification.from_pretrained(
                 config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME],
                 num_labels=config[KEYWORDS_FILTERED_APPROACH][LABEL_NUMBER])
 
         # includes one dense layer with linear activation function
-        predictions = token_cls_model(inputs).logits
+        predictions = bert_model(inputs).logits
         super().__init__(inputs=inputs, outputs=predictions)
 
         # B) COMPILE (only needed when training is intended)
@@ -126,3 +147,48 @@ def convert_predictions_into_labels(predictions: np.ndarray, word_ids: List[List
         converted_results.append(converted_sample)
 
     return converted_results
+
+
+def train_routine(args: argparse.Namespace) -> None:
+    """
+    run GatewayTokenClassifier training based on passed args
+    :param args: namespace args
+    :return:
+    """
+    if args.labels == 'filtered':
+        args.num_labels = 4
+    elif args.labels == 'all':
+        args.num_labels = 9
+    else:
+        raise ValueError(f"args.labels must be 'filtered' or 'all' and not '{args.labels}'")
+    logger.info(f"Use {args.labels} labels ({args.num_labels})")
+    print(args)
+
+    # Load the model
+    logger.info(f"Load transformer model and tokenizer ({config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME]})")
+    token_cls_model = transformers.TFAutoModelForTokenClassification.from_pretrained(
+        config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME], num_labels=args.num_labels)
+
+    # cross validation
+    if args.routine == 'cv':
+        folded_datasets = create_token_cls_dataset_cv(args)
+        cross_validation(args, GatewayTokenClassifier, folded_datasets, token_cls_model)
+
+    # full training without validation
+    elif args.routine == 'ft':
+        train = create_token_cls_dataset_full(args)
+        full_training(args, GatewayTokenClassifier, train, token_cls_model)
+
+    else:
+        raise ValueError(f"Invalid training routine: {args.routine}")
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    args = parser.parse_args([] if "__file__" not in globals() else None)
+    args.logdir = generate_args_logdir(args, script_name="GatewayTokenClassifier")
+
+    # this seed is used by default (only overwritten in case of ensemble)
+    set_seeds(args.seed_general, "args - used for dataset split/shuffling")
+
+    train_routine(args)
