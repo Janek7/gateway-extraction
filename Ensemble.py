@@ -14,12 +14,14 @@ logger = logging.getLogger('Gateway Token Classifier Ensemble')
 
 class Ensemble:
 
-    def __init__(self, model_class: type, seeds: List = None, ensemble_path: str = None, **kwargs) -> None:
+    def __init__(self, model_class: type, seeds: List = None, ensemble_path: str = None, es_monitor: str = 'val_loss',
+                 **kwargs) -> None:
         """
         initializes a ensemble of multiple models of a passed model class
         :param model_class: class of models from which to create an ensemble
         :param seeds: list of seeds for which to create models (default: config seeds)
         :param ensemble_path: path of trained ensemble with stored weights. If set, load model weights from there
+        :param es_monitor: metric to monitor for EarlyStopping
         :param kwargs: param list that will be passed to constructor of single models
         """
         logger.info(f"Create and initialize a Ensemble for model {model_class.__name__}")
@@ -32,11 +34,12 @@ class Ensemble:
             self.seeds = list(range(int(result.group(1)), int(result.group(2))))
         logger.info(f"Use {len(self.seeds)} seeds: {self.seeds}")
         self.ensemble_path = ensemble_path
-        self.models = []
+        self.es_monitor = es_monitor
 
         # create single models based on seeds or reload from saved weights
         if self.ensemble_path:
             logger.info(f"Restore weights from trained ensemble {self.ensemble_path}")
+        self.models = []
         for i, seed in enumerate(self.seeds):
             # set only if weights are not loaded from path
             if not self.ensemble_path:
@@ -72,7 +75,11 @@ class Ensemble:
                 args.logdir = f"{args_logdir_original}/{seed}"
                 os.makedirs(args.logdir, exist_ok=True)
 
-            history = model.fit(train_dataset, epochs=args.epochs, validation_data=dev_dataset)
+            history = model.fit(train_dataset, epochs=args.epochs, validation_data=dev_dataset,
+                                callbacks=[tf.keras.callbacks.EarlyStopping(monitor=self.es_monitor,
+                                                                            min_delta=1e-4, patience=2, mode="max",
+                                                                            restore_best_weights=True)]
+                                )
             histories.append(history)
 
             if save_single_models:
