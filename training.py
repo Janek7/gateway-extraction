@@ -143,10 +143,10 @@ def cross_validation(args: argparse.Namespace, model_class: type(tf.keras.Model)
         for metric, values in history.history.items():
             # record validation value of last epoch for each metric
             if metric.startswith("val_"):
-                # values = values of metric in each epoch (in case of ensemble, values is already averaged over seeds)
-                metrics_per_fold[metric].append(round(values[-1], 4))
+                # average seed values of last epoch to receive fold value
+                metrics_per_fold[metric].append(round(np.mean(history.history[f"seeds-last_epoch-{metric}"]), 4))
             elif metric.startswith("seeds-last_epoch-val_"):
-                # values = list of last epoch values of metric for every seed
+                # record seed values of last epoch to show variance
                 metrics_per_fold[f"{metric}-{i}"] = values
 
     logger.info("Finished CV, average, print and save results")

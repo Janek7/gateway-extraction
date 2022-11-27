@@ -99,7 +99,7 @@ class Ensemble:
             # with axis=0 keep epoch dimensions, just reduce seed dimension
             seed_means = list(np.mean([h.history[metric] for h in histories], axis=0))
             history_merged.history[metric] = seed_means
-            # record last epoch value for each seed as well
+            # record last epoch value for each seed as a list
             history_merged.history[f"seeds-last_epoch-{metric}"] = [round(h.history[metric][-1], 4) for h in histories]
         return history_merged
 
