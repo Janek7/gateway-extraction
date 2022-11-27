@@ -37,11 +37,16 @@ parser.add_argument("--routine", default="cv", type=str, help="Simple split trai
                                                               "full training without validation 'ft'.")
 parser.add_argument("--folds", default=2, type=int, help="Number of folds in cross validation routine.")
 parser.add_argument("--store_weights", default=False, type=bool, help="Flag if best weights should be stored.")
-# Architecture / data params
+# Data params
 parser.add_argument("--gateway", default=XOR_GATEWAY, type=str, help="Type of gateway to classify")
 parser.add_argument("--context_size", default=1, type=int, help="Number of sentences around to include in text.")
 parser.add_argument("--mode", default=CONCAT, type=str, help="How to include gateway information.")
 parser.add_argument("--n_gram", default=1, type=int, help="Number of tokens to include for gateway in CONCAT mode.")
+# Architecture params
+parser.add_argument("--dropout", default=0.2, type=float, help="Dropout rate.")
+parser.add_argument("--hidden_layer", default="32", type=str, help="Hidden layer sizes sep. by '-'")
+parser.add_argument("--learning_rate", default=2e-5, type=float, help="Learning rate.")
+parser.add_argument("--warmup", default=0, type=int, help="Number of warmup steps.")
 
 
 class SameGatewayClassifier(tf.keras.Model):
@@ -64,15 +69,16 @@ class SameGatewayClassifier(tf.keras.Model):
                                   "attention_mask": inputs["attention_mask"]}).last_hidden_state
         # extract cls token for every sample
         cls_token = bert_output[:, 0]
-        dropout1 = tf.keras.layers.Dropout(0.2)(cls_token)
+        dropout1 = tf.keras.layers.Dropout(args.dropout)(cls_token)
         if mode == CONCAT:
             predictions = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(dropout1)
         elif mode == INDEX:
             indexes = tf.cast(inputs["indexes"], tf.float32)
-            concatted = tf.keras.layers.Concatenate()([dropout1, indexes])
-            hidden_layer = tf.keras.layers.Dense(32, activation=tf.nn.relu)(concatted)
-            dropout2 = tf.keras.layers.Dropout(0.2)(hidden_layer)
-            predictions = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(dropout2)
+            hidden = tf.keras.layers.Concatenate()([dropout1, indexes])
+            for hidden_layer_size in args.hidden_layer.split("-"):
+                hidden = tf.keras.layers.Dense(int(hidden_layer_size), activation=tf.nn.relu)(hidden)
+                hidden = tf.keras.layers.Dropout(args.dropout)(hidden)
+            predictions = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(hidden)
         else:
             raise ValueError(f"mode must be {INDEX} or {CONCAT}")
 
@@ -80,7 +86,7 @@ class SameGatewayClassifier(tf.keras.Model):
 
         # B) COMPILE (only needed when training is intended)
         optimizer, lr_schedule = transformers.create_optimizer(
-            init_lr=2e-5,
+            init_lr=args.learning_rate,
             num_train_steps=(train_size // args.batch_size) * args.epochs,
             weight_decay_rate=0.01,
             num_warmup_steps=0,
