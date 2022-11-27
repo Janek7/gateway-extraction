@@ -66,7 +66,7 @@ def compute_avg_metrics(metrics_per_fold):
 
     # average metrics over folds
     for metric, value in metrics_per_fold.items():
-        if not metric.startswith("avg_") and not metric.startswith("seed-results-"):
+        if not metric.startswith("avg_") and not metric.startswith("seeds-last_epoch-"):
             metrics_per_fold[f"avg_{metric}"] = round(np.mean(value), 4)
 
 
@@ -75,7 +75,7 @@ def print_metrics(metrics_per_fold):
     for i in range(len(metrics_per_fold['val_loss'])):
         if i > 0: print('-' * 100)
         metric_str = ' - '.join([f"{metric}: {round(value[i], 4)}" for metric, value in metrics_per_fold.items() if
-                                 not metric.startswith("avg_") and not metric.startswith("seed-results-")])
+                                 not metric.startswith("avg_") and not metric.startswith("seeds-last_epoch-")])
         print(f"> Fold {i + 1} - {metric_str}")
     print()
     print(' Average scores '.center(100, '-'))
@@ -145,8 +145,8 @@ def cross_validation(args: argparse.Namespace, model_class: type(tf.keras.Model)
             if metric.startswith("val_"):
                 # values = values of metric in each epoch (in case of ensemble, values is already averaged over seeds)
                 metrics_per_fold[metric].append(round(values[-1], 4))
-            elif metric.startswith("seed-results-val_"):
-                # values = list of results of metric for every seed (last epoch)
+            elif metric.startswith("seeds-last_epoch-val_"):
+                # values = list of last epoch values of metric for every seed
                 metrics_per_fold[f"{metric}-{i}"] = values
 
     logger.info("Finished CV, average, print and save results")
