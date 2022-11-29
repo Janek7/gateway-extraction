@@ -89,7 +89,7 @@ class SameGatewayClassifier(tf.keras.Model):
             init_lr=args.learning_rate,
             num_train_steps=(train_size // args.batch_size) * args.epochs,
             weight_decay_rate=0.01,
-            num_warmup_steps=0,
+            num_warmup_steps=args.warmup,
         )
 
         self.compile(optimizer=optimizer,

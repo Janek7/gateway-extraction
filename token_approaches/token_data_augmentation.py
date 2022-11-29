@@ -51,7 +51,8 @@ def _generate_synonym_samples():
                     for synonym in synonyms:
                         tokens_modified = [t if i not in keyword_occurences else synonym for i, t in
                                            enumerate(original_sample_dict['tokens'])]
-                        synonym_sample_dicts[new_sample_id] = {"tokens": tokens_modified,
+                        synonym_sample_dicts[new_sample_id] = {"original_sample_number": original_sample_number,
+                                                               "tokens": tokens_modified,
                                                                "ner-tags": original_sample_dict['ner-tags']}
                         new_sample_id += 1
         return synonym_sample_dicts
@@ -68,7 +69,7 @@ def get_synonym_samples() -> Dict:
     read synonym samples from file; if it does not exist yet, create and save
     :return: synonym_samples dictionary
     """
-    path = os.path.join(ROOT_DIR, "../data/other/synonym_samples.pkl")
+    path = os.path.join(ROOT_DIR, "data/other/synonym_samples.pkl")
     if os.path.exists(path):
         logger.info(f"Reload synonym_samples from {path}")
         synonym_samples = load_pickle(path)
@@ -79,6 +80,27 @@ def get_synonym_samples() -> Dict:
     return synonym_samples
 
 
+def get_synonyms_of_original_samples() -> Dict:
+    """
+    returns dictionary of original sample ids as values and related synonym sample ids as list
+    :return:
+    """
+    synonyms = get_synonym_samples()
+    synonyms_of_original_samples = {}  # dict with {original sample id: list of synonym ids}
+    # record synonyms of sample ids
+    for synonym_id, synonym_dict in synonyms.items():
+        if synonym_dict['original_sample_number'] in synonyms_of_original_samples:
+            synonyms_of_original_samples[synonym_dict['original_sample_number']].append(synonym_id)
+        else:
+            synonyms_of_original_samples[synonym_dict['original_sample_number']] = [synonym_id]
+    # add empty lists for samples without synonyms
+    for sample_id in pet_reader.token_dataset.GetRandomizedSampleNumbers():
+        if sample_id not in synonyms_of_original_samples:
+            synonyms_of_original_samples[sample_id] = []
+    return synonyms_of_original_samples
+
+
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
     x = get_synonym_samples()
-    print(len(x))
+

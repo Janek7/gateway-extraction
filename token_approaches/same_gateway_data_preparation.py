@@ -21,18 +21,12 @@ from transformers import BatchEncoding
 from labels import *
 from utils import config, ROOT_DIR, load_pickle, save_as_pickle
 from PetReader import pet_reader
+from token_approaches.token_data_augmentation import get_synonym_samples, get_synonyms_of_original_samples
 
 logger = logging.getLogger('Data Preparation [Same Gateway CLS]')
 
 _tokenizer = transformers.AutoTokenizer.from_pretrained(config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME])
 assert isinstance(_tokenizer, transformers.PreTrainedTokenizerFast)
-
-
-# A) SAMPLING DATA
-# TODO:
-
-
-# B) DATASET CREATION
 
 
 def _create_dataset(input_ids: tf.Tensor, attention_masks: tf.Tensor, indexes: tf.Tensor, labels: tf.Tensor) \
@@ -57,23 +51,28 @@ def _shuffle_tokenization_data(input_ids: tf.Tensor, attention_masks: tf.Tensor,
     return input_ids, attention_masks, indexes, labels
 
 
-def _preprocess_gateway_pairs(gateway_type: str, context_sentences: int = 1, mode: str = CONCAT, n_gram: int = 1) \
-        -> Tuple[BatchEncoding, tf.Tensor, tf.Tensor]:
+def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, context_sentences: int = 1,
+                              mode: str = CONCAT, n_gram: int = 1) -> Tuple[BatchEncoding, tf.Tensor, tf.Tensor]:
     """
     extract and preprocess gateway pairs
     :param gateway_type: type of gateway to extract data for (XOR_GATEWAY or AND_GATEWAY)
     :param context_sentences: context size = number of sentences before and after first and second gateway to include
     :param mode: flag how to include gateway information (by concatenating n_grams of gateways to text or by indexes)
     :param n_gram: n of n_grams to include from gateways in CONCAT mode
+    :param use_synonyms: flag if synonym samples should be included;
     :return: tokens as batch encoding, list of index pairs, list of labels
     """
     # reload from cache if already exists
-    cache_path = os.path.join(ROOT_DIR,
-                              f"data/other/same_gateway_data_{gateway_type}_{context_sentences}_{mode}_{n_gram}")
+    param_string = '_'.join([gateway_type, use_synonyms, mode, context_sentences, n_gram])
+    cache_path = os.path.join(ROOT_DIR, f"data/other/same_gateway_data_{param_string}")
     if os.path.exists(cache_path):
         tokens, indexes, labels = load_pickle(cache_path)
         logger.info("Reloaded same gateway data from cache")
         return tokens, indexes, labels
+
+    if use_synonyms:
+        synonym_samples = get_synonym_samples()
+        synonyms_of_original_samples = get_synonyms_of_original_samples()
 
     # lists to store results
     texts = []  # context texts
@@ -85,12 +84,13 @@ def _preprocess_gateway_pairs(gateway_type: str, context_sentences: int = 1, mod
     for i, doc_name in enumerate(pet_reader.document_names):
 
         if i % 5 == 0:
-            logger.info(f"processed {i} documents")
+            print(f"processed {i} documents")
 
         # 1) Prepare token data
         text = pet_reader.get_doc_text(doc_name)
         sample_ids = pet_reader.get_doc_sample_ids(doc_name)
         doc_tokens = [list(zip(
+            [sample_id for i in range(len(pet_reader.token_dataset.GetTokens(sample_id)))],
             [s_i for i in range(len(pet_reader.token_dataset.GetTokens(sample_id)))],
             [i for i in range(len(pet_reader.token_dataset.GetTokens(sample_id)))],
             pet_reader.token_dataset.GetTokens(sample_id),
@@ -98,10 +98,11 @@ def _preprocess_gateway_pairs(gateway_type: str, context_sentences: int = 1, mod
         ) for s_i, sample_id in enumerate(sample_ids)]
         doc_tokens_flattened = list(itertools.chain(*doc_tokens))
         doc_tokens_flattened = [(i,) + token_tuple for i, token_tuple in enumerate(doc_tokens_flattened)]
+        # token represented as tuple: (doc token index, sample id, sentence id, token id, token, ner-tag)
 
         # 2) Identify gateway pairs
         # filter for B- tokens, because I-s do not mark a new gateway of interest
-        gateway_tokens = [token_tuple for token_tuple in doc_tokens_flattened if token_tuple[4] == f"B-{gateway_type}"]
+        gateway_tokens = [token_tuple for token_tuple in doc_tokens_flattened if token_tuple[5] == f"B-{gateway_type}"]
         gateway_pairs = [(gateway_tokens[i], gateway_tokens[i + 1]) for i in range(len(gateway_tokens) - 1)]
 
         # check if gateways are related
@@ -112,9 +113,9 @@ def _preprocess_gateway_pairs(gateway_type: str, context_sentences: int = 1, mod
             same_gateway_found = False
             for same_gateway_relation in same_gateway_relations:
                 if not same_gateway_found \
-                        and g1[1] == same_gateway_relation[SOURCE_SENTENCE_ID] \
+                        and g1[2] == same_gateway_relation[SOURCE_SENTENCE_ID] \
                         and g1[2] == same_gateway_relation[SOURCE_HEAD_TOKEN_ID] \
-                        and g2[1] == same_gateway_relation[TARGET_SENTENCE_ID] \
+                        and g2[2] == same_gateway_relation[TARGET_SENTENCE_ID] \
                         and g2[2] == same_gateway_relation[TARGET_HEAD_TOKEN_ID]:
                     pair_labels.append(1)
                     same_gateway_found = True
@@ -122,28 +123,110 @@ def _preprocess_gateway_pairs(gateway_type: str, context_sentences: int = 1, mod
                 pair_labels.append(0)
 
         # 3) prepare sample data
-        def get_n_gram(token):
-            return ' '.join([token_tuple[3] for token_tuple in
-                             doc_tokens_flattened[max(token[0] - n_gram, 0):
-                                                  min(token[0] + n_gram + 1, len(doc_tokens_flattened))]])
+        def get_textual_token(token_tuple, gateways_sample_infos):
+            """
+            returns the textual token of the given token tuple considering the different possible samples (normal or synonyms)
+            :param token_tuple: token tuple
+            :param gateways_sample_infos: infos about which samples are used for surrounding gateways
+            :returns: token
+            """
+            if not gateways_sample_infos:
+                return token_tuple[4]
+
+            (g1_sample_id, g1_sample_id_original), (g2_sample_id, g2_sample_id_original) = gateways_sample_infos
+
+            # check if both gateways are in same sentence and token is in the sentence
+            if g1_sample_id_original == g2_sample_id_original and token_tuple[1] == g1_sample_id_original:
+
+                # prefer higher id to favor synonym samples (but all will be used once)
+                sample_id_to_choose = max(g1_sample_id, g2_sample_id)
+                if sample_id_to_choose >= config[SYNONYM_SAMPLES_START_NUMBER]:
+                    return synonym_samples[sample_id_to_choose]['tokens'][token_tuple[3]]
+                else:
+                    return token_tuple[4]
+
+            # if token is in sentence of first gateway
+            elif token_tuple[1] == g1_sample_id_original:
+
+                # if sample is original sample, take normal token
+                if g1_sample_id == g1_sample_id_original:
+                    return token_tuple[4]
+                # if not, take token at the same index from synonym sample
+                else:
+                    return synonym_samples[g1_sample_id]['tokens'][token_tuple[3]]
+
+            # if token is in sentence of second gateway
+            elif token_tuple[1] == g2_sample_id_original:
+                # if sample is original sample, take normal token
+                if g2_sample_id == g2_sample_id_original:
+                    return token_tuple[4]
+                # if not, take token at the same index from synonym sample
+                else:
+                    return synonym_samples[g2_sample_id]['tokens'][token_tuple[3]]
+
+            # if token is not in scope of gateway sentences but context -> return normal token
+            else:
+                return token_tuple[4]
+
+        def get_n_gram(token, gateways_sample_infos=None):
+            """
+            create n gram of a given token
+            :param token: token tuple
+            :param gateways_sample_infos: infos about which samples are used for surrounding gateways
+            :return: textual n-gram
+            """
+            return ' '.join([get_textual_token(token_tuple, gateways_sample_infos)
+                             for token_tuple in doc_tokens_flattened[max(token[0] - n_gram, 0):
+                                                                     min(token[0] + n_gram + 1,
+                                                                         len(doc_tokens_flattened))]])
 
         for (g1, g2), label in zip(gateway_pairs, pair_labels):
             # Tokens/Text
             num_s = context_sentences
-            sentences_in_scope = list(range(g1[1] - num_s if (g1[1] - num_s) > 0 else 0,
-                                            g2[1] + num_s + 1 if (g2[1] + num_s + 1) < len(sample_ids) else len(
+            sentences_in_scope = list(range(g1[2] - num_s if (g1[2] - num_s) > 0 else 0,
+                                            g2[2] + num_s + 1 if (g2[2] + num_s + 1) < len(sample_ids) else len(
                                                 sample_ids)))
-            text_in_scope = ' '.join([token_tuple[3] for token_tuple in doc_tokens_flattened
-                                      if token_tuple[1] in sentences_in_scope])
-            texts.append((text_in_scope))
-            if mode == CONCAT:
-                n_gram_tuples.append((get_n_gram(g1), get_n_gram(g2)))
+            if not use_synonyms:
+                # Tokens/Text
+                text_in_scope = ' '.join([token[4] for token in doc_tokens_flattened
+                                          if token[2] in sentences_in_scope])
+                texts.append((text_in_scope))
+                if mode == CONCAT:
+                    n_gram_tuples.append((get_n_gram(g1), get_n_gram(g2)))
 
-            # Indexes
-            indexes.append((g1[0], g2[0]))
+                # Indexes
+                indexes.append((g1[0], g2[0]))
 
-            # Label
-            labels.append(label)
+                # Label
+                labels.append(label)
+
+            else:
+                # create cartesian product between different samples of sentences that include gateways
+                # use for each gateway the sentence itself and optional synonyms
+                if g1[1] == g2[1]:
+                    gateway_sample_combinations = itertools.product(*[
+                        [(g1[1], g1[1])],
+                        [(g1[1], g1[1])] + [(s, g1[1]) for s in synonyms_of_original_samples[g1[1]]]])
+                else:
+                    g1_sample_ids = [(sample_id, g1[1]) for sample_id in [g1[1]] + synonyms_of_original_samples[g1[1]]]
+                    g2_sample_ids = [(sample_id, g2[1]) for sample_id in [g2[1]] + synonyms_of_original_samples[g2[1]]]
+                    gateway_sample_combinations = itertools.product(*[g1_sample_ids, g2_sample_ids])
+
+                # iterate over pairs of gateway sentences (multiple possible if synonyms are used)
+                for gateways_sample_infos in gateway_sample_combinations:
+                    text_in_scope = ' '.join([get_textual_token(token, gateways_sample_infos)
+                                              for token in doc_tokens_flattened if token[2] in sentences_in_scope])
+
+                    texts.append(text_in_scope)
+                    if mode == CONCAT:
+                        n_gram_tuples.append(
+                            (get_n_gram(g1, gateways_sample_infos), get_n_gram(g2, gateways_sample_infos)))
+
+                    # Indexes
+                    indexes.append((g1[0], g2[0]))
+
+                    # Label
+                    labels.append(label)
 
     # B) TOKENIZE TEXT
     if mode == INDEX:
@@ -235,7 +318,16 @@ def create_same_gateway_cls_dataset_cv(gateway_type: str, args: argparse.Namespa
 
 
 if __name__ == '__main__':
-    folded_datasets = create_same_gateway_cls_dataset_cv(XOR_GATEWAY, None)
 
-    for train, dev in folded_datasets:
-        print(len(train), len(dev))
+    _preprocess_gateway_pairs(XOR_GATEWAY, context_sentences=1, mode=CONCAT, n_gram=1, use_synonyms=True)
+
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument("--context_size", default=1, type=int, help="Number of sentences around to include in text.")
+    # parser.add_argument("--mode", default=CONCAT, type=str, help="How to include gateway information.")
+    # parser.add_argument("--n_gram", default=1, type=int, help="Number of tokens to include for gateway in CONCAT mode.")
+    # args = parser.parse_args([] if "__file__" not in globals() else None)
+    #
+    # folded_datasets = create_same_gateway_cls_dataset_cv(XOR_GATEWAY, None)
+    #
+    # for train, dev in folded_datasets:
+    #     print(len(train), len(dev))
