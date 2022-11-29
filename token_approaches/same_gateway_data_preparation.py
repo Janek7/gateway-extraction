@@ -263,8 +263,9 @@ def create_same_gateway_cls_dataset_full(gateway_type: str, args: argparse.Names
     """
     logger.info(f"Create full training dataset dataset (gateway type: {gateway_type} - batch_size: {args.batch_size} "
                 f"- shuffle: {shuffle})")
-    tokens, indexes, labels = _preprocess_gateway_pairs(gateway_type, context_sentences=args.context_size,
-                                                        mode=args.mode, n_gram=args.n_gram)
+    tokens, indexes, labels = _preprocess_gateway_pairs(gateway_type, use_synonyms=args.use_synonyms,
+                                                        context_sentences=args.context_size, mode=args.mode,
+                                                        n_gram=args.n_gram)
     input_ids, attention_masks = tokens['input_ids'], tokens['attention_mask']
     if shuffle:
         input_ids, attention_masks, indexes, labels = _shuffle_tokenization_data(input_ids, attention_masks, indexes,
@@ -288,8 +289,9 @@ def create_same_gateway_cls_dataset_cv(gateway_type: str, args: argparse.Namespa
     """
     logger.info(f"Create CV (folds={args.folds}) dataset (gateway type: {gateway_type} - batch_size: {args.batch_size} "
                 f"- shuffle: {shuffle})")
-    tokens, indexes, labels = _preprocess_gateway_pairs(gateway_type, context_sentences=args.context_size,
-                                                        mode=args.mode, n_gram=args.n_gram)
+    tokens, indexes, labels = _preprocess_gateway_pairs(gateway_type, use_synonyms=args.use_synonyms,
+                                                        context_sentences=args.context_size, mode=args.mode,
+                                                        n_gram=args.n_gram)
     input_ids, attention_masks = tokens['input_ids'], tokens['attention_mask']
     if shuffle:
         input_ids, attention_masks, indexes, labels = _shuffle_tokenization_data(input_ids, attention_masks, indexes,

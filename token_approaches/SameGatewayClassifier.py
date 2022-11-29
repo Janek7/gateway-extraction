@@ -39,6 +39,7 @@ parser.add_argument("--folds", default=2, type=int, help="Number of folds in cro
 parser.add_argument("--store_weights", default=False, type=bool, help="Flag if best weights should be stored.")
 # Data params
 parser.add_argument("--gateway", default=XOR_GATEWAY, type=str, help="Type of gateway to classify")
+parser.add_argument("--use_synonyms", default=False, type=str, help="Include synonym samples.")
 parser.add_argument("--context_size", default=1, type=int, help="Number of sentences around to include in text.")
 parser.add_argument("--mode", default=CONCAT, type=str, help="How to include gateway information.")
 parser.add_argument("--n_gram", default=1, type=int, help="Number of tokens to include for gateway in CONCAT mode.")
