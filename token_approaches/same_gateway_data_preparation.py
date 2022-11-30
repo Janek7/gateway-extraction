@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # add parent dir to sys path for import of modules
 import os
 import sys
@@ -114,9 +116,9 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, con
             for same_gateway_relation in same_gateway_relations:
                 if not same_gateway_found \
                         and g1[2] == same_gateway_relation[SOURCE_SENTENCE_ID] \
-                        and g1[2] == same_gateway_relation[SOURCE_HEAD_TOKEN_ID] \
+                        and g1[3] == same_gateway_relation[SOURCE_HEAD_TOKEN_ID] \
                         and g2[2] == same_gateway_relation[TARGET_SENTENCE_ID] \
-                        and g2[2] == same_gateway_relation[TARGET_HEAD_TOKEN_ID]:
+                        and g2[3] == same_gateway_relation[TARGET_HEAD_TOKEN_ID]:
                     pair_labels.append(1)
                     same_gateway_found = True
             if not same_gateway_found:
@@ -321,15 +323,20 @@ def create_same_gateway_cls_dataset_cv(gateway_type: str, args: argparse.Namespa
 
 if __name__ == '__main__':
 
-    _preprocess_gateway_pairs(XOR_GATEWAY, context_sentences=1, mode=CONCAT, n_gram=1, use_synonyms=True)
+    # _preprocess_gateway_pairs(XOR_GATEWAY, context_sentences=1, mode=CONCAT, n_gram=1, use_synonyms=True)
+    logging.basicConfig(level=logging.INFO)
 
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument("--context_size", default=1, type=int, help="Number of sentences around to include in text.")
-    # parser.add_argument("--mode", default=CONCAT, type=str, help="How to include gateway information.")
-    # parser.add_argument("--n_gram", default=1, type=int, help="Number of tokens to include for gateway in CONCAT mode.")
-    # args = parser.parse_args([] if "__file__" not in globals() else None)
-    #
-    # folded_datasets = create_same_gateway_cls_dataset_cv(XOR_GATEWAY, None)
-    #
-    # for train, dev in folded_datasets:
-    #     print(len(train), len(dev))
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--gateway", default=XOR_GATEWAY, type=str, help="Type of gateway to classify")
+    parser.add_argument("--use_synonyms", default=True, type=str, help="Include synonym samples.")
+    parser.add_argument("--context_size", default=1, type=int, help="Number of sentences around to include in text.")
+    parser.add_argument("--mode", default=CONCAT, type=str, help="How to include gateway information.")
+    parser.add_argument("--n_gram", default=1, type=int, help="Number of tokens to include for gateway in CONCAT mode.")
+    args = parser.parse_args([] if "__file__" not in globals() else None)
+
+    dataset_full = create_same_gateway_cls_dataset_full(args.gateway, args, shuffle=True)
+
+    from collections import Counter
+
+    labels = [x[1].numpy() for x in dataset_full]
+    print(Counter(labels))

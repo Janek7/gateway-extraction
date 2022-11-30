@@ -1,0 +1,2 @@
+without synonyms: 81 samples in total; Counter({0: 41, 1: 40})
+with synonyms: 3313 samples in total; Counter({1: 1833, 0: 1480})
