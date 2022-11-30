@@ -5,7 +5,6 @@ KEYWORDS_FILTERED_APPROACH = 'keywords-filtered-approach'
 BERT_MODEL_NAME = 'bert-model-name'
 LABEL_SET = 'label-set'
 LABEL_NUMBER = 'label-number'
-OTHER_LABELS_WEIGHT = 'other-labels-weight'
 NUM_LABELS = 'num-labels'
 SYNONYM_SAMPLES_START_NUMBER = 'synonym-samples-start-number'
 
@@ -83,5 +82,6 @@ MULTI_MASK = 'multi_mask'
 
 # C) LABELS FOR SAME GATEWAY CLASSIFICATION TASK
 INDEX = 'index'
+N_GRAM = 'n_gram'
 CONCAT = 'concat'
 

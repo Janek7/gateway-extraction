@@ -65,7 +65,7 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, con
     :return: tokens as batch encoding, list of index pairs, list of labels
     """
     # reload from cache if already exists
-    param_string = '_'.join([gateway_type, use_synonyms, mode, context_sentences, n_gram])
+    param_string = '_'.join([str(p) for p in [gateway_type, use_synonyms, mode, context_sentences, n_gram]])
     cache_path = os.path.join(ROOT_DIR, f"data/other/same_gateway_data_{param_string}")
     if os.path.exists(cache_path):
         tokens, indexes, labels = load_pickle(cache_path)
@@ -231,7 +231,9 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, con
                     labels.append(label)
 
     # B) TOKENIZE TEXT
-    if mode == INDEX:
+    if mode == N_GRAM:
+        tokens = _tokenizer(n_gram_tuples, padding=True, return_tensors="tf")
+    elif mode == INDEX:
         tokens = _tokenizer(texts, padding=True, return_tensors='tf')
     elif mode == CONCAT:
         # tokenize text & pairs seperately, because it is not possible to concat triple
@@ -244,7 +246,7 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, con
         tokens = transformers.BatchEncoding(
             {"input_ids": concatted_input_ids, "attention_mask": concatted_attention_masks})
     else:
-        raise ValueError(f"mode must be {INDEX} or {CONCAT}")
+        raise ValueError(f"mode must be {INDEX}, {CONCAT} or {N_GRAM}")
 
     results = (tokens, tf.constant(indexes), tf.constant(labels))
 
