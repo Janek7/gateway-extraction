@@ -54,7 +54,7 @@ class SameGatewayClassifier(tf.keras.Model):
     """
     binary classification model to classify if two gateways belong to the same gateway construct
     """
-    def __init__(self, args: argparse.Namespace, bert_model, mode: str = CONCAT, train_size: int = None):
+    def __init__(self, args: argparse.Namespace, bert_model, train_size: int = None):
 
         # A) ARCHITECTURE
         inputs = {
@@ -71,9 +71,9 @@ class SameGatewayClassifier(tf.keras.Model):
         # extract cls token for every sample
         cls_token = bert_output[:, 0]
         dropout1 = tf.keras.layers.Dropout(args.dropout)(cls_token)
-        if mode == CONCAT:
+        if args.mode == CONCAT or args.mode == N_GRAM:
             predictions = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(dropout1)
-        elif mode == INDEX:
+        elif args.mode == INDEX:
             indexes = tf.cast(inputs["indexes"], tf.float32)
             hidden = tf.keras.layers.Concatenate()([dropout1, indexes])
             for hidden_layer_size in args.hidden_layer.split("-"):

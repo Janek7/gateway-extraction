@@ -193,7 +193,7 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, con
                 text_in_scope = ' '.join([token[4] for token in doc_tokens_flattened
                                           if token[2] in sentences_in_scope])
                 texts.append((text_in_scope))
-                if mode == CONCAT:
+                if mode == CONCAT or mode == N_GRAM:
                     n_gram_tuples.append((get_n_gram(g1), get_n_gram(g2)))
 
                 # Indexes
@@ -220,7 +220,7 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, con
                                               for token in doc_tokens_flattened if token[2] in sentences_in_scope])
 
                     texts.append(text_in_scope)
-                    if mode == CONCAT:
+                    if mode == CONCAT or mode == N_GRAM:
                         n_gram_tuples.append(
                             (get_n_gram(g1, gateways_sample_infos), get_n_gram(g2, gateways_sample_infos)))
 
