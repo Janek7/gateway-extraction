@@ -152,6 +152,7 @@ def cross_validation(args: argparse.Namespace, model_class: type(tf.keras.Model)
     logger.info("Finished CV, average, print and save results")
     compute_avg_metrics(metrics_per_fold)
     print_metrics(metrics_per_fold)
+    print(args)
 
     # save metrics
     with open(os.path.join(args_logdir_original, "cv_metrics.json"), 'w') as file:
