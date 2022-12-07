@@ -32,7 +32,7 @@ def read_config() -> Dict:
 config = read_config()
 
 
-def read_keywords(keywords: str, token_flattened: bool = False) -> Tuple[List[str], List[str]]:
+def get_keywords(keywords: str, token_flattened: bool = False) -> Tuple[List[str], List[str]]:
     """
     load and return key word lists based on passed variant
     :param keywords: string constant which set to load
@@ -119,16 +119,46 @@ def write_gold_keywords_to_files() -> None:
             file.write("%s\n" % keyword)
 
 
-def read_contradictory_gateways() -> List[Tuple[List[str], List[str]]]:
+def get_contradictory_gateways(contradictory_keywords: str, keywords: str = None) \
+        -> List[Tuple[List[str], List[str]]]:
     """
     read pairs of contradictory exclusive gateway key words from file
     sort to prefer longer matching phrases during search
+    :param contradictory_keywords: flag/variant which contradictory keyword pairs to use;
+                                   available: keywords_product (cartesian product from all keywords), gold
+    :param keywords: flag/variant which keywords to use;
+                     available: literature, gold, own
     :return: list of pairs
     """
-    with open(os.path.join(ROOT_DIR, 'data/keywords/contradictory_gateways_gold.txt')) as file:
-        contradictory_gateways = [[x.split(" ") for x in l.strip().split(";")] for l in file.readlines()]
-        logger.info(f"Loaded {len(contradictory_gateways)} pairs of contradictory keywords")
-        contradictory_gateways.sort(key=lambda pair: len(pair[0]) + len(pair[1]), reverse=True)
+    if contradictory_keywords == GOLD:
+        path = os.path.join(ROOT_DIR, "data/keywords/contradictory_gateways_gold.txt")
+        if not os.path.exists(path):
+            write_gold_contradictory_keywords_to_files()
+        with open(path) as file:
+            contradictory_gateways = [tuple([x.split(" ") for x in l.strip().split(";")]) for l in file.readlines()]
+            logger.info(f"Loaded {len(contradictory_gateways)} gold pairs of contradictory keywords")
+            contradictory_gateways.sort(key=lambda pair: len(pair[0]) + len(pair[1]), reverse=True)
+            return contradictory_gateways
+
+    elif contradictory_keywords == KEYWORDS_PRODUCT:
+        xor_keyword_list = get_keywords(keywords)[0]
+        xor_keyword_list = [k.split(" ") for k in xor_keyword_list]
+        pairs = list(itertools.product(xor_keyword_list, xor_keyword_list))
+        logger.info(f"Created {len(pairs)} pairs of (contradictory) keywords from {len(xor_keyword_list)} keywords")
+        return pairs
+
+
+def write_gold_contradictory_keywords_to_files() -> None:
+    """
+    write gold contradictory keyword pairs to file
+    :return:
+    """
+    from PetReader import pet_reader
+    with open(os.path.join(ROOT_DIR, 'data/keywords/contradictory_gateways_gold.txt'), 'w') as file:
+        contradictory_gateways = pet_reader.extract_gold_contradictory_keywords()
+        for pair in contradictory_gateways:
+            file.write("%s\n" % f"{''.join(pair[0])};{''.join(pair[1])}")
+        logger.info(f"Wrote {len(contradictory_gateways)} gold pairs of contradictory keywords")
         return contradictory_gateways
 
 
@@ -252,10 +282,12 @@ def get_seed_list(seed_param_str: str):
 
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
     # goldstandards_to_json()
 
     # xor_keywords, and_keywords = read_keywords(CUSTOM)
     # print(xor_keywords)
     # print(and_keywords)
 
-    print(config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME])
+    for pair in get_contradictory_gateways(KEYWORDS_PRODUCT, LITERATURE):
+        print(pair)

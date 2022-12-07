@@ -16,3 +16,4 @@ other/lib
 test*.py
 notebooks/*test.ipynb
 debug*.py
+*~$*.xlsx

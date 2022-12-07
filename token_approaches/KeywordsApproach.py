@@ -23,19 +23,22 @@ from petbenchmarks.relationsextraction import RelationsExtractionBenchmark
 from petreader.labels import *
 
 from labels import *
-from utils import format_json_file, read_contradictory_gateways, read_keywords, ROOT_DIR
+from utils import format_json_file, get_contradictory_gateways, get_keywords, ROOT_DIR
 
 logger = logging.getLogger('Keyword Approach')
 
 
 class KeywordsApproach:
 
-    def __init__(self, approach_name: str = None, keywords: str = LITERATURE, output_format: str = BENCHMARK,
-                 same_xor_gateway_threshold: int = 1, output_folder: str = None):
+    def __init__(self, approach_name: str = None, keywords: str = LITERATURE, contradictory_keywords: str = GOLD,
+                 same_xor_gateway_threshold: int = 1, output_format: str = BENCHMARK, output_folder: str = None):
         """
         creates new instance of the basic keyword approach
         :param approach_name: description of approach to use in result folder name; if not set use key word variant
-        :param keywords: flag/variant which keywords to use; available: literature, gold, own
+        :param keywords: flag/variant which keywords to use;
+                         available: literature, gold, own
+        :param contradictory_keywords: flag/variant which contradictory keyword pairs to use;
+                                       available: keywords_product (cartesian product from all keywords), gold
         :param same_xor_gateway_threshold: threshold to recognize subsequent (contradictory xor) gateways as same
         :param output_format: output format of extracted element and flows; available: benchmark, pet
         :param output_folder: name of output folder; if none -> create based on approach name
@@ -43,22 +46,23 @@ class KeywordsApproach:
         self.approach_name = approach_name
         if not self.approach_name:
             self.approach_name = f"keywords_{keywords}"
-        self.keywords = keywords
         self._same_xor_gateway_threshold = same_xor_gateway_threshold
         self.output_format = output_format
         self.results_folder = os.path.join(ROOT_DIR,
                                            f'data/results/{self.approach_name}/') if not output_folder else output_folder
 
-        self._xor_keywords, self._and_keywords = read_keywords(self.keywords)
-        self._contradictory_gateways = read_contradictory_gateways()
+        self._xor_keywords, self._and_keywords = get_keywords(keywords)
+        self._contradictory_gateways = get_contradictory_gateways(contradictory_keywords)
         self._processed_doc_gateway_frames = []
         # flag if details of extractions should be logged for each document
         # default = True; temporarily False during evaluating all documents
         self._log_document_level_details = True
 
         # check string parameters for valid values
-        if self.keywords not in [LITERATURE, LITERATURE_FILTERED, GOLD, CUSTOM]:
+        if keywords not in [LITERATURE, LITERATURE_FILTERED, GOLD, CUSTOM]:
             raise ValueError(f"Key words must be {LITERATURE} or {GOLD}")
+        if contradictory_keywords not in [KEYWORDS_PRODUCT, GOLD]:
+            raise ValueError(f"Contradictory key words must be {KEYWORDS_PRODUCT} or {GOLD}")
         if self.output_format not in [PET, BENCHMARK]:
             raise ValueError(f"Output format must be {PET} or {BENCHMARK}")
 
@@ -119,19 +123,6 @@ class KeywordsApproach:
 
         logger.info(f"Saved results to {self.results_folder}")
 
-        """
-        Params of BenchmarkApproach
-        approach_name:  (str) the name of the approach benchmarked
-        predictions_file_or_folder: (str) path to predictions.
-                                    it can be either a file or a folder containing results files
-        output_results: (str) the path to the results file to store
-        relax_window: (int) the number of words to consider when relaxing comparison
-        strategy: (str) the strategy adopted to perform comparisong.
-                        'lr': left-right
-                        'l' : left
-                        'r' : right
-        """
-
         # run evaluation
         # a) token classification
         if evaluate_token_cls:
@@ -148,6 +139,12 @@ class KeywordsApproach:
             BenchmarkApproach(approach_name=self.approach_name, predictions_file_or_folder=relations_filename,
                               output_results=output_results, pet_dataset=pet_reader.relations_dataset)
             format_json_file(output_results + '.json')
+
+        # write params to file
+        with open(os.path.join(self.results_folder, 'params'), 'w') as file:
+            params = ['approach_name', 'keywords', 'contradictory_keywords', 'same_xor_gateway_threshold',
+                      'output_format', 'output_folder']
+            file.write('\n'.join([f"{p}: {self.__getattribute__(p)}" for p in params]))
 
         # reset to standard value
         self._log_document_level_details = True
@@ -798,9 +795,10 @@ class KeywordsApproach:
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    keyword_approach = KeywordsApproach(approach_name='key_words_custom', keywords=CUSTOM,
-                                        same_xor_gateway_threshold=1, output_format=BENCHMARK)
-    if False:
+    keyword_approach = KeywordsApproach(approach_name='key_words_contradictory_test_gold_t1', keywords=LITERATURE,
+                                        contradictory_keywords=GOLD, same_xor_gateway_threshold=1,
+                                        output_format=BENCHMARK)
+    if True:
         # doc_names = ['doc-3.2']
         keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
 
@@ -808,7 +806,7 @@ if __name__ == '__main__':
     # 'doc-3.2' for exclusive gateway with two branches and overlapping concurrent gateway -> presentation candidate
     # 'doc-10.2' for or gateway in sentence
     # 'doc-9.5' for single exclusive gateway and two exclusive gateways with each two branches -> presentation candidate
-    if True:
+    if False:
         doc_name = 'doc-3.2'
 
         xor_gateways, and_gateways, doc_flows, same_gateway_relations = keyword_approach.process_document(doc_name)

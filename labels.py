@@ -16,6 +16,11 @@ LITERATURE_FILTERED = 'literature_filtered'
 GOLD = 'gold'
 CUSTOM = 'own'
 
+# set of contradictory keywords available
+KEYWORDS_PRODUCT = 'keywords_product'
+# GOLD = 'gold'
+# CUSTOM = 'own'
+
 # output formats
 PET = 'pet'
 BENCHMARK = 'benchmark'

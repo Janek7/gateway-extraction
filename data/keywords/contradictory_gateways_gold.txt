@@ -1,10 +1,14 @@
-either;in case of
-sometimes;sometimes
+either;or
+for the case;for the case
 if;otherwise
 if;if
-for;for
-in case of;otherwise
 in case;in case
 in case;otherwise
+in case;if
 in case of;otherwise
-for the case;for the case
+in case of;in case of
+in the case of;if
+otherwise;if
+should;if
+sometimes;sometimes
+under certain circumstances;otherwise

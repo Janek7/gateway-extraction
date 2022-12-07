@@ -2,9 +2,11 @@ import itertools
 import collections
 import os
 from typing import List, Tuple, Dict
+import logging
+
 from petreader.RelationsExtraction import RelationsExtraction
 from petreader.TokenClassification import TokenClassification
-import logging
+from petreader.labels import *
 
 from utils import ROOT_DIR, load_pickle, save_as_pickle
 
@@ -113,6 +115,21 @@ class PetReader:
         activities_flattened = [' '.join(a) for a in list(itertools.chain(*self.token_dataset.GetActivities()))]
         activity_counts = collections.Counter(activities_flattened)
         return [activity for activity, count in activity_counts.most_common()]
+
+    def extract_gold_contradictory_keywords(self) -> List[Tuple[List[str], List[str]]]:
+        """
+        extract gold pairs of contradictory keywords from same gateway relations
+        :return:
+        """
+        # 1) collect same gateway relations
+        same_gateway_relations = []
+        for doc_name in pet_reader.document_names:
+            doc_relations = self.relations_dataset.GetRelations(self.get_document_number(doc_name))
+            same_gateway_relations.extend(doc_relations[SAME_GATEWAY])
+        # 2) reduce to unique lists of pairs
+        contradictory_gateways = [([t.lower() for t in sg[SOURCE_ENTITY]],
+                                   [t.lower() for t in sg[TARGET_ENTITY]]) for sg in same_gateway_relations]
+        return contradictory_gateways
 
 
 # Load / create and save pet_reader (for faster loading)
