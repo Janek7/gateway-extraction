@@ -6,11 +6,6 @@ in case; in case
 in case;in case of
 in case of; in case
 in case of;in case of
-either;in case of
-sometimes;sometimes
-for;for
 in case of;otherwise
-in case;in case
 in case;otherwise
-in case of;otherwise
 for the case;for the case
