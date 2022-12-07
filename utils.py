@@ -130,15 +130,22 @@ def get_contradictory_gateways(contradictory_keywords: str, keywords: str = None
                      available: literature, gold, own
     :return: list of pairs
     """
+    def process_lines(lines):
+        contradictory_gateways = [tuple([x.split(" ") for x in l.strip().split(";")]) for l in lines]
+        logger.info(f"Loaded {len(contradictory_gateways)} gold pairs of contradictory keywords")
+        contradictory_gateways.sort(key=lambda pair: len(pair[0]) + len(pair[1]), reverse=True)
+        return contradictory_gateways
+
     if contradictory_keywords == GOLD:
         path = os.path.join(ROOT_DIR, "data/keywords/contradictory_gateways_gold.txt")
         if not os.path.exists(path):
             write_gold_contradictory_keywords_to_files()
         with open(path) as file:
-            contradictory_gateways = [tuple([x.split(" ") for x in l.strip().split(";")]) for l in file.readlines()]
-            logger.info(f"Loaded {len(contradictory_gateways)} gold pairs of contradictory keywords")
-            contradictory_gateways.sort(key=lambda pair: len(pair[0]) + len(pair[1]), reverse=True)
-            return contradictory_gateways
+            return process_lines(file.readlines())
+
+    elif contradictory_keywords == CUSTOM:
+        with open(os.path.join(ROOT_DIR, "data/keywords/contradictory_gateways.txt")) as file:
+            return process_lines(file.readlines())
 
     elif contradictory_keywords == KEYWORDS_PRODUCT:
         xor_keyword_list = get_keywords(keywords)[0]

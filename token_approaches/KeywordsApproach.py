@@ -3,6 +3,7 @@
 # add parent dir to sys path for import of modules
 import os
 import sys
+
 # find recursively the project root dir
 parent_dir = str(os.getcwdb())
 while not os.path.exists(os.path.join(parent_dir, "README.md")):
@@ -31,7 +32,8 @@ logger = logging.getLogger('Keyword Approach')
 class KeywordsApproach:
 
     def __init__(self, approach_name: str = None, keywords: str = LITERATURE, contradictory_keywords: str = GOLD,
-                 same_xor_gateway_threshold: int = 1, output_format: str = BENCHMARK, output_folder: str = None):
+                 same_xor_gateway_threshold: int = 1, output_format: str = BENCHMARK, output_folder: str = None,
+                 xor_rule_c: bool = True, xor_rule_or: bool = True, xor_rule_op: bool = True):
         """
         creates new instance of the basic keyword approach
         :param approach_name: description of approach to use in result folder name; if not set use key word variant
@@ -46,23 +48,29 @@ class KeywordsApproach:
         self.approach_name = approach_name
         if not self.approach_name:
             self.approach_name = f"keywords_{keywords}"
+        self.keywords = keywords
+        self.contradictory_keywords = contradictory_keywords
         self._same_xor_gateway_threshold = same_xor_gateway_threshold
         self.output_format = output_format
         self.results_folder = os.path.join(ROOT_DIR,
                                            f'data/results/{self.approach_name}/') if not output_folder else output_folder
 
         self._xor_keywords, self._and_keywords = get_keywords(keywords)
-        self._contradictory_gateways = get_contradictory_gateways(contradictory_keywords)
+        self._contradictory_gateways = get_contradictory_gateways(contradictory_keywords, keywords)
         self._processed_doc_gateway_frames = []
         # flag if details of extractions should be logged for each document
         # default = True; temporarily False during evaluating all documents
         self._log_document_level_details = True
 
+        self.xor_rule_c = xor_rule_c
+        self.xor_rule_op = xor_rule_op
+        self.xor_rule_or = xor_rule_or
+
         # check string parameters for valid values
         if keywords not in [LITERATURE, LITERATURE_FILTERED, GOLD, CUSTOM]:
-            raise ValueError(f"Key words must be {LITERATURE} or {GOLD}")
-        if contradictory_keywords not in [KEYWORDS_PRODUCT, GOLD]:
-            raise ValueError(f"Contradictory key words must be {KEYWORDS_PRODUCT} or {GOLD}")
+            raise ValueError(f"Key words must be {LITERATURE}, {LITERATURE_FILTERED}, {GOLD} or {CUSTOM}")
+        if contradictory_keywords not in [KEYWORDS_PRODUCT, GOLD, CUSTOM]:
+            raise ValueError(f"Contradictory key words must be {KEYWORDS_PRODUCT}, {GOLD} or {CUSTOM}")
         if self.output_format not in [PET, BENCHMARK]:
             raise ValueError(f"Output format must be {PET} or {BENCHMARK}")
 
@@ -337,147 +345,153 @@ class KeywordsApproach:
         # RULE 1): check for every pair of following gateways if it fits to a gateway constellation with
         # contradictory key words. Gateways must be in range of same_xor_gateway_threshold sentences, otherwise they
         # would be seen as separate ones
-        for i in range(len(gateways) - 1):
-            g1, g2 = gateways[i], gateways[i + 1]
-            # if sentence distances is larger than threshold, reject possible pair
-            if abs(g2[ELEMENT][0] - g1[ELEMENT][0]) > self._same_xor_gateway_threshold:
-                continue
-            # check for every pair of following gateways if it fits to a gateway pair of contradictory key words
-            # and check that first gateway is at the beginning of a sentence
-            # and check if gateways already matched another pair; possible because of partly same phrase
-            for pattern_gateway_1, pattern_gateway_2 in self._contradictory_gateways:
-                if g1[ELEMENT][3] == pattern_gateway_1 and g2[ELEMENT][3] == pattern_gateway_2 and g1[ELEMENT][1] == 0 \
-                        and g1[ELEMENT] not in gateways_involved and g2[ELEMENT] not in gateways_involved:
-                    gateways_involved.append(g1[ELEMENT])
-                    gateways_involved.append(g2[ELEMENT])
+        if self.xor_rule_c:
+            for i in range(len(gateways) - 1):
+                g1, g2 = gateways[i], gateways[i + 1]
+                # if sentence distances is larger than threshold, reject possible pair
+                if abs(g2[ELEMENT][0] - g1[ELEMENT][0]) > self._same_xor_gateway_threshold:
+                    continue
+                # check for every pair of following gateways if it fits to a gateway pair of contradictory key words
+                # and check that first gateway is at the beginning of a sentence
+                # and check if gateways already matched another pair; possible because of partly same phrase
+                for pattern_gateway_1, pattern_gateway_2 in self._contradictory_gateways:
+                    if g1[ELEMENT][3] == pattern_gateway_1 and g2[ELEMENT][3] == pattern_gateway_2 and g1[ELEMENT][
+                        1] == 0 \
+                            and g1[ELEMENT] not in gateways_involved and g2[ELEMENT] not in gateways_involved:
+                        gateways_involved.append(g1[ELEMENT])
+                        gateways_involved.append(g2[ELEMENT])
 
-                    # A) find related activities
-                    _, pa_g1, fa_g1, _ = self._get_surrounding_activities(g1, doc_activity_tokens)
-                    _, _, fa_g2, ffa_g2 = self._get_surrounding_activities(g2, doc_activity_tokens)
+                        # A) find related activities
+                        _, pa_g1, fa_g1, _ = self._get_surrounding_activities(g1, doc_activity_tokens)
+                        _, _, fa_g2, ffa_g2 = self._get_surrounding_activities(g2, doc_activity_tokens)
 
-                    # B.1) connect elements to sequence flows
-                    # check if fol. activities of g1 and g2 are equal -> if yes, the first branch is without activity
-                    empty_branch = fa_g1[ELEMENT] == fa_g2[ELEMENT]
-                    # 1) previous activity to first gateway -> split point (if not None because of document start)
-                    if pa_g1[ELEMENT]:
-                        sequence_flows.append(self._merge_flow(pa_g1, g1))
-                    # 2) gateway 1 to following activity and following activity to activity after gateway (second
-                    # following of g2) -> merge point
-                    # if None because of empty branch then directly there
-                    if not empty_branch and fa_g1[ELEMENT]:  # could be None if at document end
-                        sequence_flows.append(self._merge_flow(g1, fa_g1))
+                        # B.1) connect elements to sequence flows
+                        # check if fol. activities of g1 and g2 are equal -> if yes, the first branch is without activity
+                        empty_branch = fa_g1[ELEMENT] == fa_g2[ELEMENT]
+                        # 1) previous activity to first gateway -> split point (if not None because of document start)
+                        if pa_g1[ELEMENT]:
+                            sequence_flows.append(self._merge_flow(pa_g1, g1))
+                        # 2) gateway 1 to following activity and following activity to activity after gateway (second
+                        # following of g2) -> merge point
+                        # if None because of empty branch then directly there
+                        if not empty_branch and fa_g1[ELEMENT]:  # could be None if at document end
+                            sequence_flows.append(self._merge_flow(g1, fa_g1))
+                            if ffa_g2[ELEMENT]:  # could be None if at document end
+                                sequence_flows.append(self._merge_flow(fa_g1, ffa_g2))
+                        elif empty_branch and ffa_g2[ELEMENT]:  # could be None if at document end
+                            sequence_flows.append(self._merge_flow(g1, ffa_g2))
+                        # 3) gateway 2 to following activity and following activity to activity after gateway (second
+                        # following of g2) -> merge point
+                        if fa_g2[ELEMENT]:  # could be None if at document end
+                            sequence_flows.append(self._merge_flow(g2, fa_g2))
                         if ffa_g2[ELEMENT]:  # could be None if at document end
-                            sequence_flows.append(self._merge_flow(fa_g1, ffa_g2))
-                    elif empty_branch and ffa_g2[ELEMENT]:  # could be None if at document end
-                        sequence_flows.append(self._merge_flow(g1, ffa_g2))
-                    # 3) gateway 2 to following activity and following activity to activity after gateway (second
-                    # following of g2) -> merge point
-                    if fa_g2[ELEMENT]:  # could be None if at document end
-                        sequence_flows.append(self._merge_flow(g2, fa_g2))
-                    if ffa_g2[ELEMENT]:  # could be None if at document end
-                        sequence_flows.append(self._merge_flow(fa_g2, ffa_g2))
+                            sequence_flows.append(self._merge_flow(fa_g2, ffa_g2))
 
-                    # B.2) same gateway flows
-                    same_gateway_relations.append(self._merge_flow(g1, g2))
-
-                    # log gateway frame for later usage in flow merging of whole document
-                    closing = fa_g2 if fa_g2[ELEMENT] else g2
-                    self._log_gateway_frame(g1[ELEMENT][0], g1[ELEMENT][1], g1,
-                                            closing[ELEMENT][0], closing[ELEMENT][1], closing)
-
-        # RULE 2): exclusive actions of common pattern "... <activity> ... or ... <activity> ..."
-        for g in gateways:
-            if g[ELEMENT] not in gateways_involved and g[ELEMENT][3] == ['or']:
-                # A) find surrounding activities
-                ppa, pa, fa, ffa = self._get_surrounding_activities(g, doc_activity_tokens)
-
-                if pa[ELEMENT] and fa[ELEMENT]:  # check if exist because of document end/start
-                    if pa[ELEMENT][0] == g[ELEMENT][0] and fa[ELEMENT][0] == g[ELEMENT][0]:  # check if in same sentence
-
-                        if pa[ELEMENT] is None or fa[ELEMENT] is None:
-                            # if not surrounding activities are given, do not wire anything; TODO: maybe drop gateway
-                            continue
-                        gateways_involved.append(g[ELEMENT])
-
-                        # B) connect elements to sequence flows
-                        # 1) second previous activity to gateway -> split point
-                        if ppa[ELEMENT]:  # (if not None because of document start)
-                            sequence_flows.append(self._merge_flow(ppa, g))
-                        # 2) gateway to following activity and previous activity -> exclusive branches
-                        sequence_flows.append(self._merge_flow(g, pa))
-                        sequence_flows.append(self._merge_flow(g, fa))
-                        # 3) exclusive activities to second following activity of gateway -> merge point
-                        if ffa[ELEMENT]:  # (if not None because of document end)
-                            sequence_flows.append(self._merge_flow(pa, ffa))
-                            sequence_flows.append(self._merge_flow(fa, ffa))
+                        # B.2) same gateway flows
+                        same_gateway_relations.append(self._merge_flow(g1, g2))
 
                         # log gateway frame for later usage in flow merging of whole document
-                        self._log_gateway_frame(pa[ELEMENT][0], pa[ELEMENT][1], g, fa[ELEMENT][0], fa[ELEMENT][1], fa)
+                        closing = fa_g2 if fa_g2[ELEMENT] else g2
+                        self._log_gateway_frame(g1[ELEMENT][0], g1[ELEMENT][1], g1,
+                                                closing[ELEMENT][0], closing[ELEMENT][1], closing)
+
+        # RULE 2): exclusive actions of common pattern "... <activity> ... or ... <activity> ..."
+        if self.xor_rule_or:
+            for g in gateways:
+                if g[ELEMENT] not in gateways_involved and g[ELEMENT][3] == ['or']:
+                    # A) find surrounding activities
+                    ppa, pa, fa, ffa = self._get_surrounding_activities(g, doc_activity_tokens)
+
+                    if pa[ELEMENT] and fa[ELEMENT]:  # check if exist because of document end/start
+                        if pa[ELEMENT][0] == g[ELEMENT][0] and fa[ELEMENT][0] == g[ELEMENT][0]:  # check if in same sentence
+
+                            if pa[ELEMENT] is None or fa[ELEMENT] is None:
+                                # if not surrounding activities are given, do not wire anything; TODO: maybe drop gateway
+                                continue
+                            gateways_involved.append(g[ELEMENT])
+
+                            # B) connect elements to sequence flows
+                            # 1) second previous activity to gateway -> split point
+                            if ppa[ELEMENT]:  # (if not None because of document start)
+                                sequence_flows.append(self._merge_flow(ppa, g))
+                            # 2) gateway to following activity and previous activity -> exclusive branches
+                            sequence_flows.append(self._merge_flow(g, pa))
+                            sequence_flows.append(self._merge_flow(g, fa))
+                            # 3) exclusive activities to second following activity of gateway -> merge point
+                            if ffa[ELEMENT]:  # (if not None because of document end)
+                                sequence_flows.append(self._merge_flow(pa, ffa))
+                                sequence_flows.append(self._merge_flow(fa, ffa))
+
+                            # log gateway frame for later usage in flow merging of whole document
+                            self._log_gateway_frame(pa[ELEMENT][0], pa[ELEMENT][1], g, fa[ELEMENT][0], fa[ELEMENT][1],
+                                                    fa)
 
         # RULE 3): single-branch gateways: the gateway is related to an activity in the same sentence (order is arbitrary)
         # Assumptiosn: multi-branch gateways are already recognized by rule 1 before; only one activity for the gateway
-        for g in gateways:
-            if g[ELEMENT] not in gateways_involved and g[ELEMENT][3] != ['or']:
-                # A) Prepare elements for flow connections
-                ppa, pa, fa, ffa = self._get_surrounding_activities(g, doc_activity_tokens)
-                gateways_involved_length_start = len(gateways_involved)
+        if self.xor_rule_op:
+            for g in gateways:
+                if g[ELEMENT] not in gateways_involved and g[ELEMENT][3] != ['or']:
+                    # A) Prepare elements for flow connections
+                    ppa, pa, fa, ffa = self._get_surrounding_activities(g, doc_activity_tokens)
+                    gateways_involved_length_start = len(gateways_involved)
 
-                # B) connect elements to sequence flows -> check which activities exist and how are they located
-                # Assumption: only one in the sentence including the gateway
-                if fa[ELEMENT] or pa[ELEMENT]:
+                    # B) connect elements to sequence flows -> check which activities exist and how are they located
+                    # Assumption: only one in the sentence including the gateway
+                    if fa[ELEMENT] or pa[ELEMENT]:
 
-                    # case 1: no activity before but after in same sentence
-                    if fa[ELEMENT] and not pa[ELEMENT] and fa[ELEMENT][0] == g[ELEMENT][0]:
-                        sequence_flows.append(self._merge_flow(g, fa))
-                        if ffa[ELEMENT]:  # could be None if at document end
-                            sequence_flows.append(self._merge_flow(g, ffa))
-                            sequence_flows.append(self._merge_flow(fa, ffa))
-
-                        # log gateway frame for later usage in flow merging of whole document
-                        self._log_gateway_frame(g[ELEMENT][0], g[ELEMENT][1], g, fa[ELEMENT][0], fa[ELEMENT][1], fa)
-                        gateways_involved.append(g[ELEMENT])
-
-                    # case 2: no activity after but before in same sentence
-                    elif pa[ELEMENT] and not fa[ELEMENT] and pa[ELEMENT][0] == g[ELEMENT][0]:
-                        sequence_flows.append(self._merge_flow(g, pa))
-                        # no check for ffa link necessary, because fa is already none
-                        # log gateway frame for later usage in flow merging of whole document
-                        self._log_gateway_frame(pa[ELEMENT][0], pa[ELEMENT][1], g,
-                                                g[ELEMENT][0], g[ELEMENT][1], pa)
-                        gateways_involved.append(g[ELEMENT])
-
-                    elif pa[ELEMENT] and fa[ELEMENT]:
-                        # case 3: previous is not in the same sentence, but following yes -> activity after gateway
-                        if pa[ELEMENT][0] != g[ELEMENT][0] and fa[ELEMENT][0] == g[ELEMENT][0]:
-                            # 1) previous activity to gateway -> split point
-                            sequence_flows.append(self._merge_flow(pa, g))
-                            # 2) gateway to following activity -> exclusive branch
+                        # case 1: no activity before but after in same sentence
+                        if fa[ELEMENT] and not pa[ELEMENT] and fa[ELEMENT][0] == g[ELEMENT][0]:
                             sequence_flows.append(self._merge_flow(g, fa))
-                            # 3) exclusive activity and gateway to second following activity of gateway -> merge point
                             if ffa[ELEMENT]:  # could be None if at document end
                                 sequence_flows.append(self._merge_flow(g, ffa))
                                 sequence_flows.append(self._merge_flow(fa, ffa))
+
                             # log gateway frame for later usage in flow merging of whole document
                             self._log_gateway_frame(g[ELEMENT][0], g[ELEMENT][1], g, fa[ELEMENT][0], fa[ELEMENT][1], fa)
                             gateways_involved.append(g[ELEMENT])
 
-                        # case 4: previous is in the same sentence, but following not -> activity before gateway
-                        elif pa[ELEMENT][0] == g[ELEMENT][0] and fa[ELEMENT][0] != g[ELEMENT][0]:
-                            # 1) second previous activity to gateway -> split point
-                            if ppa[ELEMENT]:  # could be None if at document start
-                                sequence_flows.append(self._merge_flow(ppa, g))
-                            # 2) gateway to previous activity -> exclusive branch
+                        # case 2: no activity after but before in same sentence
+                        elif pa[ELEMENT] and not fa[ELEMENT] and pa[ELEMENT][0] == g[ELEMENT][0]:
                             sequence_flows.append(self._merge_flow(g, pa))
-                            # 3) exclusive activity and gateway to following activity of gateway -> merge point
-                            sequence_flows.append(self._merge_flow(g, fa))
-                            sequence_flows.append(self._merge_flow(pa, fa))
+                            # no check for ffa link necessary, because fa is already none
                             # log gateway frame for later usage in flow merging of whole document
                             self._log_gateway_frame(pa[ELEMENT][0], pa[ELEMENT][1], g,
-                                                    fa[ELEMENT][0], fa[ELEMENT][1], fa)
+                                                    g[ELEMENT][0], g[ELEMENT][1], pa)
                             gateways_involved.append(g[ELEMENT])
 
-                if len(gateways_involved) == gateways_involved_length_start:
-                    pass  # TODO: remove gateway if no rule for extracting flows could be applied
+                        elif pa[ELEMENT] and fa[ELEMENT]:
+                            # case 3: previous is not in the same sentence, but following yes -> activity after gateway
+                            if pa[ELEMENT][0] != g[ELEMENT][0] and fa[ELEMENT][0] == g[ELEMENT][0]:
+                                # 1) previous activity to gateway -> split point
+                                sequence_flows.append(self._merge_flow(pa, g))
+                                # 2) gateway to following activity -> exclusive branch
+                                sequence_flows.append(self._merge_flow(g, fa))
+                                # 3) exclusive activity and gateway to second following activity of gateway -> merge point
+                                if ffa[ELEMENT]:  # could be None if at document end
+                                    sequence_flows.append(self._merge_flow(g, ffa))
+                                    sequence_flows.append(self._merge_flow(fa, ffa))
+                                # log gateway frame for later usage in flow merging of whole document
+                                self._log_gateway_frame(g[ELEMENT][0], g[ELEMENT][1], g, fa[ELEMENT][0], fa[ELEMENT][1],
+                                                        fa)
+                                gateways_involved.append(g[ELEMENT])
+
+                            # case 4: previous is in the same sentence, but following not -> activity before gateway
+                            elif pa[ELEMENT][0] == g[ELEMENT][0] and fa[ELEMENT][0] != g[ELEMENT][0]:
+                                # 1) second previous activity to gateway -> split point
+                                if ppa[ELEMENT]:  # could be None if at document start
+                                    sequence_flows.append(self._merge_flow(ppa, g))
+                                # 2) gateway to previous activity -> exclusive branch
+                                sequence_flows.append(self._merge_flow(g, pa))
+                                # 3) exclusive activity and gateway to following activity of gateway -> merge point
+                                sequence_flows.append(self._merge_flow(g, fa))
+                                sequence_flows.append(self._merge_flow(pa, fa))
+                                # log gateway frame for later usage in flow merging of whole document
+                                self._log_gateway_frame(pa[ELEMENT][0], pa[ELEMENT][1], g,
+                                                        fa[ELEMENT][0], fa[ELEMENT][1], fa)
+                                gateways_involved.append(g[ELEMENT])
+
+                    if len(gateways_involved) == gateways_involved_length_start:
+                        pass  # TODO: remove gateway if no rule for extracting flows could be applied
 
         return sequence_flows, same_gateway_relations
 
@@ -795,9 +809,9 @@ class KeywordsApproach:
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    keyword_approach = KeywordsApproach(approach_name='key_words_contradictory_test_gold_t1', keywords=LITERATURE,
-                                        contradictory_keywords=GOLD, same_xor_gateway_threshold=1,
-                                        output_format=BENCHMARK)
+    keyword_approach = KeywordsApproach(approach_name='key_words_literature_contradictory_product_t1',
+                                        keywords=LITERATURE,
+                                        contradictory_keywords=KEYWORDS_PRODUCT, same_xor_gateway_threshold=1)
     if True:
         # doc_names = ['doc-3.2']
         keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
