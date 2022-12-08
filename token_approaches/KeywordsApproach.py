@@ -814,57 +814,57 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
 
     # 1) KEYWORD SETS
-    # a) literature
-    keyword_approach = KeywordsApproach(approach_name='key_words=literature', keywords=LITERATURE)
-    keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
-    # b) literature filtered
-    keyword_approach = KeywordsApproach(approach_name='key_words=literature_filtered', keywords=LITERATURE_FILTERED)
-    keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
-    # c) gold
-    keyword_approach = KeywordsApproach(approach_name='key_words=gold_DEBUG', keywords=GOLD)
-    keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=False)
-    # d) custom
-    keyword_approach = KeywordsApproach(approach_name='key_words=custom', keywords=CUSTOM)
-    keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
+    # # a) literature
+    # keyword_approach = KeywordsApproach(approach_name='key_words=literature', keywords=LITERATURE)
+    # keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
+    # # b) literature filtered
+    # keyword_approach = KeywordsApproach(approach_name='key_words=literature_filtered', keywords=LITERATURE_FILTERED)
+    # keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
+    # # c) gold
+    # keyword_approach = KeywordsApproach(approach_name='key_words=gold_DEBUG', keywords=GOLD)
+    # keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=False)
+    # # d) custom
+    # keyword_approach = KeywordsApproach(approach_name='key_words=custom', keywords=CUSTOM)
+    # keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
 
     # 2) Contradictory SETS
     # a) custom
-    # keyword_approach = KeywordsApproach(approach_name='key_words=custom - contra=custom',
-    #                                     keywords=CUSTOM, contradictory_keywords=CUSTOM,
-    #                                     xor_rule_c=True, xor_rule_op=False, xor_rule_or=False)
-    # keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
-    # # b) gold
-    # keyword_approach = KeywordsApproach(approach_name='key_words=custom - contra=gold',
-    #                                     keywords=CUSTOM, contradictory_keywords=GOLD,
-    #                                     xor_rule_c=True, xor_rule_op=False, xor_rule_or=False)
-    # keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
-    # # c) product
-    # keyword_approach = KeywordsApproach(approach_name='key_words=custom - contra=product',
-    #                                     keywords=CUSTOM, contradictory_keywords=KEYWORDS_PRODUCT,
-    #                                     xor_rule_c=True, xor_rule_op=False, xor_rule_or=False)
-    # keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
-    #
-    # # 3) : Include separately other rules and then once all together
-    # # a) only contradictory
-    # keyword_approach = KeywordsApproach(approach_name='key_words=custom - contra=product - rules=only_xor',
-    #                                     keywords=CUSTOM, contradictory_keywords=KEYWORDS_PRODUCT,
-    #                                     xor_rule_c=True, xor_rule_op=False, xor_rule_or=False)
-    # keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
-    # # b) contradictory + or
-    # keyword_approach = KeywordsApproach(approach_name='key_words=custom - contra=product - rules=xor_or',
-    #                                     keywords=CUSTOM, contradictory_keywords=KEYWORDS_PRODUCT,
-    #                                     xor_rule_c=True, xor_rule_op=False, xor_rule_or=True)
-    # keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
-    # # c) contradictory + optional
-    # keyword_approach = KeywordsApproach(approach_name='key_words=custom - contra=product - rules=xor_op',
-    #                                     keywords=CUSTOM, contradictory_keywords=KEYWORDS_PRODUCT,
-    #                                     xor_rule_c=True, xor_rule_op=True, xor_rule_or=False)
-    # keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
-    # # d) all
-    # keyword_approach = KeywordsApproach(approach_name='key_words=custom - contra=product - rules=all',
-    #                                     keywords=CUSTOM, contradictory_keywords=KEYWORDS_PRODUCT,
-    #                                     xor_rule_c=True, xor_rule_op=True, xor_rule_or=True)
-    # keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
+    keyword_approach = KeywordsApproach(approach_name='key_words=custom - contra=custom',
+                                        keywords=CUSTOM, contradictory_keywords=CUSTOM,
+                                        xor_rule_c=True, xor_rule_op=False, xor_rule_or=False)
+    keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
+    # b) gold
+    keyword_approach = KeywordsApproach(approach_name='key_words=custom - contra=gold',
+                                        keywords=CUSTOM, contradictory_keywords=GOLD,
+                                        xor_rule_c=True, xor_rule_op=False, xor_rule_or=False)
+    keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
+    # c) product
+    keyword_approach = KeywordsApproach(approach_name='key_words=custom - contra=product',
+                                        keywords=CUSTOM, contradictory_keywords=KEYWORDS_PRODUCT,
+                                        xor_rule_c=True, xor_rule_op=False, xor_rule_or=False)
+    keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
+
+    # 3) : Include separately other rules and then once all together
+    # a) only contradictory
+    keyword_approach = KeywordsApproach(approach_name='key_words=custom - contra=product - rules=only_xor',
+                                        keywords=CUSTOM, contradictory_keywords=KEYWORDS_PRODUCT,
+                                        xor_rule_c=True, xor_rule_op=False, xor_rule_or=False)
+    keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
+    # b) contradictory + or
+    keyword_approach = KeywordsApproach(approach_name='key_words=custom - contra=product - rules=xor_or',
+                                        keywords=CUSTOM, contradictory_keywords=KEYWORDS_PRODUCT,
+                                        xor_rule_c=True, xor_rule_op=False, xor_rule_or=True)
+    keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
+    # c) contradictory + optional
+    keyword_approach = KeywordsApproach(approach_name='key_words=custom - contra=product - rules=xor_op',
+                                        keywords=CUSTOM, contradictory_keywords=KEYWORDS_PRODUCT,
+                                        xor_rule_c=True, xor_rule_op=True, xor_rule_or=False)
+    keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
+    # d) all
+    keyword_approach = KeywordsApproach(approach_name='key_words=custom - contra=product - rules=all',
+                                        keywords=CUSTOM, contradictory_keywords=KEYWORDS_PRODUCT,
+                                        xor_rule_c=True, xor_rule_op=True, xor_rule_or=True)
+    keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
 
     # 4) Same Gateway Threshold
     # for sg_threshold in [1, 2, 3, 5]:
