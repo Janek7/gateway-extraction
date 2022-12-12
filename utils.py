@@ -119,15 +119,12 @@ def write_gold_keywords_to_files() -> None:
             file.write("%s\n" % keyword)
 
 
-def get_contradictory_gateways(contradictory_keywords: str, keywords: str = None) \
+def get_contradictory_gateways(contradictory_keywords: str) \
         -> List[Tuple[List[str], List[str]]]:
     """
     read pairs of contradictory exclusive gateway key words from file
     sort to prefer longer matching phrases during search
-    :param contradictory_keywords: flag/variant which contradictory keyword pairs to use;
-                                   available: keywords_product (cartesian product from all keywords), gold
-    :param keywords: flag/variant which keywords to use;
-                     available: literature, gold, own
+    :param contradictory_keywords: flag/variant which contradictory keyword pairs to use; available: custom, gold
     :return: list of pairs
     """
     def process_lines(lines):
@@ -146,13 +143,6 @@ def get_contradictory_gateways(contradictory_keywords: str, keywords: str = None
     elif contradictory_keywords == CUSTOM:
         with open(os.path.join(ROOT_DIR, "data/keywords/contradictory_gateways.txt")) as file:
             return process_lines(file.readlines())
-
-    elif contradictory_keywords == KEYWORDS_PRODUCT:
-        xor_keyword_list = get_keywords(keywords)[0]
-        xor_keyword_list = [k.split(" ") for k in xor_keyword_list]
-        pairs = list(itertools.product(xor_keyword_list, xor_keyword_list))
-        logger.info(f"Created {len(pairs)} pairs of (contradictory) keywords from {len(xor_keyword_list)} keywords")
-        return pairs
 
 
 def write_gold_contradictory_keywords_to_files() -> None:

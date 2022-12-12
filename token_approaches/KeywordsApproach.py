@@ -41,8 +41,7 @@ class KeywordsApproach:
         :param approach_name: description of approach to use in result folder name; if not set use key word variant
         :param keywords: flag/variant which keywords to use;
                          available: literature, gold, own
-        :param contradictory_keywords: flag/variant which contradictory keyword pairs to use;
-                                       available: keywords_product (cartesian product from all keywords), gold
+        :param contradictory_keywords: flag/variant which contradictory keyword pairs to use; available: custom, gold
         :param same_xor_gateway_threshold: threshold to recognize subsequent (contradictory xor) gateways as same
         :param multiple_branches_allowed: flag if one gateway constellation can have more than two branches
         :param output_format: output format of extracted element and flows; available: benchmark, pet
@@ -60,7 +59,7 @@ class KeywordsApproach:
                                            f'data/results/{self.approach_name}/') if not output_folder else output_folder
 
         self._xor_keywords, self._and_keywords = get_keywords(keywords)
-        self._contradictory_gateways = get_contradictory_gateways(contradictory_keywords, keywords)
+        self._contradictory_gateways = get_contradictory_gateways(contradictory_keywords)
         self._processed_doc_gateway_frames = []
         # flag if details of extractions should be logged for each document
         # default = True; temporarily False during evaluating all documents
@@ -73,8 +72,8 @@ class KeywordsApproach:
         # check string parameters for valid values
         if keywords not in [LITERATURE, LITERATURE_FILTERED, GOLD, CUSTOM]:
             raise ValueError(f"Key words must be {LITERATURE}, {LITERATURE_FILTERED}, {GOLD} or {CUSTOM}")
-        if contradictory_keywords not in [KEYWORDS_PRODUCT, GOLD, CUSTOM]:
-            raise ValueError(f"Contradictory key words must be {KEYWORDS_PRODUCT}, {GOLD} or {CUSTOM}")
+        if contradictory_keywords not in [GOLD, CUSTOM]:
+            raise ValueError(f"Contradictory key words must be {GOLD} or {CUSTOM}")
         if self.output_format not in [PET, BENCHMARK]:
             raise ValueError(f"Output format must be {PET} or {BENCHMARK}")
 
@@ -847,12 +846,6 @@ if __name__ == '__main__':
     #                                     keywords=CUSTOM, contradictory_keywords=GOLD,
     #                                     xor_rule_c=True, xor_rule_op=False, xor_rule_or=False)
     # keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
-    # # c) product
-    # keyword_approach = KeywordsApproach(approach_name='key_words=custom - contra=product',
-    #                                     keywords=CUSTOM, contradictory_keywords=KEYWORDS_PRODUCT,
-    #                                     xor_rule_c=True, xor_rule_op=False, xor_rule_or=False)
-    # keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
-    #
 
     # 3) Same Gateway Threshold
     for sg_threshold in [0, 1, 2, 3]:

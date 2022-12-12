@@ -10,16 +10,11 @@ SYNONYM_SAMPLES_START_NUMBER = 'synonym-samples-start-number'
 
 # B) LABELS FOR KEYWORDSAPPROACH
 
-# set of keywords available
-LITERATURE = 'literature'
-LITERATURE_FILTERED = 'literature_filtered'
+# available sets of keywords and contradictory keywords
+LITERATURE = 'literature'  # only keyword
+LITERATURE_FILTERED = 'literature_filtered'  # only keyword
 GOLD = 'gold'
 CUSTOM = 'own'
-
-# set of contradictory keywords available
-KEYWORDS_PRODUCT = 'keywords_product'
-# GOLD = 'gold'
-# CUSTOM = 'own'
 
 # output formats
 PET = 'pet'
