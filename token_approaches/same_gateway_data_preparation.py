@@ -54,12 +54,16 @@ def _shuffle_tokenization_data(input_ids: tf.Tensor, attention_masks: tf.Tensor,
 
 
 def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, context_sentences: int = 1,
-                              mode: str = CONCAT, n_gram: int = 1) -> Tuple[BatchEncoding, tf.Tensor, tf.Tensor]:
+                              mode: str = CONTEXT_NGRAM, n_gram: int = 1) -> Tuple[BatchEncoding, tf.Tensor, tf.Tensor]:
     """
     extract and preprocess gateway pairs
     :param gateway_type: type of gateway to extract data for (XOR_GATEWAY or AND_GATEWAY)
     :param context_sentences: context size = number of sentences before and after first and second gateway to include
-    :param mode: flag how to include gateway information (by concatenating n_grams of gateways to text or by indexes)
+    :param mode: flags for which SGC architecture the data is prepared
+                    'n_gram_' -> concat of gateway token n_grams
+                    'context_n_gram' -> concatenation of context and concat of gateway token n_grams
+                    'context_index' -> context and indexes of gateway tokens in document
+                    'context_labels_n_gram' -> concatenation of context token labels and concat of gateway token n_grams
     :param n_gram: n of n_grams to include from gateways in CONCAT mode
     :param use_synonyms: flag if synonym samples should be included;
     :return: tokens as batch encoding, list of index pairs, list of labels
@@ -211,7 +215,7 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, con
                 text_in_scope = ' '.join([token[4] for token in doc_tokens_flattened
                                           if token[2] in sentences_in_scope])
                 texts.append((text_in_scope))
-                if mode == CONCAT or mode == N_GRAM:
+                if mode == CONTEXT_NGRAM or mode == N_GRAM:
                     n_gram_tuples.append((get_n_gram(g1), get_n_gram(g2)))
 
                 # Indexes
@@ -238,7 +242,7 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, con
                                               for token in doc_tokens_flattened if token[2] in sentences_in_scope])
 
                     texts.append(text_in_scope)
-                    if mode == CONCAT or mode == N_GRAM:
+                    if mode == CONTEXT_NGRAM or mode == N_GRAM:
                         n_gram_tuples.append(
                             (get_n_gram(g1, gateways_sample_infos), get_n_gram(g2, gateways_sample_infos)))
 
@@ -251,9 +255,9 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, con
     # B) TOKENIZE TEXT
     if mode == N_GRAM:
         tokens = _tokenizer(n_gram_tuples, padding=True, return_tensors="tf")
-    elif mode == INDEX:
+    elif mode == CONTEXT_INDEX:
         tokens = _tokenizer(texts, padding=True, return_tensors='tf')
-    elif mode == CONCAT:
+    elif mode == CONTEXT_NGRAM:
         # tokenize text & pairs seperately, because it is not possible to concat triple
         text_tokens = _tokenizer(texts, padding=True, return_tensors='tf')
         n_gram_tokens = _tokenizer(n_gram_tuples, padding=True, return_tensors="tf")
@@ -264,7 +268,7 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, con
         tokens = transformers.BatchEncoding(
             {"input_ids": concatted_input_ids, "attention_mask": concatted_attention_masks})
     else:
-        raise ValueError(f"mode must be {INDEX}, {CONCAT} or {N_GRAM}")
+        raise ValueError(f"mode must be {CONTEXT_INDEX}, {CONTEXT_NGRAM} or {N_GRAM}")
 
     results = (tokens, tf.constant(indexes), tf.constant(labels))
 
@@ -351,7 +355,7 @@ if __name__ == '__main__':
     parser.add_argument("--gateway", default=XOR_GATEWAY, type=str, help="Type of gateway to classify")
     parser.add_argument("--use_synonyms", default=False, type=str, help="Include synonym samples.")
     parser.add_argument("--context_size", default=1, type=int, help="Number of sentences around to include in text.")
-    parser.add_argument("--mode", default=CONCAT, type=str, help="How to include gateway information.")
+    parser.add_argument("--mode", default=CONTEXT_NGRAM, type=str, help="How to include gateway information.")
     parser.add_argument("--n_gram", default=1, type=int, help="Number of tokens to include for gateway in CONCAT mode.")
     args = parser.parse_args([] if "__file__" not in globals() else None)
 

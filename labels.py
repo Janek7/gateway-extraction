@@ -81,7 +81,7 @@ MULTI_MASK = 'multi_mask'
 
 
 # C) LABELS FOR SAME GATEWAY CLASSIFICATION TASK
-INDEX = 'index'
 N_GRAM = 'n_gram'
-CONCAT = 'concat'
-
+CONTEXT_NGRAM = 'context_n_gram'
+CONTEXT_INDEX = 'context_index'
+CONTEXT_LABELS_NGRAM = 'context_labels_n_gram'

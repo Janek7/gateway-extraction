@@ -41,7 +41,7 @@ parser.add_argument("--store_weights", default=False, type=bool, help="Flag if b
 parser.add_argument("--gateway", default=XOR_GATEWAY, type=str, help="Type of gateway to classify")
 parser.add_argument("--use_synonyms", default=False, type=str, help="Include synonym samples.")
 parser.add_argument("--context_size", default=1, type=int, help="Number of sentences around to include in text.")
-parser.add_argument("--mode", default=CONCAT, type=str, help="How to include gateway information.")
+parser.add_argument("--mode", default=CONTEXT_NGRAM, type=str, help="How to include gateway information.")
 parser.add_argument("--n_gram", default=1, type=int, help="Number of tokens to include for gateway in CONCAT mode.")
 # Architecture params
 parser.add_argument("--dropout", default=0.2, type=float, help="Dropout rate.")
@@ -71,9 +71,9 @@ class SameGatewayClassifier(tf.keras.Model):
         # extract cls token for every sample
         cls_token = bert_output[:, 0]
         dropout1 = tf.keras.layers.Dropout(args.dropout)(cls_token)
-        if args.mode == CONCAT or args.mode == N_GRAM:
+        if args.mode == CONTEXT_NGRAM or args.mode == N_GRAM:
             predictions = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(dropout1)
-        elif args.mode == INDEX:
+        elif args.mode == CONTEXT_INDEX:
             indexes = tf.cast(inputs["indexes"], tf.float32)
             hidden = tf.keras.layers.Concatenate()([dropout1, indexes])
             for hidden_layer_size in args.hidden_layer.split("-"):
@@ -81,7 +81,7 @@ class SameGatewayClassifier(tf.keras.Model):
                 hidden = tf.keras.layers.Dropout(args.dropout)(hidden)
             predictions = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(hidden)
         else:
-            raise ValueError(f"mode must be {INDEX} or {CONCAT}")
+            raise ValueError(f"mode must be {N_GRAM}, {CONTEXT_NGRAM}, {CONTEXT_INDEX} or {CONTEXT_LABELS_NGRAM}")
 
         super().__init__(inputs=inputs, outputs=predictions)
 
