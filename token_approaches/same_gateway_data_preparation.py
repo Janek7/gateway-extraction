@@ -100,7 +100,24 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, con
         ) for s_i, sample_id in enumerate(sample_ids)]
         doc_tokens_flattened = list(itertools.chain(*doc_tokens))
         doc_tokens_flattened = [(i,) + token_tuple for i, token_tuple in enumerate(doc_tokens_flattened)]
-        # token represented as tuple: (doc token index, sample id, sentence id, token id, token, ner-tag)
+
+        def get_following_i_tokens(token_index):
+            """
+            append number of following I- tokens in case of B- token for usage when computing n_grams
+            :param token_index: token index
+            :return: list of following I- tokens
+            """
+            following_i_tokens = []
+            for token in doc_tokens_flattened[token_index + 1:]:
+                if token[5].startswith("I-"):
+                    following_i_tokens.append(token)
+                else:
+                    break
+            return following_i_tokens
+
+        doc_tokens_flattened = [doc_token + tuple([len(get_following_i_tokens(doc_token[0]))])
+                                for doc_token in doc_tokens_flattened]
+        # token represented as tuple: (doc token index, sample id, sentence id, token id, token, ner-tag, #I-tokens)
 
         # 2) Identify gateway pairs
         # filter for B- tokens, because I-s do not mark a new gateway of interest
@@ -173,13 +190,14 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, con
         def get_n_gram(token, gateways_sample_infos=None):
             """
             create n gram of a given token
+            for gateway elements that consist of multiple tokens, include I- tokens as well by adding token[6] to range
             :param token: token tuple
             :param gateways_sample_infos: infos about which samples are used for surrounding gateways
             :return: textual n-gram
             """
             return ' '.join([get_textual_token(token_tuple, gateways_sample_infos)
                              for token_tuple in doc_tokens_flattened[max(token[0] - n_gram, 0):
-                                                                     min(token[0] + n_gram + 1,
+                                                                     min(token[0] + n_gram + token[6] + 1,
                                                                          len(doc_tokens_flattened))]])
 
         for (g1, g2), label in zip(gateway_pairs, pair_labels):
@@ -329,8 +347,9 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
 
     parser = argparse.ArgumentParser()
+    parser.add_argument("--batch_size", default=8, type=int, help="Batch size.")
     parser.add_argument("--gateway", default=XOR_GATEWAY, type=str, help="Type of gateway to classify")
-    parser.add_argument("--use_synonyms", default=True, type=str, help="Include synonym samples.")
+    parser.add_argument("--use_synonyms", default=False, type=str, help="Include synonym samples.")
     parser.add_argument("--context_size", default=1, type=int, help="Number of sentences around to include in text.")
     parser.add_argument("--mode", default=CONCAT, type=str, help="How to include gateway information.")
     parser.add_argument("--n_gram", default=1, type=int, help="Number of tokens to include for gateway in CONCAT mode.")
@@ -340,5 +359,11 @@ if __name__ == '__main__':
 
     from collections import Counter
 
-    labels = [x[1].numpy() for x in dataset_full]
-    print(Counter(labels))
+    for batch in dataset_full:
+        data = batch[0]
+        labels = batch[1]
+        labels_np = batch[1].numpy()
+        break
+
+    # labels = [x[1].numpy() for x in dataset_full]
+    print(Counter(list(labels_np)))
