@@ -3,6 +3,7 @@
 # add parent dir to sys path for import of modules
 import os
 import sys
+
 # find recursively the project root dir
 parent_dir = str(os.getcwdb())
 while not os.path.exists(os.path.join(parent_dir, "README.md")):
@@ -31,15 +32,16 @@ _tokenizer = transformers.AutoTokenizer.from_pretrained(config[KEYWORDS_FILTERED
 assert isinstance(_tokenizer, transformers.PreTrainedTokenizerFast)
 
 
-def _create_dataset(input_ids: tf.Tensor, attention_masks: tf.Tensor, indexes: tf.Tensor, labels: tf.Tensor) \
-        -> tf.data.Dataset:
+def _create_dataset(input_ids: tf.Tensor, attention_masks: tf.Tensor, indexes: tf.Tensor, context_labels: tf.Tensor,
+                    labels: tf.Tensor) -> tf.data.Dataset:
     return tf.data.Dataset.from_tensor_slices(
-        ({'input_ids': input_ids, 'attention_mask': attention_masks, "indexes": indexes},
-         labels))
+        ({'input_ids': input_ids, 'attention_mask': attention_masks, "indexes": indexes,
+          "context_labels": context_labels}, labels))
 
 
-def _shuffle_tokenization_data(input_ids: tf.Tensor, attention_masks: tf.Tensor, indexes: tf.Tensor, labels: tf.Tensor) \
-        -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor]:
+def _shuffle_tokenization_data(input_ids: tf.Tensor, attention_masks: tf.Tensor, indexes: tf.Tensor,
+                               context_labels: tf.Tensor, labels: tf.Tensor) \
+        -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor]:
     """
     shuffle tensors of tokenized data; seed for shuffling is seed_general from args
     :return: data tensors in same format but shuffled
@@ -49,8 +51,9 @@ def _shuffle_tokenization_data(input_ids: tf.Tensor, attention_masks: tf.Tensor,
     input_ids = tf.gather(input_ids, shuffled_indices)
     attention_masks = tf.gather(attention_masks, shuffled_indices)
     indexes = tf.gather(indexes, shuffled_indices)
+    context_labels = tf.gather(context_labels, shuffled_indices)
     labels = tf.gather(labels, shuffled_indices)
-    return input_ids, attention_masks, indexes, labels
+    return input_ids, attention_masks, indexes, context_labels, labels
 
 
 def _mask_activities(doc_tokens_flattened: List[List], masking_strategy: str) -> List[List]:
@@ -75,8 +78,8 @@ def _mask_activities(doc_tokens_flattened: List[List], masking_strategy: str) ->
 
 
 def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, activity_masking: str = NOT,
-                              context_sentences: int = 1, mode: str = CONTEXT_NGRAM, n_gram: int = 1) \
-        -> Tuple[BatchEncoding, tf.Tensor, tf.Tensor]:
+                              context_sentences: int = 0, mode: str = CONTEXT_NGRAM, n_gram: int = 1) \
+        -> Tuple[BatchEncoding, tf.Tensor, tf.Tensor, tf.Tensor]:
     """
     extract and preprocess gateway pairs
     :param gateway_type: type of gateway to extract data for (XOR_GATEWAY or AND_GATEWAY)
@@ -95,9 +98,9 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, act
                                               n_gram]])
     cache_path = os.path.join(ROOT_DIR, f"data/other/same_gateway_data_{param_string}")
     if os.path.exists(cache_path):
-        tokens, indexes, labels = load_pickle(cache_path)
+        tokens, indexes, context_labels, labels = load_pickle(cache_path)
         logger.info("Reloaded same gateway data from cache")
-        return tokens, indexes, labels
+        return tokens, indexes, context_labels, labels
 
     if use_synonyms:
         synonym_samples = get_synonym_samples()
@@ -105,8 +108,9 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, act
 
     # lists to store results
     texts = []  # context texts
-    n_gram_tuples = []  # tuples of gateway n_grams (only necessary for mode=CONCAT)
+    n_gram_tuples = []  # tuples of gateway n_grams (only necessary for mode=context_n_gram)
     indexes = []  # index of gateway tokens in samples -> tuple
+    context_labels = []  # list of context token labels
     labels = []  # labels (0 or 1)
 
     # A) GENERATE DATA
@@ -276,16 +280,20 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, act
                     # Indexes
                     indexes.append((g1[0], g2[0]))
 
+                    # Context token labels
+                    context_labels.append([1 if token[5] == ACTIVITY else 0 for token in doc_tokens_flattened
+                                           if token[2] in sentences_in_scope])
+
                     # Label
                     labels.append(label)
 
     # B) TOKENIZE TEXT
-    if mode == N_GRAM:
+    if mode == N_GRAM or mode == CONTEXT_LABELS_NGRAM:
         tokens = _tokenizer(n_gram_tuples, padding=True, return_tensors="tf")
     elif mode == CONTEXT_INDEX:
         tokens = _tokenizer(texts, padding=True, return_tensors='tf')
     elif mode == CONTEXT_NGRAM:
-        # tokenize text & pairs seperately, because it is not possible to concat triple
+        # tokenize text & pairs separately, because it is not possible to concat triple
         text_tokens = _tokenizer(texts, padding=True, return_tensors='tf')
         n_gram_tokens = _tokenizer(n_gram_tuples, padding=True, return_tensors="tf")
         # concat manually after (cut the CLS token of the second pair / n_grams)
@@ -297,7 +305,7 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, act
     else:
         raise ValueError(f"mode must be {CONTEXT_INDEX}, {CONTEXT_NGRAM} or {N_GRAM}")
 
-    results = (tokens, tf.constant(indexes), tf.constant(labels))
+    results = (tokens, tf.constant(indexes), tf.constant(context_labels), tf.constant(labels))
 
     # save in cache
     save_as_pickle(results, cache_path)
@@ -316,15 +324,19 @@ def create_same_gateway_cls_dataset_full(gateway_type: str, args: argparse.Names
     """
     logger.info(f"Create full training dataset dataset (gateway type: {gateway_type} - batch_size: {args.batch_size} "
                 f"- shuffle: {shuffle})")
-    tokens, indexes, labels = _preprocess_gateway_pairs(gateway_type, use_synonyms=args.use_synonyms,
-                                                        activity_masking=args.activity_masking,
-                                                        context_sentences=args.context_size, mode=args.mode,
-                                                        n_gram=args.n_gram)
+    tokens, indexes, context_labels, labels = _preprocess_gateway_pairs(gateway_type, use_synonyms=args.use_synonyms,
+                                                                        activity_masking=args.activity_masking,
+                                                                        context_sentences=args.context_size,
+                                                                        mode=args.mode,
+                                                                        n_gram=args.n_gram)
     input_ids, attention_masks = tokens['input_ids'], tokens['attention_mask']
     if shuffle:
-        input_ids, attention_masks, indexes, labels = _shuffle_tokenization_data(input_ids, attention_masks, indexes,
-                                                                                 labels)
-    dataset = _create_dataset(input_ids, attention_masks, indexes, labels)
+        input_ids, attention_masks, indexes, context_labels, labels = _shuffle_tokenization_data(input_ids,
+                                                                                                 attention_masks,
+                                                                                                 indexes,
+                                                                                                 context_labels,
+                                                                                                 labels)
+    dataset = _create_dataset(input_ids, attention_masks, indexes, context_labels, labels)
 
     if args.batch_size:
         dataset = dataset.batch(args.batch_size)
@@ -343,14 +355,18 @@ def create_same_gateway_cls_dataset_cv(gateway_type: str, args: argparse.Namespa
     """
     logger.info(f"Create CV (folds={args.folds}) dataset (gateway type: {gateway_type} - batch_size: {args.batch_size} "
                 f"- shuffle: {shuffle})")
-    tokens, indexes, labels = _preprocess_gateway_pairs(gateway_type, use_synonyms=args.use_synonyms,
-                                                        activity_masking=args.activity_masking,
-                                                        context_sentences=args.context_size, mode=args.mode,
-                                                        n_gram=args.n_gram)
+    tokens, indexes, context_labels, labels = _preprocess_gateway_pairs(gateway_type, use_synonyms=args.use_synonyms,
+                                                                        activity_masking=args.activity_masking,
+                                                                        context_sentences=args.context_size,
+                                                                        mode=args.mode,
+                                                                        n_gram=args.n_gram)
     input_ids, attention_masks = tokens['input_ids'], tokens['attention_mask']
     if shuffle:
-        input_ids, attention_masks, indexes, labels = _shuffle_tokenization_data(input_ids, attention_masks, indexes,
-                                                                                 labels)
+        input_ids, attention_masks, indexes, context_labels, labels = _shuffle_tokenization_data(input_ids,
+                                                                                                 attention_masks,
+                                                                                                 indexes,
+                                                                                                 context_labels,
+                                                                                                 labels)
 
     # Define the K-fold Cross Validator
     kfold = KFold(n_splits=5)
@@ -361,10 +377,12 @@ def create_same_gateway_cls_dataset_cv(gateway_type: str, args: argparse.Namespa
         train_tf_dataset = _create_dataset(tf.gather(input_ids, train),
                                            tf.gather(attention_masks, train),
                                            tf.gather(indexes, train),
+                                           tf.gather(context_labels, train),
                                            tf.gather(labels, train))
         dev_tf_dataset = _create_dataset(tf.gather(input_ids, test),
                                          tf.gather(attention_masks, test),
                                          tf.gather(indexes, test),
+                                         tf.gather(context_labels, test),
                                          tf.gather(labels, test))
         if args.batch_size:
             train_tf_dataset = train_tf_dataset.batch(args.batch_size)

@@ -61,7 +61,8 @@ class SameGatewayClassifier(tf.keras.Model):
         inputs = {
             "input_ids": tf.keras.layers.Input(shape=[None], dtype=tf.int32),
             "attention_mask": tf.keras.layers.Input(shape=[None], dtype=tf.int32),
-            "indexes": tf.keras.layers.Input(shape=[2], dtype=tf.int32)
+            "indexes": tf.keras.layers.Input(shape=[2], dtype=tf.int32),
+            "context_labels": tf.keras.layers.Input(shape=[None], dtype=tf.int32),
         }
 
         if not bert_model:
@@ -72,15 +73,24 @@ class SameGatewayClassifier(tf.keras.Model):
         # extract cls token for every sample
         cls_token = bert_output[:, 0]
         dropout1 = tf.keras.layers.Dropout(args.dropout)(cls_token)
+
+        # for only textual modes add immediately output layers
         if args.mode == CONTEXT_NGRAM or args.mode == N_GRAM:
             predictions = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(dropout1)
-        elif args.mode == CONTEXT_INDEX:
-            indexes = tf.cast(inputs["indexes"], tf.float32)
-            hidden = tf.keras.layers.Concatenate()([dropout1, indexes])
+
+        # for modes that include more features, combine them with hidden layer(s) with BERT output
+        elif args.mode == CONTEXT_INDEX or CONTEXT_LABELS_NGRAM:
+            if args.mode == CONTEXT_INDEX:
+                additional_information = inputs["indexes"]
+            elif args.mode == CONTEXT_LABELS_NGRAM:
+                additional_information = inputs["context_labels"]
+            additional_information = tf.cast(additional_information, tf.float32)
+            hidden = tf.keras.layers.Concatenate()([dropout1, additional_information])
             for hidden_layer_size in args.hidden_layer.split("-"):
                 hidden = tf.keras.layers.Dense(int(hidden_layer_size), activation=tf.nn.relu)(hidden)
                 hidden = tf.keras.layers.Dropout(args.dropout)(hidden)
             predictions = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(hidden)
+
         else:
             raise ValueError(f"mode must be {N_GRAM}, {CONTEXT_NGRAM}, {CONTEXT_INDEX} or {CONTEXT_LABELS_NGRAM}")
 
