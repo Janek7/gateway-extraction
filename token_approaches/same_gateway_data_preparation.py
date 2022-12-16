@@ -114,13 +114,12 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, act
     labels = []  # labels (0 or 1)
 
     # A) GENERATE DATA
-    for i, doc_name in enumerate(pet_reader.document_names):
+    for i, doc_name in enumerate(pet_reader.document_names[:5]):
 
         if i % 5 == 0:
             print(f"processed {i} documents")
 
         # 1) Prepare token data
-        text = pet_reader.get_doc_text(doc_name)
         sample_ids = pet_reader.get_doc_sample_ids(doc_name)
         doc_tokens = [list(zip(
             [sample_id for i in range(len(pet_reader.token_dataset.GetTokens(sample_id)))],
@@ -241,6 +240,21 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, act
             sentences_in_scope = list(range(g1[2] - num_s if (g1[2] - num_s) > 0 else 0,
                                             g2[2] + num_s + 1 if (g2[2] + num_s + 1) < len(sample_ids) else len(
                                                 sample_ids)))
+
+            def append_not_token_data():
+                """
+                appending indexes, context_labels and labels of g1/g2 sample to dataset wide lists
+                defined for reuse because of normal and synonym mode
+                """
+                # Indexes
+                indexes.append((g1[0], g2[0]))
+                # Context token labels
+                context_labels.append([SGC_CONTEXT_LABEL_ACTIVITY if token[5] == ACTIVITY
+                                       else SGC_CONTEXT_LABEL_OTHER for token in doc_tokens_flattened
+                                       if token[2] in sentences_in_scope])
+                # Label
+                labels.append(label)
+
             if not use_synonyms:
                 # Tokens/Text
                 text_in_scope = ' '.join([token[4] for token in doc_tokens_flattened
@@ -249,11 +263,7 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, act
                 if mode == CONTEXT_NGRAM or mode == N_GRAM:
                     n_gram_tuples.append((get_n_gram(g1), get_n_gram(g2)))
 
-                # Indexes
-                indexes.append((g1[0], g2[0]))
-
-                # Label
-                labels.append(label)
+                append_not_token_data()
 
             else:
                 # create cartesian product between different samples of sentences that include gateways
@@ -277,15 +287,7 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, act
                         n_gram_tuples.append(
                             (get_n_gram(g1, gateways_sample_infos), get_n_gram(g2, gateways_sample_infos)))
 
-                    # Indexes
-                    indexes.append((g1[0], g2[0]))
-
-                    # Context token labels
-                    context_labels.append([1 if token[5] == ACTIVITY else 0 for token in doc_tokens_flattened
-                                           if token[2] in sentences_in_scope])
-
-                    # Label
-                    labels.append(label)
+                    append_not_token_data()
 
     # B) TOKENIZE TEXT
     if mode == N_GRAM or mode == CONTEXT_LABELS_NGRAM:
@@ -305,7 +307,11 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, act
     else:
         raise ValueError(f"mode must be {CONTEXT_INDEX}, {CONTEXT_NGRAM} or {N_GRAM}")
 
-    results = (tokens, tf.constant(indexes), tf.constant(context_labels), tf.constant(labels))
+    # pad context labels to same lengths (pad with 0, label for activities = 1, label for other tokens = 2
+    longest_context = max([len(row) for row in context_labels])
+    context_labels_padded = [row + [SGC_CONTEXT_LABEL_PADDING for i in range(longest_context - len(row))]
+                             for row in context_labels]
+    results = (tokens, tf.constant(indexes), tf.constant(context_labels_padded), tf.constant(labels))
 
     # save in cache
     save_as_pickle(results, cache_path)
