@@ -43,6 +43,7 @@ parser.add_argument("--use_synonyms", default=False, type=str, help="Include syn
 parser.add_argument("--context_size", default=1, type=int, help="Number of sentences around to include in text.")
 parser.add_argument("--mode", default=CONTEXT_NGRAM, type=str, help="How to include gateway information.")
 parser.add_argument("--n_gram", default=1, type=int, help="Number of tokens to include for gateway in CONCAT mode.")
+parser.add_argument("--activity_masking", default=NOT, type=str, help="How to include activity data.")
 # Architecture params
 parser.add_argument("--dropout", default=0.2, type=float, help="Dropout rate.")
 parser.add_argument("--hidden_layer", default="32", type=str, help="Hidden layer sizes sep. by '-'")

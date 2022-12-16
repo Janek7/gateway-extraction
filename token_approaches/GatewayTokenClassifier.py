@@ -40,7 +40,7 @@ parser.add_argument("--labels", default=ALL, type=str, help="Label set to use.")
 parser.add_argument("--other_labels_weight", default=0.1, type=float, help="Sample weight for non gateway tokens.")
 parser.add_argument("--sampling_strategy", default=NORMAL, type=str, help="How to sample samples.")
 parser.add_argument("--use_synonyms", default=False, type=str, help="Include synonym samples.")
-parser.add_argument("--activity_usage", default=NOT, type=str, help="How to include activity data.")
+parser.add_argument("--activity_masking", default=NOT, type=str, help="How to include activity data.")
 
 
 class GatewayTokenClassifier(tf.keras.Model):

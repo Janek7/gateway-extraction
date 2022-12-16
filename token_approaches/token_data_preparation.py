@@ -131,7 +131,7 @@ def _only_gateway_samples(use_synonyms: bool = False) -> List[int]:
 
 def preprocess_tokenization_data(sample_numbers: List = None, sampling_strategy: str = None, use_synonyms: bool = False,
                                  other_labels_weight: float = 0.1, label_set: str = 'filtered',
-                                 activity_usage: str = None)\
+                                 activity_masking: str = None)\
     -> Tuple[BatchEncoding, tf.Tensor, tf.Tensor, List[List[int]]]:
     """
     create token classification samples from whole PET dataset -> samples (tokens) and their labels and weights for
@@ -142,7 +142,7 @@ def preprocess_tokenization_data(sample_numbers: List = None, sampling_strategy:
     :param use_synonyms: flag if synonym samples should be included;
     :param other_labels_weight: sample weight to assign samples with tokens != gateway tokens
     :param label_set: flag if to use all labels ('all') or only gateway labels and one rest label ('filtered')
-    :param activity_usage: flag how to use activity data in tokenization
+    :param activity_masking: flag how to use activity data in tokenization
     :return: tokens, labels & weights as tensors, original word ids (2-dim integer list)
     """
     if sample_numbers and not sampling_strategy:
@@ -165,8 +165,8 @@ def preprocess_tokenization_data(sample_numbers: List = None, sampling_strategy:
             sample_dicts.append(synonym_samples[sample_number])
 
     # apply optional activity masking
-    if activity_usage in [SINGLE_MASK, MULTI_MASK]:
-        sample_dicts = _mask_activities(sample_dicts, activity_usage)
+    if activity_masking in [SINGLE_MASK, MULTI_MASK]:
+        sample_dicts = _mask_activities(sample_dicts, activity_masking)
 
     sample_sentences = [sample_dict['tokens'] for sample_dict in sample_dicts]
 
@@ -233,11 +233,11 @@ def preprocess_tokenization_data(sample_numbers: List = None, sampling_strategy:
     return dataset_tokens, dataset_labels, dataset_sample_weights, dataset_word_ids
 
 
-def _mask_activities(sample_dicts: List[Dict], activity_usage: str) -> List[Dict]:
+def _mask_activities(sample_dicts: List[Dict], masking_strategy: str) -> List[Dict]:
     """
     mask activities with "dummy", most common activity or most common activities (if multiple in one sentence)
     :param sample_dicts: list of samples represented as dictionaries (including tokens and ner-tags)
-    :param activity_usage: how activities should be used/masked
+    :param masking_strategy: how activities should be asked
     :return: list of sample dictionaries with masked tokens
     """
     for dictionary in sample_dicts:
@@ -245,11 +245,11 @@ def _mask_activities(sample_dicts: List[Dict], activity_usage: str) -> List[Dict
         masked_tokens = []
         for token, tag in zip(dictionary["tokens"], dictionary["ner-tags"]):
             if tag.endswith(ACTIVITY):
-                if activity_usage == DUMMY:
+                if masking_strategy == DUMMY:
                     token = 'activity'
-                elif activity_usage == SINGLE_MASK:
+                elif masking_strategy == SINGLE_MASK:
                     token = pet_reader.most_common_activities[0]
-                elif activity_usage == MULTI_MASK:
+                elif masking_strategy == MULTI_MASK:
                     token = pet_reader.most_common_activities[found_activities]
                 found_activities += 1
             masked_tokens.append(token)
@@ -292,7 +292,7 @@ def create_token_cls_dataset_full(args: argparse.Namespace, shuffle: bool = True
                                                                      sampling_strategy=args.sampling_strategy,
                                                                      other_labels_weight=args.other_labels_weight,
                                                                      label_set=args.labels,
-                                                                     activity_usage=args.activity_usage)
+                                                                     activity_masking=args.activity_masking)
     dataset = _create_dataset(tokens["input_ids"], tokens["attention_mask"], labels, sample_weights)
     if args.batch_size:
         dataset = dataset.batch(args.batch_size)
@@ -314,7 +314,7 @@ def create_token_cls_dataset_cv(args: argparse.Namespace, shuffle: bool = True) 
                                                                      use_synonyms=args.use_synonyms,
                                                                      other_labels_weight=args.other_labels_weight,
                                                                      label_set=args.labels,
-                                                                     activity_usage=args.activity_usage)
+                                                                     activity_masking=args.activity_masking)
     input_ids, attention_masks = tokens['input_ids'], tokens['attention_mask']
 
     # shuffle inputs before splitting in train/dev

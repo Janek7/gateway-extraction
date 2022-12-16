@@ -53,8 +53,30 @@ def _shuffle_tokenization_data(input_ids: tf.Tensor, attention_masks: tf.Tensor,
     return input_ids, attention_masks, indexes, labels
 
 
-def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, context_sentences: int = 1,
-                              mode: str = CONTEXT_NGRAM, n_gram: int = 1) -> Tuple[BatchEncoding, tf.Tensor, tf.Tensor]:
+def _mask_activities(doc_tokens_flattened: List[List], masking_strategy: str) -> List[List]:
+    """
+    mask activities with "dummy", most common activity or most common activities (if multiple in one sentence)
+    :param doc_tokens_flattened: list of tokens of a document
+    :param masking_strategy: how activities should be masked
+    :return: list of tokens with masked texts
+    """
+    found_activities = 0
+    for token in doc_tokens_flattened:
+        if token[5].endswith(ACTIVITY):
+            if masking_strategy == DUMMY:
+                masked = 'activity'
+            elif masking_strategy == SINGLE_MASK:
+                masked = pet_reader.most_common_activities[0]
+            elif masking_strategy == MULTI_MASK:
+                masked = pet_reader.most_common_activities[found_activities]
+            found_activities += 1
+            token[4] = masked
+    return doc_tokens_flattened
+
+
+def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, activity_masking: str = NOT,
+                              context_sentences: int = 1, mode: str = CONTEXT_NGRAM, n_gram: int = 1) \
+        -> Tuple[BatchEncoding, tf.Tensor, tf.Tensor]:
     """
     extract and preprocess gateway pairs
     :param gateway_type: type of gateway to extract data for (XOR_GATEWAY or AND_GATEWAY)
@@ -69,7 +91,8 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, con
     :return: tokens as batch encoding, list of index pairs, list of labels
     """
     # reload from cache if already exists
-    param_string = '_'.join([str(p) for p in [gateway_type, use_synonyms, mode, context_sentences, n_gram]])
+    param_string = '_'.join([str(p) for p in [gateway_type, use_synonyms, activity_masking, mode, context_sentences,
+                                              n_gram]])
     cache_path = os.path.join(ROOT_DIR, f"data/other/same_gateway_data_{param_string}")
     if os.path.exists(cache_path):
         tokens, indexes, labels = load_pickle(cache_path)
@@ -103,7 +126,7 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, con
             pet_reader.token_dataset.GetNerTagLabels(sample_id))
         ) for s_i, sample_id in enumerate(sample_ids)]
         doc_tokens_flattened = list(itertools.chain(*doc_tokens))
-        doc_tokens_flattened = [(i,) + token_tuple for i, token_tuple in enumerate(doc_tokens_flattened)]
+        doc_tokens_flattened = [[i] + list(token_tuple) for i, token_tuple in enumerate(doc_tokens_flattened)]
 
         def get_following_i_tokens(token_index):
             """
@@ -119,9 +142,13 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, con
                     break
             return following_i_tokens
 
-        doc_tokens_flattened = [doc_token + tuple([len(get_following_i_tokens(doc_token[0]))])
+        doc_tokens_flattened = [doc_token + [len(get_following_i_tokens(doc_token[0]))]
                                 for doc_token in doc_tokens_flattened]
         # token represented as tuple: (doc token index, sample id, sentence id, token id, token, ner-tag, #I-tokens)
+
+        # apply optional activity masking
+        if activity_masking in [DUMMY, SINGLE_MASK, MULTI_MASK]:
+            doc_tokens_flattened = _mask_activities(doc_tokens_flattened, activity_masking)
 
         # 2) Identify gateway pairs
         # filter for B- tokens, because I-s do not mark a new gateway of interest
@@ -290,6 +317,7 @@ def create_same_gateway_cls_dataset_full(gateway_type: str, args: argparse.Names
     logger.info(f"Create full training dataset dataset (gateway type: {gateway_type} - batch_size: {args.batch_size} "
                 f"- shuffle: {shuffle})")
     tokens, indexes, labels = _preprocess_gateway_pairs(gateway_type, use_synonyms=args.use_synonyms,
+                                                        activity_masking=args.activity_masking,
                                                         context_sentences=args.context_size, mode=args.mode,
                                                         n_gram=args.n_gram)
     input_ids, attention_masks = tokens['input_ids'], tokens['attention_mask']
@@ -316,6 +344,7 @@ def create_same_gateway_cls_dataset_cv(gateway_type: str, args: argparse.Namespa
     logger.info(f"Create CV (folds={args.folds}) dataset (gateway type: {gateway_type} - batch_size: {args.batch_size} "
                 f"- shuffle: {shuffle})")
     tokens, indexes, labels = _preprocess_gateway_pairs(gateway_type, use_synonyms=args.use_synonyms,
+                                                        activity_masking=args.activity_masking,
                                                         context_sentences=args.context_size, mode=args.mode,
                                                         n_gram=args.n_gram)
     input_ids, attention_masks = tokens['input_ids'], tokens['attention_mask']
@@ -354,6 +383,7 @@ if __name__ == '__main__':
     parser.add_argument("--batch_size", default=8, type=int, help="Batch size.")
     parser.add_argument("--gateway", default=XOR_GATEWAY, type=str, help="Type of gateway to classify")
     parser.add_argument("--use_synonyms", default=False, type=str, help="Include synonym samples.")
+    parser.add_argument("--activity_masking", default=MULTI_MASK, type=str, help="How to include activity data.")
     parser.add_argument("--context_size", default=1, type=int, help="Number of sentences around to include in text.")
     parser.add_argument("--mode", default=CONTEXT_NGRAM, type=str, help="How to include gateway information.")
     parser.add_argument("--n_gram", default=1, type=int, help="Number of tokens to include for gateway in CONCAT mode.")
