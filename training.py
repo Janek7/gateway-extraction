@@ -9,7 +9,7 @@ import numpy as np
 
 from Ensemble import Ensemble
 from metrics import f1_normal
-from utils import get_seed_list
+from utils import get_seed_list, save_args_to_file
 
 logger = logging.getLogger('Training')
 
@@ -154,9 +154,10 @@ def cross_validation(args: argparse.Namespace, model_class: type(tf.keras.Model)
     print_metrics(metrics_per_fold)
     print(args)
 
-    # save metrics
+    # save metrics & args
     with open(os.path.join(args_logdir_original, "cv_metrics.json"), 'w') as file:
         json.dump(metrics_per_fold, file, indent=4)
+    save_args_to_file(args, "args.txt")
 
 
 def full_training(args: argparse.Namespace, model_class: type(tf.keras.Model), dataset: tf.data.Dataset,
@@ -198,6 +199,7 @@ def full_training(args: argparse.Namespace, model_class: type(tf.keras.Model), d
         )
         history = ensemble_model.fit(args, train_dataset=dataset, save_single_models=args.store_weights)
 
-    # store metrics
+    # store metrics & args
     with open(os.path.join(args_dir_original, "metrics.json"), 'w') as file:
         json.dump(history.history, file, indent=4)
+    save_args_to_file(args, "args.txt")

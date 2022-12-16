@@ -247,6 +247,19 @@ def generate_args_logdir(args: argparse.Namespace, script_name: str = None) -> s
     ))
 
 
+def save_args_to_file(args, filename):
+    """
+    save arguments line by line to given filename
+    :param args: namespace arguments
+    :param filename: relative file in project
+    :return:
+    """
+    with open(os.path.join(ROOT_DIR, filename), 'w') as file:
+        longest_key = max([len(k) for k in vars(args).keys()])
+        for k, v in sorted(vars(args).items()):
+            file.write(f"{f'{k}:'.ljust(longest_key + 2)}{v}\n")
+
+
 # save in variable, because it has to be always called random.seed(...) before every random.X call
 CURRENT_USED_SEED = 0
 
