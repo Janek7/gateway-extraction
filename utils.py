@@ -249,15 +249,18 @@ def generate_args_logdir(args: argparse.Namespace, script_name: str = None) -> s
     ))
 
 
-def save_args_to_file(args, filename):
+def save_args_to_file(args, log_dir):
     """
     save arguments line by line to given filename
     :param args: namespace arguments
-    :param filename: relative file in project
+    :param log_dir: name of log folder
     :return:
     """
-    with open(os.path.join(ROOT_DIR, filename), 'w') as file:
+    log_dir = os.path.join(ROOT_DIR, log_dir)
+    os.makedirs(log_dir, exist_ok=True)
+    with open(os.path.join(log_dir, "args.txt"), 'w') as file:
         longest_key = max([len(k) for k in vars(args).keys()])
+        file.write(f"{f'date:'.ljust(longest_key + 2)}{datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n\n")
         for k, v in sorted(vars(args).items()):
             file.write(f"{f'{k}:'.ljust(longest_key + 2)}{v}\n")
 

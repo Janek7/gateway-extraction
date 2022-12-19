@@ -157,7 +157,7 @@ def cross_validation(args: argparse.Namespace, model_class: type(tf.keras.Model)
     # save metrics & args
     with open(os.path.join(args_logdir_original, "cv_metrics.json"), 'w') as file:
         json.dump(metrics_per_fold, file, indent=4)
-    save_args_to_file(args, "args.txt")
+    save_args_to_file(args, log_dir=args_logdir_original)
 
 
 def full_training(args: argparse.Namespace, model_class: type(tf.keras.Model), dataset: tf.data.Dataset,
@@ -202,4 +202,4 @@ def full_training(args: argparse.Namespace, model_class: type(tf.keras.Model), d
     # store metrics & args
     with open(os.path.join(args_dir_original, "metrics.json"), 'w') as file:
         json.dump(history.history, file, indent=4)
-    save_args_to_file(args, "args.txt")
+    save_args_to_file(args, log_dir=args_dir_original)
