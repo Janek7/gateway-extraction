@@ -114,7 +114,7 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, act
     labels = []  # labels (0 or 1)
 
     # A) GENERATE DATA
-    for i, doc_name in enumerate(pet_reader.document_names[:5]):
+    for i, doc_name in enumerate(pet_reader.document_names):
 
         if i % 5 == 0:
             print(f"processed {i} documents")
