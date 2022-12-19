@@ -7,7 +7,9 @@ import re
 import datetime
 from typing import List, Tuple, Dict, IO
 import logging
+import random
 
+import numpy as np
 from petreader.labels import *
 from labels import *
 
@@ -276,6 +278,9 @@ def set_seeds(seed: int, caller: str = None) -> None:
     tf.random.set_seed(seed)
     tf.keras.utils.set_random_seed(seed)
     tf.compat.v1.set_random_seed(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
     global CURRENT_USED_SEED
     CURRENT_USED_SEED = seed
 
@@ -298,6 +303,3 @@ if __name__ == '__main__':
     # xor_keywords, and_keywords = read_keywords(CUSTOM)
     # print(xor_keywords)
     # print(and_keywords)
-
-    for pair in get_contradictory_gateways(KEYWORDS_PRODUCT, LITERATURE):
-        print(pair)
