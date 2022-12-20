@@ -20,7 +20,7 @@ from petreader.labels import *
 
 from PetReader import pet_reader
 from labels import *
-from token_data_augmentation import get_synonym_samples
+from token_approaches.token_data_augmentation import get_synonym_samples
 from utils import config, CURRENT_USED_SEED
 
 logger = logging.getLogger('Data Preparation [Token CLS]')
