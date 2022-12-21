@@ -41,7 +41,7 @@ if __name__ == '__main__':
     # compare_runs(os.path.join(ROOT_DIR, f"data/logs_server/same_gateway"),
     #              order_by="avg_val_recall",
     #              name="all")
-    compare_runs(os.path.join(ROOT_DIR, f"data/logs_server/_final/token_cls/label_weights/neu"),
-                 name="label_weights_2",
+    compare_runs(os.path.join(ROOT_DIR, f"data/logs_server/_final/token_cls/4_sampling_multimask"),
+                 name="sampling_multimask",
                  model_type="token_cls",
                  order_by="avg_val_xor_recall")

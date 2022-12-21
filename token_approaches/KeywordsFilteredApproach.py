@@ -13,8 +13,13 @@ import logging
 import os.path
 from typing import List, Tuple
 
-import tensorflow as tf
 from petreader.labels import *
+import tensorflow as tf
+# fix for exception "Attempting to perform BLAS operation using StreamExecutor without BLAS support"
+config = tf.compat.v1.ConfigProto(gpu_options=tf.compat.v1.GPUOptions(per_process_gpu_memory_fraction=0.8))
+config.gpu_options.allow_growth = True
+session = tf.compat.v1.Session(config=config)
+tf.compat.v1.keras.backend.set_session(session)
 
 from GatewayTokenClassifier import GatewayTokenClassifier, convert_predictions_into_labels
 from Ensemble import Ensemble
@@ -36,11 +41,11 @@ class KeywordsFilteredApproach(KeywordsApproach):
                  same_xor_gateway_threshold: int = 1, multiple_branches_allowed: bool = False,
                  output_format: str = BENCHMARK, output_folder: str = None,
                  xor_rule_c: bool = True, xor_rule_or: bool = True, xor_rule_op: bool = True,
-                 # class specific params:
-                 ensemble_path: str = None, mode: str = DROP, filtering_log_level: str = FILE):
+                 # class / ensemble specific params:
+                 ensemble_path: str = None, seed_limit: int = None, mode: str = DROP, filtering_log_level: str = FILE):
         """
         creates new instance of the advanced keywords filtered approach
-        -- super class params --
+        ---- super class params ----
         :param approach_name: description of approach to use in result folder name; if not set use key word variant
         :param keywords: flag/variant which keywords to use; available: literature, gold, own
         :param same_xor_gateway_threshold: threshold to recognize subsequent (contradictory xor) gateways as same
@@ -49,9 +54,10 @@ class KeywordsFilteredApproach(KeywordsApproach):
         :param xor_rule_c: flag if rule for detection of contradictory gateways should be applied
         :param xor_rule_or: flag if rule for detection of 'or' gateways should be applied
         :param xor_rule_op: flag if rule for detection of one branch (optional branches) should be applied
-        ------ own params -----
+        -- class / ensemble params ---
         :param ensemble_path: path of ensemble model to restore weights from;
                               if None, a random initialized model will be used
+        :param seed_limit: limit of seeds to reload from the ensemble (in case of OOM errors)
         :param mode: filter mode: 'log' to only log difference; 'drop' to drop gateways with diff. token cls prediction
         :param filtering_log_level: 'file', 'console' or None
         """
@@ -60,7 +66,8 @@ class KeywordsFilteredApproach(KeywordsApproach):
                          multiple_branches_allowed=multiple_branches_allowed, output_format=output_format,
                          output_folder=output_folder,
                          xor_rule_c=xor_rule_c, xor_rule_or=xor_rule_or, xor_rule_op=xor_rule_op)
-        self.token_classifier = Ensemble(args=None, model_class=GatewayTokenClassifier, ensemble_path=ensemble_path)
+        self.token_classifier = Ensemble(args=None, model_class=GatewayTokenClassifier, ensemble_path=ensemble_path,
+                                         seed_limit=seed_limit)
         set_seeds(config[SEED], "Reset after initialization of GatewayTokenClassifierEnsemble")
         self.mode = mode
         self.filtering_log_level = filtering_log_level
@@ -129,8 +136,10 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     set_seeds(config[SEED], "Set first seed")
     keyword_filtered_approach = KeywordsFilteredApproach(approach_name='key_words_literature_tc_filtered_og_syn',
-                                                         keywords=LITERATURE, output_format=BENCHMARK,
-
+                                                         # three cases to evaluate with filter model
+                                                         keywords=LITERATURE,
+                                                         # keywords=CUSTOM,
+                                                         # keywords=CUSTOM, contradictory_keywords=GOLD, same_xor_gateway_threshold=3, multiple_branches_allowed=True, seed_limit=15,
 
                                                          ensemble_path="/home/japutz/master-thesis/data/final_models/token_cls/GatewayTokenClassifier_train.py-2022-11-19_074241-au=not,bs=8,e=True,e=1,f=2,l=all,olw=0.1,r=ft,ss=og,sg=42,se=0-29,sw=True,us=True",
                                                          mode=DROP, filtering_log_level=FILE)

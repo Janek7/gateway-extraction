@@ -15,13 +15,14 @@ logger = logging.getLogger('Gateway Token Classifier Ensemble')
 class Ensemble:
 
     def __init__(self, model_class: type, seeds: List = None, ensemble_path: str = None, es_monitor: str = 'val_loss',
-                 **kwargs) -> None:
+                 seed_limit: int = None, **kwargs) -> None:
         """
         initializes a ensemble of multiple models of a passed model class
         :param model_class: class of models from which to create an ensemble
         :param seeds: list of seeds for which to create models (default: config seeds)
         :param ensemble_path: path of trained ensemble with stored weights. If set, load model weights from there
         :param es_monitor: metric to monitor for EarlyStopping
+        :param seed_limit: limit of seeds to reload from the ensemble (in case of OOM errors)
         :param kwargs: param list that will be passed to constructor of single models
         """
         logger.info(f"Create and initialize a Ensemble for model {model_class.__name__}")
@@ -32,6 +33,8 @@ class Ensemble:
             seed_range_pattern = re.compile("se=(\d+)-(\d+)")
             result = seed_range_pattern.search(ensemble_path)
             self.seeds = list(range(int(result.group(1)), int(result.group(2))))
+            if seed_limit:
+                self.seeds = self.seeds[:seed_limit]
         logger.info(f"Use {len(self.seeds)} seeds: {self.seeds}")
         self.ensemble_path = ensemble_path
         self.es_monitor = es_monitor

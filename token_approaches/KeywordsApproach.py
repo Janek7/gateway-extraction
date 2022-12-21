@@ -611,7 +611,6 @@ class KeywordsApproach:
         flows_to_remove = []
         flows_to_add = []
         for flow in doc_flows:
-            print(flow)
             source_entity_gf, target_entity_gf = get_gateway_frames(flow)
             # check if source and target are not part of the same gateway and the target entity is part of a gateway
             if source_entity_gf != target_entity_gf and target_entity_gf is not None:
