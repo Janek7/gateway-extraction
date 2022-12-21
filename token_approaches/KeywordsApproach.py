@@ -46,6 +46,9 @@ class KeywordsApproach:
         :param multiple_branches_allowed: flag if one gateway constellation can have more than two branches
         :param output_format: output format of extracted element and flows; available: benchmark, pet
         :param output_folder: name of output folder; if none -> create based on approach name
+        :param xor_rule_c: flag if rule for detection of contradictory gateways should be applied
+        :param xor_rule_or: flag if rule for detection of 'or' gateways should be applied
+        :param xor_rule_op: flag if rule for detection of one branch (optional branches) should be applied
         """
         self.approach_name = approach_name
         if not self.approach_name:
