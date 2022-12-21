@@ -1,7 +1,13 @@
+# add parent dir to sys path for import of modules
 import os
 import sys
-parentdir = os.path.abspath(os.path.join(os.path.abspath(''), os.pardir))
-sys.path.insert(0, parentdir)
+
+# find recursively the project root dir
+parent_dir = str(os.getcwdb())
+while not os.path.exists(os.path.join(parent_dir, "README.md")):
+    parent_dir = os.path.abspath(os.path.join(parent_dir, os.pardir))
+print(parent_dir)
+sys.path.insert(0, parent_dir)
 
 import pandas as pd
 from PetReader import pet_reader
@@ -28,10 +34,10 @@ def analyze_samples(strategy, use_synonyms=False):
             sample_dicts.append(synonym_samples[sample_number])
 
     # stats to compute
-    docs = len(sample_dicts)
-    docs_with_gateways = 0
-    docs_with_xor_gateways = 0
-    docs_with_and_gateways = 0
+    samples = len(sample_dicts)
+    samples_with_gateways = 0
+    samples_with_xor_gateways = 0
+    samples_with_and_gateways = 0
 
     total_gateway_tokens = 0
     total_xor_gateways_tokens = 0
@@ -46,27 +52,31 @@ def analyze_samples(strategy, use_synonyms=False):
 
         # fill stats
         if number_gateway_tokens:
-            docs_with_gateways += 1
+            samples_with_gateways += 1
         total_gateway_tokens += number_gateway_tokens
         total_other_tokens += len(sample_dict["ner-tags"]) - number_gateway_tokens
 
         if number_xor_gateway_tokens:
-            docs_with_xor_gateways += 1
+            samples_with_xor_gateways += 1
             total_xor_gateways_tokens += number_xor_gateway_tokens
         if number_and_gateway_tokens:
-            docs_with_and_gateways += 1
+            samples_with_and_gateways += 1
             total_and_gateways_tokens += number_and_gateway_tokens
 
     # compute global stats
-    avg_gateway_tokens_per_doc = round(total_gateway_tokens / docs_with_gateways, 2)
+    avg_gateway_tokens_per_doc = round(total_gateway_tokens / samples, 2)
     total_share_gateway_tokens = round(total_gateway_tokens / (total_gateway_tokens + total_other_tokens), 2)
 
-    return {"strategy": strategy,
-            "docs": docs, "docs_with_gateways": docs_with_gateways, "docs_with_xor_gateways": docs_with_xor_gateways,
-            "docs_with_and_gateways": docs_with_and_gateways,
-            "total_gateway_tokens": total_gateway_tokens, "total_xor_gateways_tokens": total_xor_gateways_tokens,
+    return {"strategy": f"{strategy}-{use_synonyms}",
+            "samples": samples,
+            "samples_with_gateways": samples_with_gateways,
+            "samples_with_xor_gateways": samples_with_xor_gateways,
+            "samples_with_and_gateways": samples_with_and_gateways,
+            "total_gateway_tokens": total_gateway_tokens,
+            "total_xor_gateways_tokens": total_xor_gateways_tokens,
             "total_and_gateways_tokens": total_and_gateways_tokens,
-            "avg_gateway_tokens_per_doc": avg_gateway_tokens_per_doc, "total_other_tokens": total_other_tokens,
+            "avg_gateway_tokens_per_doc": avg_gateway_tokens_per_doc,
+            "total_other_tokens": total_other_tokens,
             "total_share_gateway_tokens": total_share_gateway_tokens}
 
 
@@ -78,4 +88,4 @@ for strategy, use_synonyms in [(NORMAL, False), (UP_SAMPLING, False), (DOWN_SAMP
 df = pd.DataFrame.from_dict(rows)
 df.head(10)
 
-df.to_excel(os.path.join(ROOT_DIR, "/data/paper_stats/token_cls_sampling_stats.xlsx"), index=False)
+df.to_excel(os.path.join(ROOT_DIR, "data/paper_stats/token_cls/token_cls_sampling_stats.xlsx"), index=False)
