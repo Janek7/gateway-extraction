@@ -27,7 +27,7 @@ from Ensemble import Ensemble
 from KeywordsApproach import KeywordsApproach
 from PetReader import pet_reader
 from token_data_preparation import preprocess_tokenization_data
-from utils import config, set_seeds
+from utils import config, set_seeds, NumpyEncoder
 from labels import *
 
 logger = logging.getLogger('Keywords Filtered Approach')
@@ -135,7 +135,7 @@ class KeywordsFilteredApproach(KeywordsApproach):
                         content = {}
                     with open(filename, "w") as file:
                         content[doc_name] = log_objects
-                        json.dump(content, file, indent=4)
+                        json.dump(content, file, indent=4, cls=NumpyEncoder)
 
                 else:
                     logger.warning("Can not write to result file when evaluating single documents")
