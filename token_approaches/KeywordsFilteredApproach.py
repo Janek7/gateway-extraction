@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 # add parent dir to sys path for import of modules
+import json
 import os
 import sys
 # find recursively the project root dir
@@ -93,15 +94,18 @@ class KeywordsFilteredApproach(KeywordsApproach):
         def filter_gateways(gateways, gateway_type):
             gateway_type_token_label = TC_LABEL_XOR if gateway_type == XOR_GATEWAY else TC_LABEL_AND
             log_messages = [f" {doc_name} / {gateway_type} ".center(50, '-')]
+            log_objects = []
             filtered_gateways = []
             for i, (sentence_gateways, sentence_token_predictions) in enumerate(zip(gateways, predictions)):
                 filtered_sentence_gateways = []
                 for g in sentence_gateways:
                     if g[2].endswith(gateway_type):
+                        log_object = [i, g, sentence_token_predictions[g[1]]]
                         # check if keyword extracted gateway is not predicted as gateway in token classification
                         if sentence_token_predictions[g[1]] != gateway_type_token_label:
                             log_msg = f"dropped [sent={i}] {gateway_type} {g} " \
                                       f"-> token mismatch: {sentence_token_predictions[g[1]]}"
+                            log_object.append("dropped")
                             if self.mode == LOG:
                                 filtered_sentence_gateways.append(g)
                             elif self.mode == DROP:
@@ -110,16 +114,32 @@ class KeywordsFilteredApproach(KeywordsApproach):
                             log_msg = f"kept [sent={i}] {gateway_type} {g} " \
                                       f"-> token match: {sentence_token_predictions[g[1]]}"
                             filtered_sentence_gateways.append(g)
+                            log_object.append("kept")
                         log_messages.append(log_msg)
+                        log_objects.append(log_object)
                 filtered_gateways.append(filtered_sentence_gateways)
 
             # write filter logs into log file (when it exists -> it only exists in when evaluating all documents)
             if self.filtering_log_level == FILE:
                 if os.path.isdir(self.results_folder):
-                    with open(os.path.join(self.results_folder, f"dropped_{gateway_type}s.txt"), "a") as file:
+                    # 1) txt log file
+                    with open(os.path.join(self.results_folder, f"filtering_{gateway_type}s.txt"), "a") as file:
                         file.write('\n'.join(log_messages) + '\n')
+
+                    # 2) json data file
+                    filename = os.path.join(self.results_folder, f"filtering_{gateway_type}s.json")
+                    if os.path.isfile(filename):
+                        with open(filename, "r+") as file:
+                            content = json.load(file)
+                    else:
+                        content = {}
+                    with open(filename, "w") as file:
+                        content[doc_name] = log_objects
+                        json.dump(content, file, indent=4)
+
                 else:
                     logger.warning("Can not write to result file when evaluating single documents")
+
             # write filter logs into console
             elif self.filtering_log_level == CONSOLE:
                 for msg in log_messages:
