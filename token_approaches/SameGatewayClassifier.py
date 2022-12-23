@@ -80,10 +80,10 @@ class SameGatewayClassifier(tf.keras.Model):
             predictions = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(dropout1)
 
         # for modes that include more features, combine them with hidden layer(s) with BERT output
-        elif args.mode == CONTEXT_INDEX or CONTEXT_LABELS_NGRAM:
+        elif args.mode in [CONTEXT_INDEX, CONTEXT_LABELS_NGRAM, CONTEXT_TEXT_AND_LABELS_NGRAM]:
             if args.mode == CONTEXT_INDEX:
                 additional_information = inputs["indexes"]
-            elif args.mode == CONTEXT_LABELS_NGRAM:
+            elif args.mode in [CONTEXT_LABELS_NGRAM, CONTEXT_TEXT_AND_LABELS_NGRAM]:
                 additional_information = inputs["context_labels"]
             additional_information = tf.cast(additional_information, tf.float32)
             hidden = tf.keras.layers.Concatenate()([dropout1, additional_information])
@@ -93,7 +93,8 @@ class SameGatewayClassifier(tf.keras.Model):
             predictions = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(hidden)
 
         else:
-            raise ValueError(f"mode must be {N_GRAM}, {CONTEXT_NGRAM}, {CONTEXT_INDEX} or {CONTEXT_LABELS_NGRAM}")
+            raise ValueError(f"mode must be {N_GRAM}, {CONTEXT_INDEX}, {CONTEXT_NGRAM}, {CONTEXT_LABELS_NGRAM} or"
+                             f" {CONTEXT_TEXT_AND_LABELS_NGRAM}")
 
         super().__init__(inputs=inputs, outputs=predictions)
 

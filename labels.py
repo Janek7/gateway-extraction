@@ -87,6 +87,7 @@ N_GRAM = 'n_gram'
 CONTEXT_NGRAM = 'context_n_gram'
 CONTEXT_INDEX = 'context_index'
 CONTEXT_LABELS_NGRAM = 'context_labels_n_gram'
+CONTEXT_TEXT_AND_LABELS_NGRAM = 'context_text_and_labels_n_gram'
 
 SGC_CONTEXT_LABEL_PADDING = 0
 SGC_CONTEXT_LABEL_OTHER = 1

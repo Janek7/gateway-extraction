@@ -114,7 +114,7 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, act
     labels = []  # labels (0 or 1)
 
     # A) GENERATE DATA
-    for i, doc_name in enumerate(pet_reader.document_names[:5]):
+    for i, doc_name in enumerate(pet_reader.document_names):
 
         if i % 5 == 0:
             print(f"processed {i} documents")
@@ -294,7 +294,7 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, act
         tokens = _tokenizer(n_gram_tuples, padding=True, return_tensors="tf")
     elif mode == CONTEXT_INDEX:
         tokens = _tokenizer(texts, padding=True, return_tensors='tf')
-    elif mode == CONTEXT_NGRAM:
+    elif mode == CONTEXT_NGRAM or mode == CONTEXT_TEXT_AND_LABELS_NGRAM:
         # tokenize text & pairs separately, because it is not possible to concat triple
         text_tokens = _tokenizer(texts, padding=True, return_tensors='tf')
         n_gram_tokens = _tokenizer(n_gram_tuples, padding=True, return_tensors="tf")
@@ -305,7 +305,8 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, act
         tokens = transformers.BatchEncoding(
             {"input_ids": concatted_input_ids, "attention_mask": concatted_attention_masks})
     else:
-        raise ValueError(f"mode must be {CONTEXT_INDEX}, {CONTEXT_NGRAM} or {N_GRAM}")
+        raise ValueError(f"mode must be {N_GRAM}, {CONTEXT_INDEX}, {CONTEXT_NGRAM}, {CONTEXT_LABELS_NGRAM} or"
+                         f" {CONTEXT_TEXT_AND_LABELS_NGRAM}")
 
     # pad context labels to same fixed length (pad with 0, label for activities = 1, label for other tokens = 2
     max_context = config[SAME_GATEWAY_CLASSIFIER][CONTEXT_LABEL_LENGTH]
