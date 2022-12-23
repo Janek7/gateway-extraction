@@ -260,7 +260,7 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, act
                 text_in_scope = ' '.join([token[4] for token in doc_tokens_flattened
                                           if token[2] in sentences_in_scope])
                 texts.append(text_in_scope)
-                if mode in [N_GRAM, CONTEXT_NGRAM, CONTEXT_LABELS_NGRAM]:
+                if mode in [N_GRAM, CONTEXT_NGRAM, CONTEXT_LABELS_NGRAM, CONTEXT_TEXT_AND_LABELS_NGRAM]:
                     n_gram_tuples.append((get_n_gram(g1), get_n_gram(g2)))
 
                 append_not_token_data()
@@ -283,7 +283,7 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, act
                                               for token in doc_tokens_flattened if token[2] in sentences_in_scope])
 
                     texts.append(text_in_scope)
-                    if mode in [N_GRAM, CONTEXT_NGRAM, CONTEXT_LABELS_NGRAM]:
+                    if mode in [N_GRAM, CONTEXT_NGRAM, CONTEXT_LABELS_NGRAM, CONTEXT_TEXT_AND_LABELS_NGRAM]:
                         n_gram_tuples.append(
                             (get_n_gram(g1, gateways_sample_infos), get_n_gram(g2, gateways_sample_infos)))
 
@@ -410,7 +410,7 @@ if __name__ == '__main__':
     parser.add_argument("--use_synonyms", default=False, type=str, help="Include synonym samples.")
     parser.add_argument("--activity_masking", default=MULTI_MASK, type=str, help="How to include activity data.")
     parser.add_argument("--context_size", default=1, type=int, help="Number of sentences around to include in text.")
-    parser.add_argument("--mode", default=CONTEXT_LABELS_NGRAM, type=str, help="How to include gateway information.")
+    parser.add_argument("--mode", default=CONTEXT_TEXT_AND_LABELS_NGRAM, type=str, help="How to include gateway information.")
     parser.add_argument("--n_gram", default=1, type=int, help="Number of tokens to include for gateway in CONCAT mode.")
     args = parser.parse_args([] if "__file__" not in globals() else None)
 
