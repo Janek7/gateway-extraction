@@ -114,7 +114,7 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, act
     labels = []  # labels (0 or 1)
 
     # A) GENERATE DATA
-    for i, doc_name in enumerate(pet_reader.document_names):
+    for i, doc_name in enumerate(pet_reader.document_names[:5]):
 
         if i % 5 == 0:
             print(f"processed {i} documents")
@@ -259,8 +259,8 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, act
                 # Tokens/Text
                 text_in_scope = ' '.join([token[4] for token in doc_tokens_flattened
                                           if token[2] in sentences_in_scope])
-                texts.append((text_in_scope))
-                if mode == CONTEXT_NGRAM or mode == N_GRAM:
+                texts.append(text_in_scope)
+                if mode in [N_GRAM, CONTEXT_NGRAM, CONTEXT_LABELS_NGRAM]:
                     n_gram_tuples.append((get_n_gram(g1), get_n_gram(g2)))
 
                 append_not_token_data()
@@ -283,7 +283,7 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, act
                                               for token in doc_tokens_flattened if token[2] in sentences_in_scope])
 
                     texts.append(text_in_scope)
-                    if mode == CONTEXT_NGRAM or mode == N_GRAM:
+                    if mode in [N_GRAM, CONTEXT_NGRAM, CONTEXT_LABELS_NGRAM]:
                         n_gram_tuples.append(
                             (get_n_gram(g1, gateways_sample_infos), get_n_gram(g2, gateways_sample_infos)))
 
@@ -307,9 +307,9 @@ def _preprocess_gateway_pairs(gateway_type: str, use_synonyms: bool = False, act
     else:
         raise ValueError(f"mode must be {CONTEXT_INDEX}, {CONTEXT_NGRAM} or {N_GRAM}")
 
-    # pad context labels to same lengths (pad with 0, label for activities = 1, label for other tokens = 2
-    longest_context = max([len(row) for row in context_labels])
-    context_labels_padded = [row + [SGC_CONTEXT_LABEL_PADDING for i in range(longest_context - len(row))]
+    # pad context labels to same fixed length (pad with 0, label for activities = 1, label for other tokens = 2
+    max_context = config[SAME_GATEWAY_CLASSIFIER][CONTEXT_LABEL_LENGTH]
+    context_labels_padded = [row[:max_context] + [SGC_CONTEXT_LABEL_PADDING for i in range(max_context - len(row))]
                              for row in context_labels]
     results = (tokens, tf.constant(indexes), tf.constant(context_labels_padded), tf.constant(labels))
 
@@ -404,12 +404,12 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--batch_size", default=8, type=int, help="Batch size.")
+    parser.add_argument("--batch_size", default=None, type=int, help="Batch size.")
     parser.add_argument("--gateway", default=XOR_GATEWAY, type=str, help="Type of gateway to classify")
     parser.add_argument("--use_synonyms", default=False, type=str, help="Include synonym samples.")
     parser.add_argument("--activity_masking", default=MULTI_MASK, type=str, help="How to include activity data.")
     parser.add_argument("--context_size", default=1, type=int, help="Number of sentences around to include in text.")
-    parser.add_argument("--mode", default=CONTEXT_NGRAM, type=str, help="How to include gateway information.")
+    parser.add_argument("--mode", default=CONTEXT_LABELS_NGRAM, type=str, help="How to include gateway information.")
     parser.add_argument("--n_gram", default=1, type=int, help="Number of tokens to include for gateway in CONCAT mode.")
     args = parser.parse_args([] if "__file__" not in globals() else None)
 
@@ -421,7 +421,7 @@ if __name__ == '__main__':
         data = batch[0]
         labels = batch[1]
         labels_np = batch[1].numpy()
-        break
+        # break
 
     # labels = [x[1].numpy() for x in dataset_full]
     print(Counter(list(labels_np)))

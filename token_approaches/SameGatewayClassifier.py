@@ -62,7 +62,8 @@ class SameGatewayClassifier(tf.keras.Model):
             "input_ids": tf.keras.layers.Input(shape=[None], dtype=tf.int32),
             "attention_mask": tf.keras.layers.Input(shape=[None], dtype=tf.int32),
             "indexes": tf.keras.layers.Input(shape=[2], dtype=tf.int32),
-            "context_labels": tf.keras.layers.Input(shape=[None], dtype=tf.int32),
+            "context_labels": tf.keras.layers.Input(shape=[config[SAME_GATEWAY_CLASSIFIER][CONTEXT_LABEL_LENGTH]],
+                                                    dtype=tf.int32),
         }
 
         if not bert_model:

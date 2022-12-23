@@ -6,6 +6,8 @@ BERT_MODEL_NAME = 'bert-model-name'
 LABEL_SET = 'label-set'
 LABEL_NUMBER = 'label-number'
 NUM_LABELS = 'num-labels'
+SAME_GATEWAY_CLASSIFIER = 'same-gateway-classifier'
+CONTEXT_LABEL_LENGTH = 'context_label_length'
 SYNONYM_SAMPLES_START_NUMBER = 'synonym-samples-start-number'
 
 # B) LABELS FOR KEYWORDSAPPROACH

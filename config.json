@@ -6,5 +6,8 @@
     "label-number": 9,
     "other-labels-weight": 0.1
   },
+  "same-gateway-classifier": {
+    "context_label_length": 350
+  },
   "synonym-samples-start-number": 500
 }
