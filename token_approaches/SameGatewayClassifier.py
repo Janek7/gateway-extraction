@@ -17,7 +17,7 @@ import transformers
 from petreader.labels import XOR_GATEWAY
 
 from token_approaches.same_gateway_data_preparation import create_same_gateway_cls_dataset_full, \
-    create_same_gateway_cls_dataset_cv
+    create_same_gateway_cls_dataset_cv, preprocess_gateway_pair
 from training import cross_validation, full_training
 from labels import *
 from utils import config, generate_args_logdir, set_seeds
@@ -56,6 +56,7 @@ class SameGatewayClassifier(tf.keras.Model):
     binary classification model to classify if two gateways belong to the same gateway construct
     """
     def __init__(self, args: argparse.Namespace, bert_model, train_size: int = None):
+        self.args = args
 
         # A) ARCHITECTURE
         inputs = {
@@ -112,6 +113,25 @@ class SameGatewayClassifier(tf.keras.Model):
                               tf.keras.metrics.Precision(name="precision"), tf.keras.metrics.Recall(name="recall")])
 
         # self.summary()
+
+    def predict(self, doc_name, g1, g2) -> bool:
+        """
+        create predictions for given data
+        :param doc_name: document where gateways belong to
+        :param g1: first gateway of pair to evaluate
+        :param g2: second gateway of pair to evaluate
+        :return: true or false (threshold 0.5 because of binary classification head)
+        """
+
+        # preprocess data
+        tokens, indexes, context_labels = preprocess_gateway_pair(self.args, doc_name, g1, g2)
+        inputs = {
+            "input_ids": tokens["input_ids"],
+            "attention_mask": tokens["attention_mask"],
+            "indexes": indexes,
+            "context_labels": context_labels
+        }
+        return super().predict(inputs) > 0.5
 
 
 def train_routine(args: argparse.Namespace) -> None:
