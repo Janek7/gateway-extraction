@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 # add parent dir to sys path for import of modules
-import json
 import os
 import sys
 # find recursively the project root dir
@@ -10,6 +9,7 @@ while not os.path.exists(os.path.join(parent_dir, "README.md")):
     parent_dir = os.path.abspath(os.path.join(parent_dir, os.pardir))
 sys.path.insert(0, parent_dir)
 
+import json
 import logging
 import os.path
 from typing import List, Tuple

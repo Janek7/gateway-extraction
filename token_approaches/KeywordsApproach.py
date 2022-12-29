@@ -14,7 +14,6 @@ import logging
 import json
 import os
 import shutil
-import itertools
 from datetime import datetime
 from typing import List, Tuple, Optional, Dict
 
@@ -184,7 +183,8 @@ class KeywordsApproach:
         xor_gateways, and_gateways = self.filter_gateways(doc_name, xor_gateways, and_gateways)
 
         # extract related flow relations
-        xor_flows, same_gateway_relations = self._extract_exclusive_flows(doc_activities_enriched, xor_gateways)
+        xor_flows, same_gateway_relations = self._extract_exclusive_flows(doc_activities_enriched, xor_gateways,
+                                                                          doc_name)
         and_flows = self._extract_concurrent_flows(doc_activities_enriched, and_gateways)
 
         # extract flow relations of gold activities and remove the ones involved in gateway flows
@@ -338,11 +338,13 @@ class KeywordsApproach:
         return flow_relations
 
     def _extract_exclusive_flows(self, doc_activity_tokens: List[List[Tuple[str, int]]],
-                                 extracted_gateways: List[List[Tuple[str, int, str]]]) -> Tuple[List[Dict], List[Dict]]:
+                                 extracted_gateways: List[List[Tuple[str, int, str]]],
+                                 doc_name: str = None) -> Tuple[List[Dict], List[Dict]]:
         """
-        extracts sequence flows surrounding exclusive gateways based on rules TODO describe rules
+        extracts sequence flows surrounding exclusive gateways based on rules
         :param doc_activity_tokens: list of activity tokens (word, idx) for each sentence
         :param extracted_gateways: list of own extracted gateway for each sentence
+        :param doc_name: doc_name (used by override of KeywordsSGCApproach)
         :return: list of flow relations as source/target dicts; list of same gateway relations as source/target dicts
         """
         sequence_flows = []
@@ -356,58 +358,45 @@ class KeywordsApproach:
         # contradictory key words. Gateways must be in range of same_xor_gateway_threshold sentences, otherwise they
         # would be seen as separate ones
         if self.xor_rule_c:
-            for i in range(len(gateways) - 1):
-                g1, g2 = gateways[i], gateways[i + 1]
-                # if sentence distances is larger than threshold, reject possible pair
-                if abs(g2[ELEMENT][0] - g1[ELEMENT][0]) > self.same_xor_gateway_threshold:
-                    continue
-                # check for every pair of following gateways if it fits to a gateway pair of contradictory key words
-                # and check that first gateway is at the beginning of a sentence
-                # and check if gateways already matched another pair; possible because of partly same phrase
-                for pattern_gateway_1, pattern_gateway_2 in self._contradictory_gateways:
-                    if g1[ELEMENT][3] == pattern_gateway_1 and g2[ELEMENT][3] == pattern_gateway_2 \
-                            and g1[ELEMENT][1] == 0 \
-                            and ((g1[ELEMENT] not in gateways_involved_contradictory
-                                  and g2[ELEMENT] not in gateways_involved_contradictory)
-                                 or self.multiple_branches_allowed):
-                        gateways_involved.append(g1[ELEMENT])
-                        gateways_involved.append(g2[ELEMENT])
-                        gateways_involved_contradictory.append(g1[ELEMENT])
-                        gateways_involved_contradictory.append(g2[ELEMENT])
+            for g1, g2 in self.extract_same_gateway_pairs(doc_name, gateways, gateways_involved_contradictory):
+                gateways_involved.append(g1[ELEMENT])
+                gateways_involved.append(g2[ELEMENT])
+                gateways_involved_contradictory.append(g1[ELEMENT])
+                gateways_involved_contradictory.append(g2[ELEMENT])
 
-                        # A) find related activities
-                        _, pa_g1, fa_g1, _ = self._get_surrounding_activities(g1, doc_activity_tokens)
-                        _, _, fa_g2, ffa_g2 = self._get_surrounding_activities(g2, doc_activity_tokens)
+                # A) find related activities
+                _, pa_g1, fa_g1, _ = self._get_surrounding_activities(g1, doc_activity_tokens)
+                _, _, fa_g2, ffa_g2 = self._get_surrounding_activities(g2, doc_activity_tokens)
 
-                        # B.1) connect elements to sequence flows
-                        # check if fol. activities of g1 and g2 are equal -> if yes, the first branch is without activity
-                        empty_branch = fa_g1[ELEMENT] == fa_g2[ELEMENT]
-                        # 1) previous activity to first gateway -> split point (if not None because of document start)
-                        if pa_g1[ELEMENT]:
-                            sequence_flows.append(self._merge_flow(pa_g1, g1))
-                        # 2) gateway 1 to following activity and following activity to activity after gateway (second
-                        # following of g2) -> merge point
-                        # if None because of empty branch then directly there
-                        if not empty_branch and fa_g1[ELEMENT]:  # could be None if at document end
-                            sequence_flows.append(self._merge_flow(g1, fa_g1))
-                            if ffa_g2[ELEMENT]:  # could be None if at document end
-                                sequence_flows.append(self._merge_flow(fa_g1, ffa_g2))
-                        elif empty_branch and ffa_g2[ELEMENT]:  # could be None if at document end
-                            sequence_flows.append(self._merge_flow(g1, ffa_g2))
-                        # 3) gateway 2 to following activity and following activity to activity after gateway (second
-                        # following of g2) -> merge point
-                        if fa_g2[ELEMENT]:  # could be None if at document end
-                            sequence_flows.append(self._merge_flow(g2, fa_g2))
-                        if ffa_g2[ELEMENT]:  # could be None if at document end
-                            sequence_flows.append(self._merge_flow(fa_g2, ffa_g2))
+                # B.1) connect elements to sequence flows
+                # check if fol. activities of g1 and g2 are equal -> if yes, the first branch is without activity
+                empty_branch = fa_g1[ELEMENT] == fa_g2[ELEMENT]
+                # 1) previous activity to first gateway -> split point (if not None because of document start)
+                if pa_g1[ELEMENT]:
+                    sequence_flows.append(self._merge_flow(pa_g1, g1))
+                # 2) gateway 1 to following activity and following activity to activity after gateway (second
+                # following of g2) -> merge point
+                # if None because of empty branch then directly there
+                if not empty_branch and fa_g1[ELEMENT]:  # could be None if at document end
+                    sequence_flows.append(self._merge_flow(g1, fa_g1))
+                    if ffa_g2[ELEMENT]:  # could be None if at document end
+                        sequence_flows.append(self._merge_flow(fa_g1, ffa_g2))
+                elif empty_branch and ffa_g2[ELEMENT]:  # could be None if at document end
+                    sequence_flows.append(self._merge_flow(g1, ffa_g2))
+                # 3) gateway 2 to following activity and following activity to activity after gateway (second
+                # following of g2) -> merge point
+                if fa_g2[ELEMENT]:  # could be None if at document end
+                    sequence_flows.append(self._merge_flow(g2, fa_g2))
+                if ffa_g2[ELEMENT]:  # could be None if at document end
+                    sequence_flows.append(self._merge_flow(fa_g2, ffa_g2))
 
-                        # B.2) same gateway flows
-                        same_gateway_relations.append(self._merge_flow(g1, g2))
+                # B.2) same gateway flows
+                same_gateway_relations.append(self._merge_flow(g1, g2))
 
-                        # log gateway frame for later usage in flow merging of whole document
-                        closing = fa_g2 if fa_g2[ELEMENT] else g2
-                        self._log_gateway_frame(g1[ELEMENT][0], g1[ELEMENT][1], g1,
-                                                closing[ELEMENT][0], closing[ELEMENT][1], closing)
+                # log gateway frame for later usage in flow merging of whole document
+                closing = fa_g2 if fa_g2[ELEMENT] else g2
+                self._log_gateway_frame(g1[ELEMENT][0], g1[ELEMENT][1], g1,
+                                        closing[ELEMENT][0], closing[ELEMENT][1], closing)
 
         # RULE 2): exclusive actions of common pattern "... <activity> ... or ... <activity> ..."
         if self.xor_rule_or:
@@ -417,7 +406,8 @@ class KeywordsApproach:
                     ppa, pa, fa, ffa = self._get_surrounding_activities(g, doc_activity_tokens)
 
                     if pa[ELEMENT] and fa[ELEMENT]:  # check if exist because of document end/start
-                        if pa[ELEMENT][0] == g[ELEMENT][0] and fa[ELEMENT][0] == g[ELEMENT][0]:  # check if in same sentence
+                        if pa[ELEMENT][0] == g[ELEMENT][0] and fa[ELEMENT][0] == g[ELEMENT][
+                            0]:  # check if in same sentence
 
                             if pa[ELEMENT] is None or fa[ELEMENT] is None:
                                 # if not surrounding activities are given, do not wire anything; TODO: maybe drop gateway
@@ -508,6 +498,32 @@ class KeywordsApproach:
                         pass  # TODO: remove gateway if no rule for extracting flows could be applied
 
         return sequence_flows, same_gateway_relations
+
+    def extract_same_gateway_pairs(self, doc_name: str, gateways: List, gateways_involved_contradictory: List):
+        """
+        extracts a list of same gateway relations from a list of subsequent gateways using a RULE BASED approach
+        :param doc_name: document name
+        :param gateways: list of gateways
+        :param gateways_involved_contradictory: temp list of gateways already involved into a contradictory gateway
+        :return: same gateway relations as a list of gateway relations
+        """
+        same_gateway_pairs = []
+        for i in range(len(gateways) - 1):
+            g1, g2 = gateways[i], gateways[i + 1]
+            # if sentence distances is larger than threshold, reject possible pair
+            if abs(g2[ELEMENT][0] - g1[ELEMENT][0]) > self.same_xor_gateway_threshold:
+                continue
+            # check for every pair of following gateways if it fits to a gateway pair of contradictory key words
+            # and check that first gateway is at the beginning of a sentence
+            # and check if gateways already matched another pair; possible because of partly same phrase
+            for pattern_gateway_1, pattern_gateway_2 in self._contradictory_gateways:
+                if g1[ELEMENT][3] == pattern_gateway_1 and g2[ELEMENT][3] == pattern_gateway_2 \
+                        and g1[ELEMENT][1] == 0 \
+                        and ((g1[ELEMENT] not in gateways_involved_contradictory
+                              and g2[ELEMENT] not in gateways_involved_contradictory)
+                             or self.multiple_branches_allowed):
+                    same_gateway_pairs.append((g1, g2))
+        return same_gateway_pairs
 
     def _extract_concurrent_flows(self, doc_activity_tokens: List[List[Tuple[str, int]]],
                                   extracted_gateways: List[List[Tuple[str, int, str]]]) -> List[Dict]:
@@ -894,10 +910,10 @@ if __name__ == '__main__':
     #                                     xor_rule_c=True, xor_rule_op=True, xor_rule_or=True)
     # keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
 
-
     if False:
-        keyword_approach = KeywordsApproach(approach_name='key_words=custom - sg_threshold=1 - multiple_branches_allowed=True',
-                                            keywords=CUSTOM, same_xor_gateway_threshold=1, multiple_branches_allowed=True)
+        keyword_approach = KeywordsApproach(
+            approach_name='key_words=custom - sg_threshold=1 - multiple_branches_allowed=True',
+            keywords=CUSTOM, same_xor_gateway_threshold=1, multiple_branches_allowed=True)
         keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
 
     # 'doc-1.1' for and gateway key_words_sets_literature_contradictory_product_t1
