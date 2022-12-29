@@ -15,7 +15,9 @@ from typing import List
 
 import tensorflow as tf
 import transformers
+import numpy as np
 
+from Ensemble import Ensemble
 from token_approaches.token_data_preparation import create_token_cls_dataset_full, create_token_cls_dataset_cv
 from training import cross_validation, full_training
 from metrics import *
@@ -106,6 +108,30 @@ class GatewayTokenClassifier(tf.keras.Model):
         :return: numpy array of predictions
         """
         return super().predict({"input_ids": tokens["input_ids"], "attention_mask": tokens["attention_mask"]})
+
+
+class GTCEnsemble(Ensemble):
+    """
+    Ensemble (seeds) of token classifier model
+    """
+
+    def __init__(self, seeds: List = None, ensemble_path: str = None, es_monitor: str = 'val_loss',
+                 seed_limit: int = None, **kwargs) -> None:
+        """
+        see super class for param description
+        override for fixing model class
+        """
+        super().__init__(GatewayTokenClassifier, seeds, ensemble_path, es_monitor, seed_limit, **kwargs)
+
+    def predict(self, tokens: transformers.BatchEncoding) -> np.ndarray:
+        """
+        create predictions for given data with each model and average results on token axis
+        :param tokens: tokens as BatchEncoding
+        :return: numpy array of averaged predictions
+        """
+        predictions = [model.predict(tokens=tokens) for model in self.models]
+        predictions_averaged = np.mean(predictions, axis=0)
+        return predictions_averaged
 
 
 def convert_predictions_into_labels(predictions: np.ndarray, word_ids: List[List[int]]) -> List[List[int]]:

@@ -5,7 +5,6 @@ from typing import List
 
 import numpy as np
 import tensorflow as tf
-import transformers
 
 from utils import set_seeds
 
@@ -13,6 +12,11 @@ logger = logging.getLogger('Gateway Token Classifier Ensemble')
 
 
 class Ensemble:
+
+    """
+    class for creating a ensemble of models of different seeds
+    averaged predictions is implemented with custuom methods in subclasses
+    """
 
     def __init__(self, model_class: type, seeds: List = None, ensemble_path: str = None, es_monitor: str = 'val_loss',
                  seed_limit: int = None, **kwargs) -> None:
@@ -105,13 +109,3 @@ class Ensemble:
             # record last epoch value for each seed as a list
             history_merged.history[f"seeds-last_epoch-{metric}"] = [round(h.history[metric][-1], 4) for h in histories]
         return history_merged
-
-    def predict(self, tokens: transformers.BatchEncoding) -> np.ndarray:
-        """
-        create predictions for given data with each model and average results on token axis
-        :param tokens: tokens as BatchEncoding
-        :return: numpy array of averaged predictions
-        """
-        predictions = [model.predict(tokens=tokens) for model in self.models]
-        predictions_averaged = np.mean(predictions, axis=0)
-        return predictions_averaged

@@ -11,11 +11,14 @@ sys.path.insert(0, parent_dir)
 
 import argparse
 import logging
+from typing import List
 
 import tensorflow as tf
 import transformers
+import numpy as np
 from petreader.labels import XOR_GATEWAY
 
+from Ensemble import Ensemble
 from token_approaches.same_gateway_data_preparation import create_same_gateway_cls_dataset_full, \
     create_same_gateway_cls_dataset_cv, preprocess_gateway_pair
 from training import cross_validation, full_training
@@ -114,15 +117,14 @@ class SameGatewayClassifier(tf.keras.Model):
 
         # self.summary()
 
-    def predict(self, doc_name, g1, g2) -> bool:
+    def classify_pair(self, doc_name, g1, g2) -> np.float32:
         """
-        create predictions for given data
+        create prediction for given data as number
         :param doc_name: document where gateways belong to
         :param g1: first gateway of pair to evaluate
         :param g2: second gateway of pair to evaluate
         :return: true or false (threshold 0.5 because of binary classification head)
         """
-
         # preprocess data
         tokens, indexes, context_labels = preprocess_gateway_pair(self.args, doc_name, g1, g2)
         inputs = {
@@ -131,7 +133,41 @@ class SameGatewayClassifier(tf.keras.Model):
             "indexes": indexes,
             "context_labels": context_labels
         }
-        return super().predict(inputs) > 0.5
+        return super().predict(inputs)[0][0]
+
+    def classify_pair_bool(self, doc_name, g1, g2) -> bool:
+        """ create prediction for given data as number """
+        return self.classify_pair(doc_name, g1, g2) > 0.5
+
+
+class SGCEnsemble(Ensemble):
+    """
+    Ensemble (seeds) of same gateway classification model
+    """
+
+    def __init__(self, seeds: List = None, ensemble_path: str = None, es_monitor: str = 'val_loss',
+                 seed_limit: int = None, **kwargs) -> None:
+        """
+        see super class for param description
+        override for fixing model class
+        """
+        super().__init__(SameGatewayClassifier, seeds, ensemble_path, es_monitor, seed_limit, **kwargs)
+
+    def classify_pair(self, doc_name, g1, g2) -> np.float32:
+        """
+        create predictions for given data with each model as number
+        :param doc_name: document where gateways belong to
+        :param g1: first gateway of pair to evaluate
+        :param g2: second gateway of pair to evaluate
+        :return: true or false (threshold 0.5 because of binary classification head)
+        """
+        predictions = [model.classify_pair(doc_name, g1, g2) for model in self.models]
+        predictions_averaged = np.mean(predictions, axis=0)
+        return predictions_averaged
+
+    def classify_pair_bool(self, doc_name, g1, g2) -> bool:
+        """ create prediction for given data as number """
+        return self.classify_pair(doc_name, g1, g2) > 0.5
 
 
 def train_routine(args: argparse.Namespace) -> None:
