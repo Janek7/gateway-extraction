@@ -22,9 +22,8 @@ config.gpu_options.allow_growth = True
 session = tf.compat.v1.Session(config=config)
 tf.compat.v1.keras.backend.set_session(session)
 
-from GatewayTokenClassifier import GatewayTokenClassifier, convert_predictions_into_labels
-from Ensemble import Ensemble
-from KeywordsApproach import KeywordsApproach
+from token_approaches.GatewayTokenClassifier import GatewayTokenClassifier, GTCEnsemble, convert_predictions_into_labels
+from token_approaches.KeywordsApproach import KeywordsApproach
 from PetReader import pet_reader
 from token_data_preparation import preprocess_tokenization_data
 from utils import config, set_seeds, NumpyEncoder
@@ -67,8 +66,7 @@ class KeywordsFilteredApproach(KeywordsApproach):
                          multiple_branches_allowed=multiple_branches_allowed, output_format=output_format,
                          output_folder=output_folder,
                          xor_rule_c=xor_rule_c, xor_rule_or=xor_rule_or, xor_rule_op=xor_rule_op)
-        self.token_classifier = Ensemble(args=None, model_class=GatewayTokenClassifier, ensemble_path=ensemble_path,
-                                         seed_limit=seed_limit)
+        self.token_classifier = GTCEnsemble(args=None, ensemble_path=ensemble_path, seed_limit=seed_limit)
         set_seeds(config[SEED], "Reset after initialization of GatewayTokenClassifierEnsemble")
         self.mode = mode
         self.filtering_log_level = filtering_log_level
