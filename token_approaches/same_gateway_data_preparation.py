@@ -348,7 +348,7 @@ def _prepare_dataset_sg(cache_path: str, pairs: List[Tuple], mode: str, use_syno
                               results[2], results[3])
 
 
-def create_same_gateway_dataset_full(gateway_type: str, args: argparse.Namespace) -> tf.data.Dataset:
+def create_same_gateway_cls_dataset_full(gateway_type: str, args: argparse.Namespace) -> tf.data.Dataset:
     """
     create one training dataset of the whole data without separating a dev set
     :param gateway_type: type of gateway to extract data for (XOR_GATEWAY or AND_GATEWAY)
@@ -516,7 +516,7 @@ if __name__ == '__main__':
             print(f"Fold {i}: train {len(train)} / dev {len(dev)}")
 
     if True:
-        full_dataset_sg = create_same_gateway_dataset_full(XOR_GATEWAY, args_sg)
+        full_dataset_sg = create_same_gateway_cls_dataset_full(XOR_GATEWAY, args_sg)
         print(f"Full dataset size: {len(full_dataset_sg)}")
 
     # tokens, indexes, context_labels

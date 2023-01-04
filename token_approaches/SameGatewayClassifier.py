@@ -183,12 +183,12 @@ def train_routine(args: argparse.Namespace) -> None:
 
     # cross validation
     if args.routine == 'cv':
-        folded_datasets = create_same_gateway_cls_dataset_cv(args.gateway, args, shuffle=True)
+        folded_datasets = create_same_gateway_cls_dataset_cv(args.gateway, args)
         cross_validation(args, SameGatewayClassifier, folded_datasets)
 
     # full training without validation
     elif args.routine == 'ft':
-        train = create_same_gateway_cls_dataset_full(args.gateway, args, shuffle=True)
+        train = create_same_gateway_cls_dataset_full(args.gateway, args)
         full_training(args, SameGatewayClassifier, train)
 
     else:
