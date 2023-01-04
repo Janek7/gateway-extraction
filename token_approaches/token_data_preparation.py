@@ -20,7 +20,7 @@ from petreader.labels import *
 
 from PetReader import pet_reader
 from labels import *
-from token_approaches.token_data_augmentation import get_synonym_samples
+from token_approaches.token_data_augmentation import get_synonym_samples, get_synonyms_of_original_samples
 from utils import config, CURRENT_USED_SEED
 
 logger = logging.getLogger('Data Preparation [Token CLS]')
@@ -28,44 +28,37 @@ logger = logging.getLogger('Data Preparation [Token CLS]')
 
 _tokenizer = transformers.AutoTokenizer.from_pretrained(config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME])
 assert isinstance(_tokenizer, transformers.PreTrainedTokenizerFast)
-all_sample_ids = pet_reader.token_dataset.GetRandomizedSampleNumbers()
+
+# load synonym data
+synonym_samples = get_synonym_samples()
+synonyms_of_original_samples = get_synonyms_of_original_samples()
 
 
-# A) DATA SAMPLING
+# SAMPLING STRATEGIES -> provide list of sample IDs to use
 
-def get_samples(strategy: str = None, use_synonyms: bool = False) -> List[int]:
+def _get_sample_ids(strategy: str = None) -> List[int]:
     """
     unified method to get list of samples to include in a dataset; which samples is controlled by strategy parameter
     use use_synonyms=True only with "normal" and "only gateway" strategy
     :param strategy: strategy which samples to include
-    :param use_synonyms: flag if synonym samples should be included;
-                         WARNING: True will change up/down sampling logic -> DO NOT USE TOGETHER
     :return: list of sample numbers
     """
-    # extend all sample ids with created synonym sample ids
-    global all_sample_ids
-    all_sample_ids_original = all_sample_ids
-    if use_synonyms:
-        synonym_samples = get_synonym_samples()
-        all_sample_ids = all_sample_ids + list(synonym_samples.keys())
+    all_sample_ids = pet_reader.token_dataset.GetRandomizedSampleNumbers()
 
     # modify all_sample_ids list based on sampling strategy
     if strategy == NORMAL or strategy is None:
-        result = all_sample_ids
+        return all_sample_ids
     elif strategy == UP_SAMPLING:
-        result = _up_sample_gateway_samples()
+        return _up_sample_gateway_samples(all_sample_ids)
     elif strategy == DOWN_SAMPLING:
-        result = _down_sample_other_samples()
+        return _down_sample_other_samples(all_sample_ids)
     elif strategy == ONLY_GATEWAYS:
-        result = _only_gateway_samples(use_synonyms=use_synonyms)
+        return _only_gateway_samples()
     else:
         raise ValueError(f"{strategy} is not a valid sampling strategy")
 
-    all_sample_ids = all_sample_ids_original
-    return result
 
-
-def _up_sample_gateway_samples() -> List[int]:
+def _up_sample_gateway_samples(all_sample_ids: List[int]) -> List[int]:
     """
     create a (shuffled) list of samples where gateway samples get upsampled to number of samples without gateway
     :return: list of sample ids
@@ -87,7 +80,7 @@ def _up_sample_gateway_samples() -> List[int]:
     return up_sampled_samples
 
 
-def _down_sample_other_samples() -> List[int]:
+def _down_sample_other_samples(all_sample_ids: List[int]) -> List[int]:
     """
     create a (shuffled) list of samples where samples without gateway get down sampled to the number of samples with
     gateway
@@ -112,50 +105,70 @@ def _down_sample_other_samples() -> List[int]:
     return down_sampled_samples
 
 
-def _only_gateway_samples(use_synonyms: bool = False) -> List[int]:
+def _only_gateway_samples() -> List[int]:
     """
     return filtered list of samples ids that contain at least one gateway token
-    :param use_synonyms: flag if synonym samples should be included
     """
     only_gateway_samples = [s for s in pet_reader.token_dataset.GetRandomizedSampleNumbers()
                             if f"B-{XOR_GATEWAY}" in pet_reader.token_dataset.GetSampleDictWithNerLabels(s)["ner-tags"]
                             or f"B-{AND_GATEWAY}" in pet_reader.token_dataset.GetSampleDictWithNerLabels(s)["ner-tags"]]
-    if use_synonyms:
-        synonym_samples = get_synonym_samples()
-        only_gateway_samples.extend(list(synonym_samples.keys()))
     return only_gateway_samples
 
 
-# B) DATASET CREATION
+# OTHER UTILITY METHODS
 
 
-def preprocess_tokenization_data(sample_numbers: List = None, sampling_strategy: str = None, use_synonyms: bool = False,
-                                 other_labels_weight: float = 0.1, label_set: str = 'filtered',
-                                 activity_masking: str = None)\
-    -> Tuple[BatchEncoding, tf.Tensor, tf.Tensor, List[List[int]]]:
+def _create_dataset(input_ids: tf.Tensor, attention_masks: tf.Tensor, labels: tf.Tensor, sample_weights: tf.Tensor) \
+        -> tf.data.Dataset:
+    return tf.data.Dataset.from_tensor_slices(({'input_ids': input_ids, 'attention_mask': attention_masks},
+                                               labels,
+                                               sample_weights))
+
+
+def _mask_activities(sample_dicts: List[Dict], masking_strategy: str) -> List[Dict]:
+    """
+    mask activities with "dummy", most common activity or most common activities (if multiple in one sentence)
+    :param sample_dicts: list of samples represented as dictionaries (including tokens and ner-tags)
+    :param masking_strategy: how activities should be asked
+    :return: list of sample dictionaries with masked tokens
+    """
+    for dictionary in sample_dicts:
+        found_activities = 0
+        masked_tokens = []
+        for token, tag in zip(dictionary["tokens"], dictionary["ner-tags"]):
+            if tag.endswith(ACTIVITY):
+                if masking_strategy == DUMMY:
+                    token = 'activity'
+                elif masking_strategy == SINGLE_MASK:
+                    token = pet_reader.most_common_activities[0]
+                elif masking_strategy == MULTI_MASK:
+                    token = pet_reader.most_common_activities[found_activities]
+                found_activities += 1
+            masked_tokens.append(token)
+        dictionary["tokens"] = masked_tokens
+    return sample_dicts
+
+
+# DATA GENERATION
+
+
+def _prepare_data_tc(sample_numbers: List[int], use_synonyms: bool = False, other_labels_weight: float = 0.1,
+                     label_set: str = 'filtered', activity_masking: str = None) \
+        -> Tuple[BatchEncoding, tf.Tensor, tf.Tensor, List[List[int]]]:
     """
     create token classification samples from whole PET dataset -> samples (tokens) and their labels and weights for
     usage in a tensorflow dataset
     include either samples from sample_numbers list OR sample samples with sampling_strategy
     :param sample_numbers: list of concrete sample numbers
-    :param sampling_strategy: strategy how to sample samples: 'normal', 'up', 'down', 'og' (only gateways)
     :param use_synonyms: flag if synonym samples should be included;
     :param other_labels_weight: sample weight to assign samples with tokens != gateway tokens
     :param label_set: flag if to use all labels ('all') or only gateway labels and one rest label ('filtered')
     :param activity_masking: flag how to use activity data in tokenization
     :return: tokens, labels & weights as tensors, original word ids (2-dim integer list)
     """
-    if sample_numbers and not sampling_strategy:
-        sample_numbers = sample_numbers
-    elif not sample_numbers and sampling_strategy:
-        sample_numbers = get_samples(strategy=sampling_strategy, use_synonyms=use_synonyms)
-    else:
-        raise ValueError("Tokenization either based on conrete samples OR sampling strategy from whole data (not both)")
 
     # 1) prepare sample data
     sample_dicts = []
-    if use_synonyms:
-        synonym_samples = get_synonym_samples()
     for sample_number in sample_numbers:
         # in case sample is normal sample
         if sample_number < config[SYNONYM_SAMPLES_START_NUMBER]:
@@ -233,112 +246,114 @@ def preprocess_tokenization_data(sample_numbers: List = None, sampling_strategy:
     return dataset_tokens, dataset_labels, dataset_sample_weights, dataset_word_ids
 
 
-def _mask_activities(sample_dicts: List[Dict], masking_strategy: str) -> List[Dict]:
+def create_token_cls_dataset_full(args: argparse.Namespace) -> tf.data.Dataset:
     """
-    mask activities with "dummy", most common activity or most common activities (if multiple in one sentence)
-    :param sample_dicts: list of samples represented as dictionaries (including tokens and ner-tags)
-    :param masking_strategy: how activities should be asked
-    :return: list of sample dictionaries with masked tokens
-    """
-    for dictionary in sample_dicts:
-        found_activities = 0
-        masked_tokens = []
-        for token, tag in zip(dictionary["tokens"], dictionary["ner-tags"]):
-            if tag.endswith(ACTIVITY):
-                if masking_strategy == DUMMY:
-                    token = 'activity'
-                elif masking_strategy == SINGLE_MASK:
-                    token = pet_reader.most_common_activities[0]
-                elif masking_strategy == MULTI_MASK:
-                    token = pet_reader.most_common_activities[found_activities]
-                found_activities += 1
-            masked_tokens.append(token)
-        dictionary["tokens"] = masked_tokens
-    return sample_dicts
-
-
-def _shuffle_tokenization_data(input_ids: tf.Tensor, attention_masks: tf.Tensor, labels: tf.Tensor,
-                               sample_weights: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor]:
-    """
-    shuffle tensors of tokenized data; seed for shuffling is seed_general from args
-    :return: data tensors in same format but shuffled
-    """
-    indices = tf.range(start=0, limit=input_ids.shape[0], dtype=tf.int32)
-    shuffled_indices = tf.random.shuffle(indices)
-    input_ids = tf.gather(input_ids, shuffled_indices)
-    attention_masks = tf.gather(attention_masks, shuffled_indices)
-    labels = tf.gather(labels, shuffled_indices)
-    sample_weights = tf.gather(sample_weights, shuffled_indices)
-    return input_ids, attention_masks, labels, sample_weights
-
-
-def _create_dataset(input_ids: tf.Tensor, attention_masks: tf.Tensor, labels: tf.Tensor, sample_weights: tf.Tensor)\
-        -> tf.data.Dataset:
-    return tf.data.Dataset.from_tensor_slices(({'input_ids': input_ids, 'attention_mask': attention_masks},
-                                               labels,
-                                               sample_weights))
-
-
-def create_token_cls_dataset_full(args: argparse.Namespace, shuffle: bool = True) -> tf.data.Dataset:
-    """
-    create one training set of the whole data without separating a dev set
+    create one training dataset of the whole data without separating a dev set
     :param args: args namespace
-    :param shuffle: flag if shuffle the data
     :return: one tensorflow dataset
     """
-    logger.info(f"Create full training dataset dataset (other_labels_weight: {args.other_labels_weight} - "
-                f"labels: {args.labels} - batch_size: {args.batch_size} - shuffle: {shuffle})")
-    tokens, labels, sample_weights, _ = preprocess_tokenization_data(use_synonyms=args.use_synonyms,
-                                                                     sampling_strategy=args.sampling_strategy,
-                                                                     other_labels_weight=args.other_labels_weight,
-                                                                     label_set=args.labels,
-                                                                     activity_masking=args.activity_masking)
-    dataset = _create_dataset(tokens["input_ids"], tokens["attention_mask"], labels, sample_weights)
+    logger.info(f"Create full token classification dataset (batch_size={args.batch_size})")
+
+    # load samples to include in dataset
+    sample_ids = _get_sample_ids(strategy=args.sampling_strategy)
+    random.shuffle(sample_ids)
+    logger.info(
+        f"Generate token data with params: sampling_strategy={args.sampling_strategy} - use_synonyms={args.use_synonyms}"
+        f" - labels={args.labels} - other_labels_weight={args.other_labels_weight}")
+    logger.info(f"Basis are {len(sample_ids)} samples from strategy '{args.sampling_strategy}'")
+
+    # include synonyms in samples
+    samples_number_old = len(sample_ids)
+    if args.use_synonyms:
+        synonym_samples = [synonyms for original_sample_id, synonyms in synonyms_of_original_samples.items()
+                           if original_sample_id in sample_ids]
+        synonym_samples_flattened = [item for sublist in synonym_samples for item in sublist]
+        sample_ids += synonym_samples_flattened
+        random.shuffle(sample_ids)
+
+    logger.info(
+        f"Final Dataset -> {len(sample_ids)}{f' ({samples_number_old} without syn.)' if args.use_synonyms else ''}")
+
+    # create data based on number of samples and transform to tf dataset
+    tokens, labels, sample_weights, _ = _prepare_data_tc(
+        sample_numbers=sample_ids,
+        use_synonyms=args.use_synonyms,
+        other_labels_weight=args.other_labels_weight,
+        label_set=args.labels,
+        activity_masking=args.activity_masking
+    )
+
+    # create and batch tf dataset
+    tf_dataset = _create_dataset(tokens["input_ids"], tokens["attention_mask"], labels, sample_weights)
     if args.batch_size:
-        dataset = dataset.batch(args.batch_size)
-    return dataset
+        tf_dataset = tf_dataset.batch(args.batch_size)
+
+    return tf_dataset
 
 
-def create_token_cls_dataset_cv(args: argparse.Namespace, shuffle: bool = True) \
-        -> List[Tuple[tf.data.Dataset, tf.data.Dataset]]:
+def create_token_cls_dataset_cv(args: argparse.Namespace) -> List[Tuple[tf.data.Dataset, tf.data.Dataset]]:
     """
     create the dataset for token classification with huggingface transformers bert like models
     split into kfolds splits to use for cross validation
     :param args: args namespace
-    :param shuffle: flag if shuffle the data
     :return: list of tuples (train, dev) as tf.data.Dataset objects
     """
-    logger.info(f"Create CV (folds={args.folds}) dataset (other_labels_weight: {args.other_labels_weight} "
-                f"- labels: {args.labels} - batch_size: {args.batch_size} - shuffle: {shuffle})")
-    tokens, labels, sample_weights, _ = preprocess_tokenization_data(sampling_strategy=args.sampling_strategy,
-                                                                     use_synonyms=args.use_synonyms,
-                                                                     other_labels_weight=args.other_labels_weight,
-                                                                     label_set=args.labels,
-                                                                     activity_masking=args.activity_masking)
-    input_ids, attention_masks = tokens['input_ids'], tokens['attention_mask']
+    logger.info(f"Create token classification cv dataset (folds={args.folds} - batch_size={args.batch_size})")
+    # load samples to include in dataset
+    sample_ids = _get_sample_ids(strategy=args.sampling_strategy)
+    random.shuffle(sample_ids)
+    logger.info(
+        f"Generate token data with params: sampling_strategy={args.sampling_strategy} - use_synonyms={args.use_synonyms}"
+        f" - labels={args.labels} - other_labels_weight={args.other_labels_weight}")
+    logger.info(f"Basis are {len(sample_ids)} samples from strategy '{args.sampling_strategy}'")
 
-    # shuffle inputs before splitting in train/dev
-    if shuffle:
-        input_ids, attention_masks, labels, sample_weights = _shuffle_tokenization_data(input_ids, attention_masks,
-                                                                                        labels, sample_weights)
-
-    # Define the K-fold Cross Validator
-    kfold = KFold(n_splits=args.folds)
-
-    # create folds
+    # create datasets for k fold cross validation
     folded_datasets = []
-    for train, test in kfold.split(input_ids):
-        train_tf_dataset = _create_dataset(tf.gather(input_ids, train),
-                                           tf.gather(attention_masks, train),
-                                           tf.gather(labels, train),
-                                           tf.gather(sample_weights, train))
-        dev_tf_dataset = _create_dataset(tf.gather(input_ids, test),
-                                         tf.gather(attention_masks, test),
-                                         tf.gather(labels, test),
-                                         tf.gather(sample_weights, test))
+
+    kfold = KFold(n_splits=5)
+    for i, (train, dev) in enumerate(kfold.split(sample_ids)):
+
+        train_samples = [p for j, p in enumerate(sample_ids) if j in train]
+        dev_samples = [p for j, p in enumerate(sample_ids) if j in dev]
+
+        # include synonyms in train samples
+        train_samples_number_old = len(train_samples)
+        if args.use_synonyms:
+            train_synonym_samples = [synonyms for original_sample_id, synonyms in synonyms_of_original_samples.items()
+                                     if original_sample_id in train_samples]
+            train_synonym_samples_flattened = [item for sublist in train_synonym_samples for item in sublist]
+            train_samples += train_synonym_samples_flattened
+            random.shuffle(train_samples)
+
+        logger.info(
+            f"Fold {i} -> {len(train_samples)}{f' ({train_samples_number_old} without syn.)' if args.use_synonyms else ''}"
+            f"/ {len(dev_samples)}")
+
+        # create train data based on number of samples and transform to tf dataset
+        tokens, labels, sample_weights, _ = _prepare_data_tc(
+            sample_numbers=train_samples,
+            use_synonyms=args.use_synonyms,
+            other_labels_weight=args.other_labels_weight,
+            label_set=args.labels,
+            activity_masking=args.activity_masking
+        )
+        train_tf_dataset = _create_dataset(tokens["input_ids"], tokens["attention_mask"], labels, sample_weights)
+
+        # create dev data based on number of samples and transform to tf dataset
+        tokens, labels, sample_weights, _ = _prepare_data_tc(
+            sample_numbers=dev_samples,
+            use_synonyms=False,
+            other_labels_weight=args.other_labels_weight,
+            label_set=args.labels,
+            activity_masking=args.activity_masking
+        )
+        dev_tf_dataset = _create_dataset(tokens["input_ids"], tokens["attention_mask"], labels, sample_weights)
+
+        # batch both datasets
         if args.batch_size:
             train_tf_dataset = train_tf_dataset.batch(args.batch_size)
             dev_tf_dataset = dev_tf_dataset.batch(args.batch_size)
+
         folded_datasets.append((train_tf_dataset, dev_tf_dataset))
 
     return folded_datasets
@@ -347,7 +362,24 @@ def create_token_cls_dataset_cv(args: argparse.Namespace, shuffle: bool = True) 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
 
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("--batch_size", default=8, type=int, help="Batch size.")
+    parser.add_argument("--folds", default=2, type=int, help="Number of folds in cross validation routine.")
+    parser.add_argument("--labels", default=ALL, type=str, help="Label set to use.")
+    parser.add_argument("--other_labels_weight", default=0.1, type=float, help="Sample weight for non gateway tokens.")
+    parser.add_argument("--sampling_strategy", default=NORMAL, type=str, help="How to sample samples.")
+    parser.add_argument("--use_synonyms", default=True, type=str, help="Include synonym samples.")
+    parser.add_argument("--activity_masking", default=NOT, type=str, help="How to include activity data.")
+
+    args_tc = parser.parse_args([] if "__file__" not in globals() else None)
+
     if True:
-        samples = get_samples(strategy="og", use_synonyms=True)
-        print(len(samples))
+        folded_datasets_tc = create_token_cls_dataset_cv(args_tc)
+        for i, (train, dev) in enumerate(folded_datasets_tc):
+            print(f"Fold {i}: train {len(train)} / dev {len(dev)}")
+
+    if True:
+        full_dataset_tc = create_token_cls_dataset_full(args_tc)
+        print(f"Full dataset size: {len(full_dataset_tc)}")
 
