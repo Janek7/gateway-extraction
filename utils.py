@@ -34,6 +34,14 @@ def read_config() -> Dict:
 config = read_config()
 
 
+class GatewayExtractionException(Exception):
+    """
+    custom exception
+    """
+    def __init__(self, message):
+        super().__init__(message)
+
+
 def get_keywords(keywords: str, token_flattened: bool = False) -> Tuple[List[str], List[str]]:
     """
     load and return key word lists based on passed variant
