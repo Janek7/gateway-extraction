@@ -81,14 +81,21 @@ class KeywordsSGCApproach(KeywordsApproach):
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     set_seeds(config[SEED], "Set first seed")
-    keyword_filtered_approach = KeywordsSGCApproach(approach_name='key_words_literature_sg_classified_{model_params}',
-                                                    # three cases to evaluate with filter model
-                                                    keywords=LITERATURE,
-                                                    # keywords=CUSTOM,
-                                                    # keywords=CUSTOM, contradictory_keywords=GOLD, same_xor_gateway_threshold=3, multiple_branches_allowed=True, seed_limit=15,
-                                                    ensemble_path="?")
-    if True:
+
+    # two cases to evaluate with sg classification model
+    test_cases = [('literature', LITERATURE), ('custom', CUSTOM)]
+
+    for approach_name, keywords in test_cases:
+        keyword_filtered_approach = KeywordsSGCApproach(
+            # params of keyword approach
+            approach_name=f'key_words_{approach_name}_sg_classified_[context_text_labels_ngram_c1_n0_syn]',
+            keywords=keywords,
+            # params of token cls model
+            ensemble_path="/home/japutz/master-thesis/data/final_models/SameGatewayClassifier-2023-01-05_075226-am=not,bs=8,cs=1,d=0.2,e=True,e=10,f=2,g=XOR Gateway,hl=32,lr=2e-05,m=context_text_and_labels_n_gram,ng=0,r=ft,sg=42,se=10-20,sw=True,us=True,w=0"
+        )
         keyword_filtered_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
+
+
     if False:
         doc_name = 'doc-3.2'
         xor_gateways, and_gateways, doc_flows, same_gateway_relations = keyword_filtered_approach.process_document(

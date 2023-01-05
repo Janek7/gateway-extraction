@@ -153,16 +153,26 @@ class KeywordsFilteredApproach(KeywordsApproach):
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     set_seeds(config[SEED], "Set first seed")
-    keyword_filtered_approach = KeywordsFilteredApproach(approach_name='key_words_literature_tc_filtered_og',
-                                                         # three cases to evaluate with filter model
-                                                         keywords=LITERATURE,
-                                                         # keywords=CUSTOM,
-                                                         # keywords=CUSTOM, contradictory_keywords=GOLD, same_xor_gateway_threshold=3, multiple_branches_allowed=True, seed_limit=15,
 
-                                                         ensemble_path="/home/japutz/master-thesis/data/final_models/token_cls/GatewayTokenClassifier-2023-01-05_075214-am=not,bs=8,e=True,e=1,f=2,l=all,olw=0.1,r=ft,ss=og,sg=42,se=0-20,sw=True,us=False",
-                                                         mode=DROP, filtering_log_level=FILE)
-    if True:
+    # three cases to evaluate with filter model
+    test_cases = [
+        ('literature', {"keywords": LITERATURE}),
+        ('custom', {"keywords": CUSTOM}),
+        ('literature', {"keywords": CUSTOM, "contradictory_keywords": GOLD, "same_xor_gateway_threshold": 3,
+                        "multiple_branches_allowed": True, "seed_limit": 15})
+    ]
+
+    for approach_name, params in test_cases:
+        keyword_filtered_approach = KeywordsFilteredApproach(
+            # params of keyword approach
+            approach_name=f'key_words_{approach_name}_tc_filtered_[all_0.1_og]',
+            **params,
+            # params of sg cls model
+            ensemble_path="/home/japutz/master-thesis/data/final_models/token_cls/GatewayTokenClassifier-2023-01-05_075214-am=not,bs=8,e=True,e=1,f=2,l=all,olw=0.1,r=ft,ss=og,sg=42,se=0-20,sw=True,us=False",
+            mode=DROP, filtering_log_level=FILE)
+
         keyword_filtered_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
+
     if False:
         doc_name = 'doc-3.2'
         xor_gateways, and_gateways, doc_flows, same_gateway_relations = keyword_filtered_approach.process_document(doc_name)
