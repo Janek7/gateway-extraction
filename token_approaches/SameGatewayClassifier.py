@@ -25,7 +25,7 @@ from token_approaches.same_gateway_data_preparation import create_same_gateway_c
     create_same_gateway_cls_dataset_cv, preprocess_gateway_pair
 from training import cross_validation, full_training
 from labels import *
-from utils import config, generate_args_logdir, set_seeds, ROOT_DIR
+from utils import config, generate_args_logdir, set_seeds, ROOT_DIR, NumpyEncoder
 
 logger = logging.getLogger('Same Gateway Classifier')
 logger_ensemble = logging.getLogger('Same Gateway Classifier Ensemble')
@@ -201,8 +201,8 @@ class SGCEnsemble(Ensemble):
         # log result
         if doc_name not in self.predictions:
             self.predictions[doc_name] = []
-        self.predictions[doc_name].append((g1, g2, predictions_averaged > 0.5, predictions_averaged, predictions))
-
+        self.predictions[doc_name].append({"gateway_1": g1, "gateway_2": g2, "label": int(predictions_averaged > 0.5),
+                                           "predictions_averaged": predictions_averaged, "predictions": predictions})
         return predictions_averaged
 
     def classify_pair_bool(self, doc_name, g1, g2) -> bool:
@@ -214,8 +214,10 @@ class SGCEnsemble(Ensemble):
         save predictions dictionary to json file in output_folder of approach
         :return:
         """
-        with open(os.path.join(self.log_folder, "sg_classifications.json"), 'w') as file:
-            json.dump(self.predictions, file, indent=4)
+        path = os.path.join(self.log_folder, "sg_classifications.json")
+        logger.info(f"Save prediction results into {path}")
+        with open(path, 'w') as file:
+            json.dump(self.predictions, file, indent=4, cls=NumpyEncoder)
 
 
 def train_routine(args: argparse.Namespace) -> None:

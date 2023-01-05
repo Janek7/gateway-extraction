@@ -57,7 +57,7 @@ class KeywordsSGCApproach(KeywordsApproach):
         super().__init__(approach_name=approach_name, keywords=keywords,
                          output_format=output_format, output_folder=output_folder,
                          xor_rule_c=xor_rule_c, xor_rule_or=xor_rule_or, xor_rule_op=xor_rule_op)
-        self.same_gateway_classifier = SGCEnsemble(args=None, log_folder=output_folder,
+        self.same_gateway_classifier = SGCEnsemble(args=None, log_folder=self.results_folder,
                                                    ensemble_path=ensemble_path, seed_limit=seed_limit)
         set_seeds(config[SEED], "Reset after initialization of SameGatewayClassifierEnsemble")
 
@@ -89,10 +89,11 @@ if __name__ == '__main__':
     for approach_name, keywords in test_cases:
         keyword_filtered_approach = KeywordsSGCApproach(
             # params of keyword approach
-            approach_name=f'key_words_{approach_name}_sg_classified_[context_text_labels_ngram_c1_n0_syn]',
+            approach_name=f'key_words_{approach_name}_sg_classified_[e10_context_text_labels_ngram_c1_n0_syn]',
             keywords=keywords,
             # params of token cls model
             ensemble_path="/home/japutz/master-thesis/data/final_models/SameGatewayClassifier-2023-01-05_075226-am=not,bs=8,cs=1,d=0.2,e=True,e=10,f=2,g=XOR Gateway,hl=32,lr=2e-05,m=context_text_and_labels_n_gram,ng=0,r=ft,sg=42,se=10-20,sw=True,us=True,w=0"
+            # ensemble_path="/home/japutz/master-thesis/data/final_models/SameGatewayClassifier-2023-01-05_091133-am=not,bs=8,cs=1,d=0.2,e=True,e=5,f=2,g=XOR Gateway,hl=32,lr=2e-05,m=context_text_and_labels_n_gram,ng=0,r=ft,sg=42,se=10-20,sw=True,us=True,w=0"
         )
         keyword_filtered_approach.evaluate_documents(doc_names=['doc-1.1'], evaluate_token_cls=True, evaluate_relation_extraction=True)
         keyword_filtered_approach.same_gateway_classifier.save_prediction_logs()
