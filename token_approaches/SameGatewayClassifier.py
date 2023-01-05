@@ -58,8 +58,21 @@ class SameGatewayClassifier(tf.keras.Model):
     """
     binary classification model to classify if two gateways belong to the same gateway construct
     """
-    def __init__(self, args: argparse.Namespace, bert_model, train_size: int = None):
+    def __init__(self, args: argparse.Namespace, bert_model=None, train_size: int = None, weights_path: str = None) \
+            -> None:
+        """
+        creates a SameGatewayClassifier
+        :param args: args Namespace
+        :param bert_model: bert like transformer token classification model
+        :param train_size: train dataset size
+        :param weights_path: path of stored weights. If set, load from there
+        """
+        logger.info("Create and initialize a SameGatewayClassifier")
+        if not args:
+            logger.warning("No parsed args passed to SameGatewayClassifier, use standard values")
+            args = parser.parse_args([] if "__file__" not in globals() else None)
         self.args = args
+        self.weights_path = weights_path
 
         # A) ARCHITECTURE
         inputs = {
@@ -77,7 +90,7 @@ class SameGatewayClassifier(tf.keras.Model):
                                   "attention_mask": inputs["attention_mask"]}).last_hidden_state
         # extract cls token for every sample
         cls_token = bert_output[:, 0]
-        dropout1 = tf.keras.layers.Dropout(args.dropout)(cls_token)
+        dropout1 = tf.keras.layers.Dropout(self.args.dropout)(cls_token)
 
         # for only textual modes add immediately output layers
         if args.mode == CONTEXT_NGRAM or args.mode == N_GRAM:
@@ -103,19 +116,25 @@ class SameGatewayClassifier(tf.keras.Model):
         super().__init__(inputs=inputs, outputs=predictions)
 
         # B) COMPILE (only needed when training is intended)
-        optimizer, lr_schedule = transformers.create_optimizer(
-            init_lr=args.learning_rate,
-            num_train_steps=(train_size // args.batch_size) * args.epochs,
-            weight_decay_rate=0.01,
-            num_warmup_steps=args.warmup,
-        )
+        if args and train_size:
+            optimizer, lr_schedule = transformers.create_optimizer(
+                init_lr=args.learning_rate,
+                num_train_steps=(train_size // args.batch_size) * args.epochs,
+                weight_decay_rate=0.01,
+                num_warmup_steps=args.warmup,
+            )
 
-        self.compile(optimizer=optimizer,
-                     loss=tf.keras.losses.BinaryCrossentropy(),
-                     metrics=[tf.keras.metrics.BinaryAccuracy(),
-                              tf.keras.metrics.Precision(name="precision"), tf.keras.metrics.Recall(name="recall")])
+            self.compile(optimizer=optimizer,
+                         loss=tf.keras.losses.BinaryCrossentropy(),
+                         metrics=[tf.keras.metrics.BinaryAccuracy(),
+                                  tf.keras.metrics.Precision(name="precision"), tf.keras.metrics.Recall(name="recall")])
 
         # self.summary()
+
+        # if model path is passed, restore weights
+        if self.weights_path:
+            logger.info(f"Restored weights from {weights_path}")
+            self.load_weights(weights_path)
 
     def classify_pair(self, doc_name, g1, g2) -> np.float32:
         """

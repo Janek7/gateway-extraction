@@ -52,7 +52,7 @@ class Ensemble:
             if not self.ensemble_path:
                 set_seeds(seed, "GatewayTokenClassifierEnsemble - model initialization")
             model = self.model_class(**kwargs)
-            # if path to trained ensemble is passed, restore weights
+            # if path to trained ensemble is passed, restore weights from seed specific model from subfolder
             if self.ensemble_path:
                 path = os.path.join(self.ensemble_path, str(seed), "weights/weights")
                 model.load_weights(path).expect_partial()
