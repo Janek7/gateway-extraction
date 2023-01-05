@@ -36,7 +36,7 @@ parser.add_argument("--seed_general", default=42, type=int, help="Random seed.")
 parser.add_argument("--ensemble", default=True, type=bool, help="Use ensemble learning with config.json seeds.")
 parser.add_argument("--seeds_ensemble", default="0-1", type=str, help="Random seed range to use for ensembles")
 # routine params
-parser.add_argument("--routine", default="cv", type=str, help="Simple split training 'sp', cross validation 'cv' or "
+parser.add_argument("--routine", default="cv", type=str, help="Cross validation 'cv' or "
                                                               "full training without validation 'ft'.")
 parser.add_argument("--folds", default=2, type=int, help="Number of folds in cross validation routine.")
 parser.add_argument("--store_weights", default=False, type=bool, help="Flag if best weights should be stored.")
