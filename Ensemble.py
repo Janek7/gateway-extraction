@@ -55,6 +55,7 @@ class Ensemble:
             # if path to trained ensemble is passed, restore weights from seed specific model from subfolder
             if self.ensemble_path:
                 path = os.path.join(self.ensemble_path, str(seed), "weights/weights")
+                logger.info(f"Restore weights for seed {seed} from {path}")
                 model.load_weights(path).expect_partial()
             self.models.append(model)
 

@@ -12,6 +12,7 @@ sys.path.insert(0, parent_dir)
 import argparse
 import logging
 from typing import List
+import re
 
 import tensorflow as tf
 import transformers
@@ -44,7 +45,7 @@ parser.add_argument("--store_weights", default=False, type=bool, help="Flag if b
 parser.add_argument("--gateway", default=XOR_GATEWAY, type=str, help="Type of gateway to classify")
 parser.add_argument("--use_synonyms", default=False, type=str, help="Include synonym samples.")
 parser.add_argument("--context_size", default=1, type=int, help="Number of sentences around to include in text.")
-parser.add_argument("--mode", default=CONTEXT_NGRAM, type=str, help="How to include gateway information.")
+parser.add_argument("--mode", default=CONTEXT_TEXT_AND_LABELS_NGRAM, type=str, help="Architecture variant.")
 parser.add_argument("--n_gram", default=1, type=int, help="Number of tokens to include for gateway in CONCAT mode.")
 parser.add_argument("--activity_masking", default=NOT, type=str, help="How to include activity data.")
 # Architecture params
@@ -58,8 +59,8 @@ class SameGatewayClassifier(tf.keras.Model):
     """
     binary classification model to classify if two gateways belong to the same gateway construct
     """
-    def __init__(self, args: argparse.Namespace, bert_model=None, train_size: int = None, weights_path: str = None) \
-            -> None:
+    def __init__(self, args: argparse.Namespace = None, bert_model=None, train_size: int = None,
+                 weights_path: str = None) -> None:
         """
         creates a SameGatewayClassifier
         :param args: args Namespace
@@ -117,6 +118,7 @@ class SameGatewayClassifier(tf.keras.Model):
 
         # B) COMPILE (only needed when training is intended)
         if args and train_size:
+            logger.info("Create optimizer for training")
             optimizer, lr_schedule = transformers.create_optimizer(
                 init_lr=args.learning_rate,
                 num_train_steps=(train_size // args.batch_size) * args.epochs,
@@ -134,7 +136,7 @@ class SameGatewayClassifier(tf.keras.Model):
         # if model path is passed, restore weights
         if self.weights_path:
             logger.info(f"Restored weights from {weights_path}")
-            self.load_weights(weights_path)
+            self.load_weights(weights_path).expect_partial()
 
     def classify_pair(self, doc_name, g1, g2) -> np.float32:
         """
@@ -170,6 +172,15 @@ class SGCEnsemble(Ensemble):
         see super class for param description
         override for fixing model class
         """
+        # in case of reload of ensemble args are not passed -> create args, extract used mode from path and set
+        if ensemble_path:
+            logger.info("Use standard values of args when reloading ensemble")
+            args = parser.parse_args([] if "__file__" not in globals() else None)
+            mode_pattern = re.compile(",m=([a-z_]+)")
+            args.mode = mode_pattern.search(ensemble_path).group(1)
+            logger.info(f"Reload model with mode {args.mode}")
+            kwargs["args"] = args
+
         super().__init__(SameGatewayClassifier, seeds, ensemble_path, es_monitor, seed_limit, **kwargs)
 
     def classify_pair(self, doc_name, g1, g2) -> np.float32:
@@ -223,3 +234,7 @@ if __name__ == "__main__":
     set_seeds(args.seed_general, "args - used for dataset split/shuffling")
 
     train_routine(args)
+
+    # sgc = SameGatewayClassifier(weights_path='C:\\Users\\janek\\Development\\Git\\master-thesis\\data\\logs_server\\_final\\ensemble_,m=context_text_and_labels_n_gram,se=10-11\\10\\weights\\weights')
+    #
+    # sgce = SGCEnsemble(ensemble_path="C:\\Users\\janek\\Development\\Git\\master-thesis\\data\\logs_server\\_final\\ensemble_,m=context_text_and_labels_n_gram,se=10-11")
