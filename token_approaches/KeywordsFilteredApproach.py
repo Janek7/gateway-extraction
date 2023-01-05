@@ -22,10 +22,10 @@ config.gpu_options.allow_growth = True
 session = tf.compat.v1.Session(config=config)
 tf.compat.v1.keras.backend.set_session(session)
 
-from token_approaches.GatewayTokenClassifier import GatewayTokenClassifier, GTCEnsemble, convert_predictions_into_labels
+from token_approaches.GatewayTokenClassifier import GTCEnsemble, convert_predictions_into_labels
 from token_approaches.KeywordsApproach import KeywordsApproach
 from PetReader import pet_reader
-from token_data_preparation import preprocess_tokenization_data
+from token_data_preparation import prepare_token_cls_data
 from utils import config, set_seeds, NumpyEncoder
 from labels import *
 
@@ -82,7 +82,7 @@ class KeywordsFilteredApproach(KeywordsApproach):
         :return: xor gateways, and gateways (same format, just filtered)
         """
         # preprocess data
-        tokens, _, _, word_ids = preprocess_tokenization_data(sample_numbers=pet_reader.get_doc_sample_ids(doc_name))
+        tokens, _, _, word_ids = prepare_token_cls_data(sample_numbers=pet_reader.get_doc_sample_ids(doc_name))
 
         # predict token labels with GatewayTokenClassifier
         predictions = self.token_classifier.predict(tokens)
@@ -153,13 +153,13 @@ class KeywordsFilteredApproach(KeywordsApproach):
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     set_seeds(config[SEED], "Set first seed")
-    keyword_filtered_approach = KeywordsFilteredApproach(approach_name='key_words_literature_tc_filtered_og_syn',
+    keyword_filtered_approach = KeywordsFilteredApproach(approach_name='key_words_literature_tc_filtered_og',
                                                          # three cases to evaluate with filter model
                                                          keywords=LITERATURE,
                                                          # keywords=CUSTOM,
                                                          # keywords=CUSTOM, contradictory_keywords=GOLD, same_xor_gateway_threshold=3, multiple_branches_allowed=True, seed_limit=15,
 
-                                                         ensemble_path="/home/japutz/master-thesis/data/final_models/token_cls/GatewayTokenClassifier_train.py-2022-11-19_074241-au=not,bs=8,e=True,e=1,f=2,l=all,olw=0.1,r=ft,ss=og,sg=42,se=0-29,sw=True,us=True",
+                                                         ensemble_path="/home/japutz/master-thesis/data/final_models/token_cls/GatewayTokenClassifier-2023-01-05_075214-am=not,bs=8,e=True,e=1,f=2,l=all,olw=0.1,r=ft,ss=og,sg=42,se=0-20,sw=True,us=False",
                                                          mode=DROP, filtering_log_level=FILE)
     if True:
         keyword_filtered_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)

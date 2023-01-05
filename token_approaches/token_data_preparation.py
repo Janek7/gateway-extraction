@@ -152,15 +152,14 @@ def _mask_activities(sample_dicts: List[Dict], masking_strategy: str) -> List[Di
 # DATA GENERATION
 
 
-def _prepare_data_tc(sample_numbers: List[int], use_synonyms: bool = False, other_labels_weight: float = 0.1,
-                     label_set: str = 'filtered', activity_masking: str = None) \
+def prepare_token_cls_data(sample_numbers: List[int], other_labels_weight: float = 0.1,
+                           label_set: str = 'filtered', activity_masking: str = None) \
         -> Tuple[BatchEncoding, tf.Tensor, tf.Tensor, List[List[int]]]:
     """
     create token classification samples from whole PET dataset -> samples (tokens) and their labels and weights for
     usage in a tensorflow dataset
     include either samples from sample_numbers list OR sample samples with sampling_strategy
     :param sample_numbers: list of concrete sample numbers
-    :param use_synonyms: flag if synonym samples should be included;
     :param other_labels_weight: sample weight to assign samples with tokens != gateway tokens
     :param label_set: flag if to use all labels ('all') or only gateway labels and one rest label ('filtered')
     :param activity_masking: flag how to use activity data in tokenization
@@ -275,9 +274,8 @@ def create_token_cls_dataset_full(args: argparse.Namespace) -> tf.data.Dataset:
         f"Final Dataset -> {len(sample_ids)}{f' ({samples_number_old} without syn.)' if args.use_synonyms else ''}")
 
     # create data based on number of samples and transform to tf dataset
-    tokens, labels, sample_weights, _ = _prepare_data_tc(
+    tokens, labels, sample_weights, _ = prepare_token_cls_data(
         sample_numbers=sample_ids,
-        use_synonyms=args.use_synonyms,
         other_labels_weight=args.other_labels_weight,
         label_set=args.labels,
         activity_masking=args.activity_masking
@@ -330,9 +328,8 @@ def create_token_cls_dataset_cv(args: argparse.Namespace) -> List[Tuple[tf.data.
             f"/ {len(dev_samples)}")
 
         # create train data based on number of samples and transform to tf dataset
-        tokens, labels, sample_weights, _ = _prepare_data_tc(
+        tokens, labels, sample_weights, _ = prepare_token_cls_data(
             sample_numbers=train_samples,
-            use_synonyms=args.use_synonyms,
             other_labels_weight=args.other_labels_weight,
             label_set=args.labels,
             activity_masking=args.activity_masking
@@ -340,9 +337,8 @@ def create_token_cls_dataset_cv(args: argparse.Namespace) -> List[Tuple[tf.data.
         train_tf_dataset = _create_dataset(tokens["input_ids"], tokens["attention_mask"], labels, sample_weights)
 
         # create dev data based on number of samples and transform to tf dataset
-        tokens, labels, sample_weights, _ = _prepare_data_tc(
+        tokens, labels, sample_weights, _ = prepare_token_cls_data(
             sample_numbers=dev_samples,
-            use_synonyms=False,
             other_labels_weight=args.other_labels_weight,
             label_set=args.labels,
             activity_masking=args.activity_masking
