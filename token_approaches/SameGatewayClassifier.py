@@ -11,7 +11,7 @@ sys.path.insert(0, parent_dir)
 
 import argparse
 import logging
-from typing import List
+from typing import List, Tuple
 import re
 import json
 
@@ -25,7 +25,7 @@ from token_approaches.same_gateway_data_preparation import create_same_gateway_c
     create_same_gateway_cls_dataset_cv, preprocess_gateway_pair
 from training import cross_validation, full_training
 from labels import *
-from utils import config, generate_args_logdir, set_seeds, ROOT_DIR, NumpyEncoder
+from utils import config, generate_args_logdir, set_seeds, NumpyEncoder
 
 logger = logging.getLogger('Same Gateway Classifier')
 logger_ensemble = logging.getLogger('Same Gateway Classifier Ensemble')
@@ -187,7 +187,7 @@ class SGCEnsemble(Ensemble):
 
         super().__init__(SameGatewayClassifier, seeds, ensemble_path, es_monitor, seed_limit, **kwargs)
 
-    def classify_pair(self, doc_name, g1, g2) -> np.float32:
+    def classify_pair(self, doc_name: str, g1: Tuple, g2) -> np.float32:
         """
         create predictions for given data with each model as number
         :param doc_name: document where gateways belong to
@@ -197,17 +197,22 @@ class SGCEnsemble(Ensemble):
         """
         predictions = [model.classify_pair(doc_name, g1, g2) for model in self.models]
         predictions_averaged = np.mean(predictions, axis=0)
-
-        # log result
-        if doc_name not in self.predictions:
-            self.predictions[doc_name] = []
-        self.predictions[doc_name].append({"gateway_1": g1, "gateway_2": g2, "label": int(predictions_averaged > 0.5),
-                                           "predictions_averaged": predictions_averaged, "predictions": predictions})
+        self.log_prediction(doc_name, g1, g2, predictions_averaged, predictions)
         return predictions_averaged
 
     def classify_pair_bool(self, doc_name, g1, g2) -> bool:
         """ create prediction for given data as number """
         return self.classify_pair(doc_name, g1, g2) > 0.5
+
+    def log_prediction(self, doc_name, g1, g2, predictions_averaged, predictions, comment="normal"):
+        """
+        log prediction of two gateways into internal log
+        """
+        if doc_name not in self.predictions:
+            self.predictions[doc_name] = []
+        self.predictions[doc_name].append({"gateway_1": g1, "gateway_2": g2, "label": int(predictions_averaged > 0.5),
+                                           "predictions_averaged": predictions_averaged, "predictions": predictions,
+                                           "comment": comment})
 
     def save_prediction_logs(self) -> None:
         """

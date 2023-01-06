@@ -34,13 +34,17 @@ class KeywordsSGCApproach(KeywordsApproach):
     extend KeywordsApproach by evaluating same gateway relations with model
     """
 
-    def __init__(self, approach_name: str = None, keywords: str = LITERATURE,
-                 output_format: str = BENCHMARK, output_folder: str = None,
+    def __init__(self, approach_name: str = None, blacklist_or: bool = True, distance_threshold: int = 3,
+                 keywords: str = LITERATURE, output_format: str = BENCHMARK, output_folder: str = None,
                  xor_rule_c: bool = True, xor_rule_or: bool = True, xor_rule_op: bool = True,
                  # class / ensemble specific params:
                  ensemble_path: str = None, seed_limit: int = None):
         """
         creates new instance of the same gateway relation classification approach
+        ---- super class params ----
+        :param blacklist_or: flag if gateway pairs including 'or' should be always classified as non-related
+        :param distance_threshold: sentence distance threshold above gateway pairs from should be always classified as
+                                   not same gateway
         ---- super class params ----
         :param approach_name: description of approach to use in result folder name; if not set use key word variant
         :param keywords: flag/variant which keywords to use; available: literature, gold, own
@@ -49,7 +53,7 @@ class KeywordsSGCApproach(KeywordsApproach):
         :param xor_rule_c: flag if rule for detection of contradictory gateways should be applied
         :param xor_rule_or: flag if rule for detection of 'or' gateways should be applied
         :param xor_rule_op: flag if rule for detection of one branch (optional branches) should be applied
-        -- class / ensemble params ---
+        -- ensemble params ---
         :param ensemble_path: path of ensemble model to restore weights from;
                               if None, a random initialized model will be used
         :param seed_limit: limit of seeds to reload from the ensemble (in case of OOM errors)
@@ -60,6 +64,8 @@ class KeywordsSGCApproach(KeywordsApproach):
         self.same_gateway_classifier = SGCEnsemble(args=None, log_folder=self.results_folder,
                                                    ensemble_path=ensemble_path, seed_limit=seed_limit)
         set_seeds(config[SEED], "Reset after initialization of SameGatewayClassifierEnsemble")
+        self.blacklist_or = blacklist_or
+        self.distance_threshold = distance_threshold
 
     def extract_same_gateway_pairs(self, doc_name: str, gateways: List[Tuple], gateways_involved_contradictory: List):
         """
@@ -72,10 +78,18 @@ class KeywordsSGCApproach(KeywordsApproach):
         same_gateway_pairs = []
         for i in range(len(gateways) - 1):
             g1, g2 = gateways[i], gateways[i + 1]
-            if self.same_gateway_classifier.classify_pair_bool(doc_name, g1[ELEMENT], g2[ELEMENT]):
+            # if sentence distance is greater than threshold -> do not classify as same gateway pair
+            if self.distance_threshold and abs(g1[1] - g2[2]) > self.distance_threshold:
+                self.same_gateway_classifier.log_prediction(doc_name, g1, g2, 0, [0],
+                                                            comment="rule: sentence distance > 3")
+            # if phrase pair is listed in blacklist -> do not classify as same gateway pair
+            elif self.blacklist_or and ['or'] in [g1[3], g2[3]]:
+                self.same_gateway_classifier.log_prediction(doc_name, g1, g2, 0, [0],
+                                                            comment="rule: involves 'or'")
+            elif self.same_gateway_classifier.classify_pair_bool(doc_name, g1[ELEMENT], g2[ELEMENT]):
                 same_gateway_pairs.append((g1, g2))
-        for g1, g2 in same_gateway_pairs:
-            print(g1[ELEMENT], ",", g2[ELEMENT])
+        # for g1, g2 in same_gateway_pairs:
+        #     logger.info(g1[ELEMENT], ",", g2[ELEMENT])
         return same_gateway_pairs
 
 
@@ -89,13 +103,12 @@ if __name__ == '__main__':
     for approach_name, keywords in test_cases:
         keyword_filtered_approach = KeywordsSGCApproach(
             # params of keyword approach
-            approach_name=f'key_words_{approach_name}_sg_classified_[e10_context_text_labels_ngram_c1_n0_syn]',
+            approach_name=f'key_words_{approach_name}_sg_classified_rules_[e5_context_text_labels_ngram_c1_n0_syn]',
             keywords=keywords,
-            # params of token cls model
-            ensemble_path="/home/japutz/master-thesis/data/final_models/SameGatewayClassifier-2023-01-05_075226-am=not,bs=8,cs=1,d=0.2,e=True,e=10,f=2,g=XOR Gateway,hl=32,lr=2e-05,m=context_text_and_labels_n_gram,ng=0,r=ft,sg=42,se=10-20,sw=True,us=True,w=0"
-            # ensemble_path="/home/japutz/master-thesis/data/final_models/SameGatewayClassifier-2023-01-05_091133-am=not,bs=8,cs=1,d=0.2,e=True,e=5,f=2,g=XOR Gateway,hl=32,lr=2e-05,m=context_text_and_labels_n_gram,ng=0,r=ft,sg=42,se=10-20,sw=True,us=True,w=0"
+            # params of same gateway ensemble model
+            ensemble_path="/home/japutz/master-thesis/data/final_models/SameGatewayClassifier-2023-01-05_091133-am=not,bs=8,cs=1,d=0.2,e=True,e=5,f=2,g=XOR Gateway,hl=32,lr=2e-05,m=context_text_and_labels_n_gram,ng=0,r=ft,sg=42,se=10-20,sw=True,us=True,w=0"
         )
-        keyword_filtered_approach.evaluate_documents(doc_names=['doc-1.1'], evaluate_token_cls=True, evaluate_relation_extraction=True)
+        keyword_filtered_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
         keyword_filtered_approach.same_gateway_classifier.save_prediction_logs()
 
 
