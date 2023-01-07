@@ -79,7 +79,7 @@ class KeywordsSGCApproach(KeywordsApproach):
         for i in range(len(gateways) - 1):
             g1, g2 = gateways[i], gateways[i + 1]
             # if sentence distance is greater than threshold -> do not classify as same gateway pair
-            if self.distance_threshold and abs(g1[ELEMENT][1] - g2[ELEMENT][2]) > self.distance_threshold:
+            if self.distance_threshold and abs(g1[ELEMENT][0] - g2[ELEMENT][0]) > self.distance_threshold:
                 self.same_gateway_classifier.log_prediction(doc_name, g1[ELEMENT], g2[ELEMENT], 0, [0],
                                                             comment="rule: sentence distance > 3")
             # if phrase pair is listed in blacklist -> do not classify as same gateway pair

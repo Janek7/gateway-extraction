@@ -231,6 +231,7 @@ class RelationsExtractionBenchmark(AbstractBenchmark):
                 fn += 1
 
         fn = len(goldstandard) - tp
+        fp = len(predictions)  # remaining predictions without a match in goldstandard
 
         return {TRUE_POSITIVE: tp,
                 FALSE_POSITIVE: fp,
