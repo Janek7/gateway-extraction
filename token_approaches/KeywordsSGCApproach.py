@@ -71,7 +71,7 @@ class KeywordsSGCApproach(KeywordsApproach):
         """
         extracts a list of same gateway relations from a list of subsequent gateways using a NEURAL CLASSIFIER
         :param doc_name: document name
-        :param gateways: list of gateways
+        :param gateways: list of gateways in internal representation of KeywordsApproach
         :param gateways_involved_contradictory: temp list of gateways already involved into a contradictory gateway
         :return: same gateway relations as a list of gateway relations
         """
@@ -79,12 +79,12 @@ class KeywordsSGCApproach(KeywordsApproach):
         for i in range(len(gateways) - 1):
             g1, g2 = gateways[i], gateways[i + 1]
             # if sentence distance is greater than threshold -> do not classify as same gateway pair
-            if self.distance_threshold and abs(g1[1] - g2[2]) > self.distance_threshold:
-                self.same_gateway_classifier.log_prediction(doc_name, g1, g2, 0, [0],
+            if self.distance_threshold and abs(g1[ELEMENT][1] - g2[ELEMENT][2]) > self.distance_threshold:
+                self.same_gateway_classifier.log_prediction(doc_name, g1[ELEMENT], g2[ELEMENT], 0, [0],
                                                             comment="rule: sentence distance > 3")
             # if phrase pair is listed in blacklist -> do not classify as same gateway pair
-            elif self.blacklist_or and ['or'] in [g1[3], g2[3]]:
-                self.same_gateway_classifier.log_prediction(doc_name, g1, g2, 0, [0],
+            elif self.blacklist_or and ['or'] in [g1[ELEMENT][3], g2[ELEMENT][3]]:
+                self.same_gateway_classifier.log_prediction(doc_name, g1[ELEMENT], g2[ELEMENT], 0, [0],
                                                             comment="rule: involves 'or'")
             elif self.same_gateway_classifier.classify_pair_bool(doc_name, g1[ELEMENT], g2[ELEMENT]):
                 same_gateway_pairs.append((g1, g2))
