@@ -158,8 +158,8 @@ if __name__ == '__main__':
     test_cases = [
         ('literature', {"keywords": LITERATURE}),
         ('custom', {"keywords": CUSTOM}),
-        ('literature', {"keywords": CUSTOM, "contradictory_keywords": GOLD, "same_xor_gateway_threshold": 3,
-                        "multiple_branches_allowed": True, "seed_limit": 15})
+        # ('literature_inclflowrules', {"keywords": CUSTOM, "contradictory_keywords": GOLD,
+        #                               "same_xor_gateway_threshold": 3, "multiple_branches_allowed": True})
     ]
 
     for approach_name, params in test_cases:
