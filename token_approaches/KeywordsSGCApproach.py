@@ -107,8 +107,8 @@ class GoldGatewaysSGCApproach(KeywordsSGCApproach):
         """
         abuse overwrite of filter method to return gold gateways
         """
-        get_gateway_tokens = lambda doc_name: [[t for t in s if t[2].endswith(XOR_GATEWAY)] for s in
-                                               pet_reader.get_ner_tags(pet_reader.get_document_number(doc_name))]
+        get_gateway_tokens = lambda gateway_type: [[t for t in s if t[2].endswith(gateway_type)] for s in
+                                                   pet_reader.get_ner_tags(pet_reader.get_document_number(doc_name))]
         return get_gateway_tokens(XOR_GATEWAY), get_gateway_tokens(AND_GATEWAY)
 
 
