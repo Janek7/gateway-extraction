@@ -351,6 +351,7 @@ class KeywordsApproach:
         same_gateway_relations = []
 
         gateways = self._preprocess_extracted_gateways(extracted_gateways, XOR_GATEWAY)
+        # lists get updated in extract_same_gateway_pairs method
         gateways_involved = []  # list for gateways already involved into sequence flows
         gateways_involved_contradictory = []  # list for gateways already involved into a contradictory gateway pair
 
@@ -358,11 +359,8 @@ class KeywordsApproach:
         # contradictory key words. Gateways must be in range of same_xor_gateway_threshold sentences, otherwise they
         # would be seen as separate ones
         if self.xor_rule_c:
-            for g1, g2 in self.extract_same_gateway_pairs(doc_name, gateways, gateways_involved_contradictory):
-                gateways_involved.append(g1[ELEMENT])
-                gateways_involved.append(g2[ELEMENT])
-                gateways_involved_contradictory.append(g1[ELEMENT])
-                gateways_involved_contradictory.append(g2[ELEMENT])
+            for g1, g2 in self.extract_same_gateway_pairs(doc_name, gateways,
+                                                          gateways_involved, gateways_involved_contradictory):
 
                 # A) find related activities
                 _, pa_g1, fa_g1, _ = self._get_surrounding_activities(g1, doc_activity_tokens)
@@ -499,12 +497,15 @@ class KeywordsApproach:
 
         return sequence_flows, same_gateway_relations
 
-    def extract_same_gateway_pairs(self, doc_name: str, gateways: List, gateways_involved_contradictory: List):
+    def extract_same_gateway_pairs(self, doc_name: str, gateways: List, gateways_involved: List,
+                                   gateways_involved_contradictory: List):
         """
         extracts a list of same gateway relations from a list of subsequent gateways using a RULE BASED approach
         :param doc_name: document name
         :param gateways: list of gateways
-        :param gateways_involved_contradictory: temp list of gateways already involved into a contradictory gateway
+        :param gateways_involved: list of gateways already involved into a gateway
+        :param gateways_involved_contradictory: list of gateways already involved into a contradictory gateway
+        -> BOTH LISTS WILL BE UPDATED (effect also outside of the call visible)
         :return: same gateway relations as a list of gateway relations
         """
         same_gateway_pairs = []
@@ -523,6 +524,12 @@ class KeywordsApproach:
                               and g2[ELEMENT] not in gateways_involved_contradictory)
                              or self.multiple_branches_allowed):
                     same_gateway_pairs.append((g1, g2))
+                    gateways_involved.append(g1[ELEMENT])
+                    gateways_involved.append(g2[ELEMENT])
+                    gateways_involved_contradictory.append(g1[ELEMENT])
+                    gateways_involved_contradictory.append(g2[ELEMENT])
+                    break
+
         return same_gateway_pairs
 
     def _extract_concurrent_flows(self, doc_activity_tokens: List[List[Tuple[str, int]]],

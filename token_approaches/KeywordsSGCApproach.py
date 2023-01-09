@@ -69,12 +69,15 @@ class KeywordsSGCApproach(KeywordsApproach):
         self.blacklist_or = blacklist_or
         self.distance_threshold = distance_threshold
 
-    def extract_same_gateway_pairs(self, doc_name: str, gateways: List[Tuple], gateways_involved_contradictory: List):
+    def extract_same_gateway_pairs(self, doc_name: str, gateways: List[Tuple], gateways_involved: List,
+                                   gateways_involved_contradictory: List):
         """
         extracts a list of same gateway relations from a list of subsequent gateways using a NEURAL CLASSIFIER
         :param doc_name: document name
         :param gateways: list of gateways in internal representation of KeywordsApproach
-        :param gateways_involved_contradictory: temp list of gateways already involved into a contradictory gateway
+        :param gateways_involved: (not used in this logic) temp list of gateways already involved into a gateway
+        :param gateways_involved_contradictory: (not used in this logic) temp list of gateways already involved into
+                                                a contradictory gateway
         :return: same gateway relations as a list of gateway relations
         """
         same_gateway_pairs = []
