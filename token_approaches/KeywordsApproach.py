@@ -849,7 +849,7 @@ if __name__ == '__main__':
     keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
     # c) gold
     keyword_approach = KeywordsApproach(approach_name='[fp]key_words=gold_DEBUG', keywords=GOLD)
-    keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=False)
+    keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
     # d) custom
     keyword_approach = KeywordsApproach(approach_name='[fp]key_words=custom', keywords=CUSTOM)
     keyword_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
@@ -869,7 +869,7 @@ if __name__ == '__main__':
     # 3) Same Gateway Threshold
     for sg_threshold in [0, 1, 2, 3]:
         keyword_approach = KeywordsApproach(
-            approach_name=f'[fp]key_words=custom - contra=gold - rules=all - sg_threshold={sg_threshold}',
+            approach_name=f'[fp]key_words=custom - contra=gold - rules=con - sg_threshold={sg_threshold}',
             keywords=CUSTOM, contradictory_keywords=GOLD,
             same_xor_gateway_threshold=sg_threshold, multiple_branches_allowed=False,
             xor_rule_c=True, xor_rule_op=False, xor_rule_or=False)
@@ -878,7 +878,7 @@ if __name__ == '__main__':
     # # 4) Multi-branch
     for sg_threshold in [0, 1, 2, 3]:
         keyword_approach = KeywordsApproach(
-            approach_name=f'[fp]key_words=custom - contra=gold - rules=all - sg_threshold={sg_threshold} - multi_allowed=True',
+            approach_name=f'[fp]key_words=custom - contra=gold - rules=con - sg_threshold={sg_threshold} - multi_allowed=True',
             keywords=CUSTOM, contradictory_keywords=GOLD,
             same_xor_gateway_threshold=sg_threshold, multiple_branches_allowed=True,
             xor_rule_c=True, xor_rule_op=False, xor_rule_or=False)
