@@ -14,6 +14,7 @@ import logging
 from typing import List, Tuple
 
 import tensorflow as tf
+from petreader.labels import *
 
 # fix for exception "Attempting to perform BLAS operation using StreamExecutor without BLAS support"
 config = tf.compat.v1.ConfigProto(gpu_options=tf.compat.v1.GPUOptions(per_process_gpu_memory_fraction=0.8))
@@ -21,6 +22,7 @@ config.gpu_options.allow_growth = True
 session = tf.compat.v1.Session(config=config)
 tf.compat.v1.keras.backend.set_session(session)
 
+from PetReader import pet_reader
 from token_approaches.SameGatewayClassifier import SGCEnsemble
 from token_approaches.KeywordsApproach import KeywordsApproach
 from utils import config, set_seeds
@@ -93,24 +95,46 @@ class KeywordsSGCApproach(KeywordsApproach):
         return same_gateway_pairs
 
 
+class GoldGatewaysSGCApproach(KeywordsSGCApproach):
+    """
+    extend KeywordsSGCApproach by using gold data for gateway tokens to see what would be possible with trained SGC
+    when it is based on gold token/gateway data
+    """
+
+    def filter_gateways(self, doc_name: str, xor_gateways: List[List[Tuple[str, int, str]]],
+                        and_gateways: List[List[Tuple[str, int, str]]]) \
+            -> Tuple[List[List[Tuple[str, int, str]]], List[List[Tuple[str, int, str]]]]:
+        """
+        abuse overwrite of filter method to return gold gateways
+        """
+        get_gateway_tokens = lambda doc_name: [[t for t in s if t[2].endswith(XOR_GATEWAY)] for s in
+                                               pet_reader.get_ner_tags(pet_reader.get_document_number(doc_name))]
+        return get_gateway_tokens(XOR_GATEWAY), get_gateway_tokens(AND_GATEWAY)
+
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     set_seeds(config[SEED], "Set first seed")
 
     # two cases to evaluate with sg classification model
-    test_cases = [('literature', LITERATURE), ('custom', CUSTOM)]
+    test_cases = [#(KeywordsSGCApproach, 'literature', LITERATURE),
+                  #(KeywordsSGCApproach, 'custom', CUSTOM),
+                  # keywords here only dummy -> overwritten by filter_gateways
+                  (GoldGatewaysSGCApproach, 'custom', CUSTOM)]
 
-    for approach_name, keywords in test_cases:
-        keyword_filtered_approach = KeywordsSGCApproach(
+    for approach_class, approach_name, keywords in test_cases:
+        keyword_filtered_approach = approach_class(
             # params of keyword approach
             approach_name=f'key_words_{approach_name}_sg_classified_rules_[e5_context_text_labels_ngram_c1_n0_syn]',
             keywords=keywords,
+            # if commented -> with rules, if not commented and params active -> without rules
+            #blacklist_or=False,
+            #distance_threshold=None,
             # params of same gateway ensemble model
             ensemble_path="/home/japutz/master-thesis/data/final_models/SameGatewayClassifier-2023-01-05_091133-am=not,bs=8,cs=1,d=0.2,e=True,e=5,f=2,g=XOR Gateway,hl=32,lr=2e-05,m=context_text_and_labels_n_gram,ng=0,r=ft,sg=42,se=10-20,sw=True,us=True,w=0"
         )
         keyword_filtered_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
         keyword_filtered_approach.same_gateway_classifier.save_prediction_logs()
-
 
     if False:
         doc_name = 'doc-3.2'
