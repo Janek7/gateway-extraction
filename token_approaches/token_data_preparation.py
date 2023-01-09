@@ -36,7 +36,7 @@ synonyms_of_original_samples = get_synonyms_of_original_samples()
 
 # SAMPLING STRATEGIES -> provide list of sample IDs to use
 
-def _get_sample_ids(strategy: str = None) -> List[int]:
+def get_sample_ids(strategy: str = None) -> List[int]:
     """
     unified method to get list of samples to include in a dataset; which samples is controlled by strategy parameter
     use use_synonyms=True only with "normal" and "only gateway" strategy
@@ -254,7 +254,7 @@ def create_token_cls_dataset_full(args: argparse.Namespace) -> tf.data.Dataset:
     logger.info(f"Create full token classification dataset (batch_size={args.batch_size})")
 
     # load samples to include in dataset
-    sample_ids = _get_sample_ids(strategy=args.sampling_strategy)
+    sample_ids = get_sample_ids(strategy=args.sampling_strategy)
     random.shuffle(sample_ids)
     logger.info(
         f"Generate token data with params: sampling_strategy={args.sampling_strategy} - use_synonyms={args.use_synonyms}"
@@ -298,7 +298,7 @@ def create_token_cls_dataset_cv(args: argparse.Namespace) -> List[Tuple[tf.data.
     """
     logger.info(f"Create token classification cv dataset (folds={args.folds} - batch_size={args.batch_size})")
     # load samples to include in dataset
-    sample_ids = _get_sample_ids(strategy=args.sampling_strategy)
+    sample_ids = get_sample_ids(strategy=args.sampling_strategy)
     random.shuffle(sample_ids)
     logger.info(
         f"Generate token data with params: sampling_strategy={args.sampling_strategy} - use_synonyms={args.use_synonyms}"

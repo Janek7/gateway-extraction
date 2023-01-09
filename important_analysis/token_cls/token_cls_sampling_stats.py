@@ -13,7 +13,7 @@ import pandas as pd
 from PetReader import pet_reader
 from petreader.labels import *
 from labels import *
-from token_approaches.token_data_preparation import get_samples
+from token_approaches.token_data_preparation import get_sample_ids
 from token_approaches.token_data_augmentation import get_synonym_samples
 from utils import config, ROOT_DIR
 
@@ -22,7 +22,7 @@ def analyze_samples(strategy, use_synonyms=False):
     print(f"Compute stats for", strategy, use_synonyms)
 
     # get data
-    sample_numbers = get_samples(strategy, use_synonyms)
+    sample_numbers = get_sample_ids(strategy)
     sample_dicts = []
     synonym_samples = get_synonym_samples()
     for sample_number in sample_numbers:
@@ -81,8 +81,7 @@ def analyze_samples(strategy, use_synonyms=False):
 
 
 rows = []
-for strategy, use_synonyms in [(NORMAL, False), (UP_SAMPLING, False), (DOWN_SAMPLING, False), (ONLY_GATEWAYS, False),
-                               (NORMAL, True), (ONLY_GATEWAYS, True)]:
+for strategy, use_synonyms in [(NORMAL, False), (UP_SAMPLING, False), (DOWN_SAMPLING, False), (ONLY_GATEWAYS, False)]:
     rows.append(analyze_samples(strategy, use_synonyms))
 
 df = pd.DataFrame.from_dict(rows)
