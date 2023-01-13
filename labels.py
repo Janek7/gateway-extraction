@@ -95,7 +95,16 @@ SGC_CONTEXT_LABEL_ACTIVITY = 2
 
 
 # D) LABELS FOR ACTIVITY RELATION APPROACHES
+
+# relation types
 DF = 'directly_following'
 EXCLUSIVE = 'exclusive'
 CONCURRENT = 'concurrent'
+
+# other helper keys
 DOC_START = 'Document Start'
+DOC_NAME = 'doc_name'
+GATEWAY_1 = 'gateway_1'
+GATEWAY_2 = 'gateway_2'
+RELATION_TYPE = 'relation_type'
+COMMENT = 'comment'

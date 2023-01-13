@@ -14,6 +14,7 @@ import itertools
 from typing import List, Tuple, Dict
 
 from petreader.labels import *
+import pandas as pd
 
 from labels import *
 from PetReader import pet_reader
@@ -322,17 +323,27 @@ def _create_branch_relations(doc_name: str, flow_relations: List[Dict], gateway:
     return relations
 
 
+def _relations_to_dict(relations: List[Tuple]) -> List[Dict]:
+    """
+    transforms every relation into a dict format
+    :param relations: relations as tuples
+    :return: relations as dicts
+    """
+    return [{DOC_NAME: r[0], GATEWAY_1: r[1], GATEWAY_2: r[2], RELATION_TYPE: r[3], COMMENT: r[4]} for r in relations]
+
+
 # B) MAIN METHOD
 
 
-def generated_activity_relations(doc_names: List[str] = None) -> List[Tuple]:
+def generated_activity_relations(doc_names: List[str] = None, return_type: type = List) -> List[Tuple]:
     """
     generate activity relation data
     relations are represented as (doc_name, (a1), (a2), relation type, comment)
     split/merge points are represented as directly follow relations from activity before/after the gateway and
     first/last activities inside the gateway
     :param doc_names: list of documents which should be processed, if None -> all
-    :return: list of relations in format
+    :param return_type: type of single relation
+    :return: list of relations with data [doc_name, (a1), (a2), relation type, comment] in list or dict form
     """
 
     # prepare cache path where to load/save data
@@ -342,6 +353,8 @@ def generated_activity_relations(doc_names: List[str] = None) -> List[Tuple]:
     if os.path.exists(cache_path):
         relations = load_pickle(cache_path)
         logger.info(f"Reloaded activity relation data ({len(relations)}) from cache")
+        if return_type == dict:
+            relations = _relations_to_dict(relations)
         return relations
 
     # if not generate data and save in cache
@@ -460,10 +473,38 @@ def generated_activity_relations(doc_names: List[str] = None) -> List[Tuple]:
     save_as_pickle(relations_final, cache_path)
     logger.info(f"Saved {len(relations_final)} to cache")
 
+    if return_type == dict:
+        relations_final = _relations_to_dict(relations_final)
+
     return relations_final
+
+
+def _create_statistics():
+    relations = generated_activity_relations(return_type=dict)
+    df = pd.DataFrame.from_dict(relations)
+
+    # Create a Pandas Excel writer using XlsxWriter as the engine.
+    writer = pd.ExcelWriter(os.path.join(ROOT_DIR,
+                                         'data/paper_stats/activity_relation/activity_relation_data_stats.xlsx'))
+
+    relation_type_count = df.groupby(RELATION_TYPE).count()
+    relation_type_count.to_excel(writer, sheet_name='Relation Type Count')
+    print(relation_type_count)
+    print(100*'-')
+    comment_count = df.groupby([RELATION_TYPE, COMMENT]).count()
+    comment_count.to_excel(writer, sheet_name='Comment Count')
+    print(comment_count)
+    print(100 * '-')
+    doc_stats = df.groupby(DOC_NAME).count().describe()
+    doc_stats.to_excel(writer, sheet_name='Doc Stats')
+    print(doc_stats)
+
+    # Close the Pandas Excel writer and output the Excel file.
+    writer.close()
 
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
 
-    relations = generated_activity_relations()
+    # relations = generated_activity_relations()
+    _create_statistics()
