@@ -92,3 +92,10 @@ CONTEXT_TEXT_AND_LABELS_NGRAM = 'context_text_and_labels_n_gram'
 SGC_CONTEXT_LABEL_PADDING = 0
 SGC_CONTEXT_LABEL_OTHER = 1
 SGC_CONTEXT_LABEL_ACTIVITY = 2
+
+
+# D) LABELS FOR ACTIVITY RELATION APPROACHES
+DF = 'directly_following'
+EXCLUSIVE = 'exclusive'
+CONCURRENT = 'concurrent'
+DOC_START = 'Document Start'
