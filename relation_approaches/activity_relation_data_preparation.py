@@ -14,15 +14,16 @@ import itertools
 from typing import List, Tuple, Dict
 
 from petreader.labels import *
-import pandas as pd
 
 from labels import *
 from PetReader import pet_reader
 from utils import GatewayExtractionException, ROOT_DIR, load_pickle, save_as_pickle
 
-
 logger = logging.getLogger('Data Generation [Activity Relations]')
 doc_black_list = ['doc-6.4']
+
+# list for stats counting of nested gateways
+nested_gateways = []
 
 
 # DEBUGGING VERSION: notebooks/relation_approaches/activity_relation_data_preparation.ipynb
@@ -158,10 +159,16 @@ def _get_merge_point_search_flows(element: Tuple, flow_relations: List[Dict]) ->
     for e in directly_linked_entities:
         additional_flows.extend(_get_following_flows_by_text_structure(e, flow_relations))
 
-    return _unique_ordered_flows(following_flows + additional_flows)
+    flows = _unique_ordered_flows(following_flows + additional_flows)
+    flows_filtered = []
+    for f in flows:
+        if f[TARGET] != element:
+            flows_filtered.append(f)
+
+    return flows_filtered
 
 
-def _find_next_merge_point(element: Tuple, flow_relations: List[Dict]) -> Tuple:
+def _find_next_merge_point(doc_name: str, element: Tuple, flow_relations: List[Dict]) -> Tuple:
     """
     find the merge point of a given (gateway) element, i.e. find next activity that has multiple incoming flows
     :param element: element to search merge point for
@@ -176,6 +183,9 @@ def _find_next_merge_point(element: Tuple, flow_relations: List[Dict]) -> Tuple:
         # check for incoming flows == 1 because with > 1 gateway is merge point as well
         if f[TARGET][3] in [XOR_GATEWAY, AND_GATEWAY] and _get_number_incoming_flows(f[TARGET], flow_relations) == 1:
             unclosed_gateways += 1
+            tmp = {"doc_name": doc_name, "parent": element, "nested_gateway": f[TARGET]}
+            if tmp not in nested_gateways:
+                nested_gateways.append(tmp)
         if f[TARGET] in next_targets:
             # one closing found
             unclosed_gateways -= 1
@@ -335,7 +345,8 @@ def _relations_to_dict(relations: List[Tuple]) -> List[Dict]:
 # B) MAIN METHOD
 
 
-def generated_activity_relations(doc_names: List[str] = None, return_type: type = List) -> List[Tuple]:
+def generated_activity_relations(doc_names: List[str] = None, return_type: type = List, overwrite: bool = False) \
+        -> List[Tuple]:
     """
     generate activity relation data
     relations are represented as (doc_name, (a1), (a2), relation type, comment)
@@ -343,6 +354,7 @@ def generated_activity_relations(doc_names: List[str] = None, return_type: type 
     first/last activities inside the gateway
     :param doc_names: list of documents which should be processed, if None -> all
     :param return_type: type of single relation
+    :param overwrite: flag if data should be generated new and overwrite an already existing cache
     :return: list of relations with data [doc_name, (a1), (a2), relation type, comment] in list or dict form
     """
 
@@ -350,7 +362,7 @@ def generated_activity_relations(doc_names: List[str] = None, return_type: type 
     cache_path = os.path.join(ROOT_DIR, f"data/other/data_cache/activity_relation_data_"
                                         f"[{str(doc_names) if doc_names else 'all'}]")
     # reload from cache if already exists
-    if os.path.exists(cache_path):
+    if os.path.exists(cache_path) and not overwrite:
         relations = load_pickle(cache_path)
         logger.info(f"Reloaded activity relation data ({len(relations)}) from cache")
         if return_type == dict:
@@ -400,7 +412,7 @@ def generated_activity_relations(doc_names: List[str] = None, return_type: type 
                     raise GatewayExtractionException("Other flow combination!")
 
                 gateway = f[TARGET]
-                gateway_merge_point = _find_next_merge_point(gateway, flow_relations)
+                gateway_merge_point = _find_next_merge_point(doc_name, gateway, flow_relations)
                 branch_start_entities = []
 
                 # create flows from possible multiple incomes to current gateway (only in case of directly nested
@@ -472,6 +484,9 @@ def generated_activity_relations(doc_names: List[str] = None, return_type: type 
     # save in cache
     save_as_pickle(relations_final, cache_path)
     logger.info(f"Saved {len(relations_final)} to cache")
+    with open(os.path.join(ROOT_DIR, "data/paper_stats/activity_relation/nested_gateways.json"), 'w') as file:
+        nested_gateways.sort(key=lambda g: g[DOC_NAME])
+        json.dump({"nested_gateways": nested_gateways}, file, indent=4)
 
     if return_type == dict:
         relations_final = _relations_to_dict(relations_final)
@@ -479,32 +494,7 @@ def generated_activity_relations(doc_names: List[str] = None, return_type: type 
     return relations_final
 
 
-def _create_statistics():
-    relations = generated_activity_relations(return_type=dict)
-    df = pd.DataFrame.from_dict(relations)
-
-    # Create a Pandas Excel writer using XlsxWriter as the engine.
-    writer = pd.ExcelWriter(os.path.join(ROOT_DIR,
-                                         'data/paper_stats/activity_relation/activity_relation_data_stats.xlsx'))
-
-    relation_type_count = df.groupby(RELATION_TYPE).count()
-    relation_type_count.to_excel(writer, sheet_name='Relation Type Count')
-    print(relation_type_count)
-    print(100*'-')
-    comment_count = df.groupby([RELATION_TYPE, COMMENT]).count()
-    comment_count.to_excel(writer, sheet_name='Comment Count')
-    print(comment_count)
-    print(100 * '-')
-    doc_stats = df.groupby(DOC_NAME).count().describe()
-    doc_stats.to_excel(writer, sheet_name='Doc Stats')
-    print(doc_stats)
-
-    # Close the Pandas Excel writer and output the Excel file.
-    writer.close()
-
-
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
 
-    # relations = generated_activity_relations()
-    _create_statistics()
+    relations = generated_activity_relations(overwrite=True)
