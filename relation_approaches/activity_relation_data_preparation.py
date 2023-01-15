@@ -399,7 +399,7 @@ def generated_activity_relations(doc_names: List[str] = None, drop_loops: bool =
     # reload from cache if already exists
     if os.path.exists(cache_path) and not overwrite:
         relations = load_pickle(cache_path)
-        logger.info(f"Reloaded activity relation data ({len(relations)}) from cache")
+        logger.info(f"Reloaded activity relation data [drop_loops={drop_loops}] from cache ({len(relations)})")
         if return_type == dict:
             relations = _relations_to_dict(relations)
         return relations
@@ -531,7 +531,7 @@ def generated_activity_relations(doc_names: List[str] = None, drop_loops: bool =
 
     # save in cache
     save_as_pickle(relations_final, cache_path)
-    logger.info(f"Saved {len(relations_final)} to cache")
+    logger.info(f"Saved {len(relations_final)} to cache [drop_loops={drop_loops}]")
 
     # log more detailed information
     with open(os.path.join(ROOT_DIR, "data/paper_stats/activity_relation/nested_gateways.json"), 'w') as file:

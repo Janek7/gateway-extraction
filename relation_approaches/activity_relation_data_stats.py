@@ -28,6 +28,9 @@ def _create_statistics():
     comment_count = df.groupby([RELATION_TYPE, COMMENT]).count()
     print(comment_count)
     print(100 * '-')
+    doc_count = df.groupby(DOC_NAME).count()
+    print(doc_count)
+    print(100 * '-')
     doc_stats = df.groupby(DOC_NAME).count().describe()
     print(doc_stats)
 
@@ -35,6 +38,7 @@ def _create_statistics():
             as writer:
         relation_type_count.to_excel(writer, sheet_name='Relation Type Count')
         comment_count.to_excel(writer, sheet_name='Comment Count')
+        doc_count.to_excel(writer, sheet_name='Doc Count')
         doc_stats.to_excel(writer, sheet_name='Doc Stats')
 
 
@@ -61,8 +65,24 @@ def _analyze_nested_gateways():
         parent_stats.to_excel(writer, sheet_name='Nested Gateways Grouped')
 
 
+def _analyze_branch_lengths():
+    with open(
+            "C:\\Users\\janek\\Development\\Git\\master-thesis\\data\\paper_stats\\activity_relation\\branch_lengths.json",
+            'r') as file:
+        branch_lengths = json.load(file)["branch_lengths"]
+    df = pd.DataFrame.from_dict(branch_lengths)
+
+    stats = df.describe()
+    print(stats)
+
+    with pd.ExcelWriter(os.path.join(ROOT_DIR, 'data/paper_stats/activity_relation/branch_lengths.xlsx')) as writer:
+        df.to_excel(writer, sheet_name='Branch lengths', index=False)
+        stats.to_excel(writer, sheet_name='Branch lengths stats')
+
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
 
-    # _create_statistics()
+    _create_statistics()
     _analyze_nested_gateways()
+    _analyze_branch_lengths()
