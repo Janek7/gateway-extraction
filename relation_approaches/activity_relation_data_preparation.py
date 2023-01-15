@@ -22,8 +22,9 @@ from utils import GatewayExtractionException, ROOT_DIR, load_pickle, save_as_pic
 logger = logging.getLogger('Data Generation [Activity Relations]')
 doc_black_list = ['doc-6.4']
 
-# list for stats counting of nested gateways
+# lists for stats counting of nested gateways & branch lengths
 nested_gateways = []
+branch_lengths = []
 
 
 # DEBUGGING VERSION: notebooks/relation_approaches/activity_relation_data_preparation.ipynb
@@ -183,7 +184,7 @@ def _find_next_merge_point(doc_name: str, element: Tuple, flow_relations: List[D
         # check for incoming flows == 1 because with > 1 gateway is merge point as well
         if f[TARGET][3] in [XOR_GATEWAY, AND_GATEWAY] and _get_number_incoming_flows(f[TARGET], flow_relations) == 1:
             unclosed_gateways += 1
-            tmp = {"doc_name": doc_name, "parent": element, "nested_gateway": f[TARGET]}
+            tmp = {DOC_NAME: doc_name, "parent": element, "nested_gateway": f[TARGET]}
             if tmp not in nested_gateways:
                 nested_gateways.append(tmp)
         if f[TARGET] in next_targets:
@@ -197,59 +198,73 @@ def _find_next_merge_point(doc_name: str, element: Tuple, flow_relations: List[D
     return None
 
 
-def _get_following_flows(element: Tuple, flow_relations: List[Dict]) -> List[Dict]:
+def _get_following_flows(element: Tuple, flow_relations: List[Dict], same_gateway_relations: List[Dict]) -> List[Dict]:
     """
     get following flows of a given element -> followings by text structure and repeat for them the procedure
     -> necessary because text structure provides not always the full set in case there is another link before
     :param element: element to search merge point for
     :param flow_relations: set of flows to check
+    :param same_gateway_relations: set of same gateway relations to check
     :return: list of flows
     """
     # start with flows following by text structure
     following_flows = _get_following_flows_by_text_structure(element, flow_relations)
 
-    # check for other links to the element before the element itself
-    for f in flow_relations:
-        if f[SOURCE] == element:
-            following_flows.extend(_get_following_flows_by_text_structure(f[SOURCE], flow_relations))
+    for f in following_flows:
+        # check for links to same gateways and their following activities/branches
+        if f[TARGET][3] in [XOR_GATEWAY, AND_GATEWAY]:
+            sg_gateways = _get_sg_gateways(f[TARGET], same_gateway_relations)
+            for same_gateway in sg_gateways:
+                sg_following_flows = _get_following_flows(same_gateway, flow_relations, same_gateway_relations)
+                following_flows.extend(sg_following_flows)
 
     return _unique_ordered_flows(following_flows)
 
 
-def _get_activities_until_merge_point(element, next_merge, flow_relations):
+def _get_entities_until_merge_point(element: Tuple, next_merge: Tuple, flow_relations: List[Dict],
+                                    same_gateway_relations: List[Dict]) -> List[Tuple]:
     """
     return all activities between given element and next given merge point based on flow relations/connections
     if merge point is None, return all activities until the end
+    :param element: element to search merge point for
+    :param next_merge: next merge point until which entities should be returned
+    :param flow_relations: set of flows to check
+    :param same_gateway_relations: set of same gateway relations to check
+    :return: list of flows
     """
-    activities_between = [element]
+    relevant_flows = _get_following_flows(element, flow_relations, same_gateway_relations)
+    entities_between = [element]
 
-    # iterate twice because semantical structure does not always follows textual structure -> in first run not all are
-    # captured
+    # iterate twice because semantical structure does not always follows textual structure AND because of same gateways
+    # -> in first run maybe not all are captured
     # duplicates will be created, but filtered after again
     def dummy():
         for f in flow_relations:
             # if source of new flow is in already recorded elements and (no merge exist or target is before merge)
-            if f[SOURCE] in activities_between \
+            if f[SOURCE] in entities_between \
                     and (not next_merge or
                          (f[TARGET][0] < next_merge[0] or (
                                  f[TARGET][0] == next_merge[0] and f[TARGET][1] < next_merge[1]))):
-                activities_between.append(f[TARGET])
+                entities_between.append(f[TARGET])
+
+                if f[TARGET][3] in [XOR_GATEWAY, AND_GATEWAY]:
+                    entities_between.extend(_get_sg_gateways(f[TARGET], same_gateway_relations))
 
     dummy()
     # remove start element
-    activities_between = activities_between[1:]
+    entities_between = entities_between[1:]
     dummy()
 
     # make unique again
-    activities_between_u = []
-    for a in activities_between:
-        if a not in activities_between_u:
-            activities_between_u.append(a)
+    entities_between_u = []
+    for a in entities_between:
+        if a not in entities_between_u:
+            entities_between_u.append(a)
 
-    return activities_between
+    return entities_between
 
 
-def _get_last_activities(flow, flow_relations):
+def _get_last_activities(flow: Dict, flow_relations: List[Dict]):
     """
     search for last (transitively) linked activities (recursively) before current flow
     :param flow: flow to start reversed search for
@@ -276,7 +291,7 @@ def _get_last_activities(flow, flow_relations):
     return last_activities
 
 
-def _enrich_doc_start_flow(flow_relations):
+def _enrich_doc_start_flow(flow_relations: List[Dict]) -> List[Dict]:
     """
     add an additional flow relation for the document start
     :param flow_relations: normal set of flow relations
@@ -305,8 +320,25 @@ def _filter_cond_spec(entity_list: List[Tuple]) -> List[Tuple]:
     return [e for e in entity_list if e[3] != CONDITION_SPECIFICATION]
 
 
-def _create_branch_relations(doc_name: str, flow_relations: List[Dict], gateway: Tuple, merge_point: Tuple,
-                             branch_start_entities: List[Tuple]) -> List[Tuple]:
+def log_branch_lengths(doc_name: str, activity_branches: List[List[Tuple]]) -> None:
+    """
+    Log lengths of branches to shared list
+    :param doc_name: doc_name
+    :param activity_branches: list of branches (each a list of entities)
+    :return:
+    """
+    gateway_branch_lengths = []
+    for b in activity_branches:
+        unique_activities = []
+        for a in b:
+            if a[3] == ACTIVITY and a not in unique_activities:
+                unique_activities.append(a)
+        gateway_branch_lengths.append(len(unique_activities))
+    branch_lengths.extend([{DOC_NAME: doc_name, "branch_length": length} for length in gateway_branch_lengths])
+
+
+def _create_branch_relations(doc_name: str, flow_relations: List[Dict], same_gateway_relations: List[Dict],
+                             gateway: Tuple, merge_point: Tuple, branch_start_entities: List[Tuple]) -> List[Tuple]:
     """
     create all relations between all entities of all combinations of branches
     :param doc_name: doc name
@@ -320,8 +352,10 @@ def _create_branch_relations(doc_name: str, flow_relations: List[Dict], gateway:
     # add exclusive/concurrent relations between (multiple) activities of branches
     # first create list of activities for each branch
     # exclude merge point because its not part of exclusive/concurrent relations
-    activity_branches = ([[e] + (_get_activities_until_merge_point(e, merge_point, flow_relations))
+    activity_branches = ([[e] + (_get_entities_until_merge_point(e, merge_point, flow_relations,
+                                                                 same_gateway_relations))
                           for e in _filter_merge_point(merge_point, branch_start_entities)])
+    log_branch_lengths(doc_name, activity_branches)
 
     # second create connections between all activities of each pair of branches
     for branchA, branchB in itertools.combinations(activity_branches, 2):
@@ -385,7 +419,7 @@ def generated_activity_relations(doc_names: List[str] = None, return_type: type 
         flow_relations = _enrich_doc_start_flow(flow_relations)
         same_gateway_relations = _transform_relations(doc_relations[SAME_GATEWAY])
 
-        # special case: remove last flow for doc-9.5 because this is a whole process loop
+        # special case: remove flows that causes process loops
         if doc_name == 'doc-9.5':
             flow_relations = flow_relations[:-1]
 
@@ -458,25 +492,31 @@ def generated_activity_relations(doc_names: List[str] = None, return_type: type 
                         elif e[3] in [XOR_GATEWAY, AND_GATEWAY]:
                             sg_entities_linked.append(e)
                     # linked via condition
-                    sg_gateway_condition_spec_linked = _get_linked_entities_via_condition(sg_gateway, flow_relations)
-                    for e in sg_gateway_condition_spec_linked:
-                        if e[3] == ACTIVITY:
-                            for source_activity in source_activities:
-                                relations.append((doc_name, source_activity, e, DF, "g -> sg -> cond -> a"))
-                            sg_entities_linked.append(e)
-                        # not activity is linked, but other (gateway) from which fol. act. will be included as well
-                        else:
-                            sg_entities_linked.append(e)
+                    try:
+                        sg_gateway_condition_spec_linked = _get_linked_entities_via_condition(sg_gateway,
+                                                                                              flow_relations)
+                        for e in sg_gateway_condition_spec_linked:
+                            if e[3] == ACTIVITY:
+                                for source_activity in source_activities:
+                                    relations.append((doc_name, source_activity, e, DF, "g -> sg -> cond -> a"))
+                                sg_entities_linked.append(e)
+                            # not activity is linked, but other (gateway) from which fol. act. will be included as well
+                            else:
+                                sg_entities_linked.append(e)
+                    except IndexError:
+                        # in case of 2.1 were relation is removed due to loop -> just skip this branch
+                        pass
                 branch_start_entities.extend(sg_entities_linked)
 
                 # Create relations between activities of all branches
-                relations.extend(_create_branch_relations(doc_name, flow_relations, gateway, gateway_merge_point,
-                                                          branch_start_entities))
+                relations.extend(_create_branch_relations(doc_name, flow_relations, same_gateway_relations,
+                                                          gateway, gateway_merge_point, branch_start_entities))
 
     # filter duplicates & sort
     relations_final = []
     for r in relations:
-        if r not in relations_final and r[1] != r[2]:
+        # check if pair (order of gateways doesnt matter) is already in set
+        if r not in relations_final and (r[0], r[2], r[1], r[3], r[4]) not in relations_final and r[1] != r[2]:
             relations_final.append(r)
     # sort by doc, g1 sentence idx, g1 word idx, g2 sentence idx, g2 word idx
     relations_final.sort(key=lambda r: (r[0], r[1][0], r[1][1], r[2][0], r[2][1]))
@@ -484,9 +524,15 @@ def generated_activity_relations(doc_names: List[str] = None, return_type: type 
     # save in cache
     save_as_pickle(relations_final, cache_path)
     logger.info(f"Saved {len(relations_final)} to cache")
+
+    # log more detailed information
     with open(os.path.join(ROOT_DIR, "data/paper_stats/activity_relation/nested_gateways.json"), 'w') as file:
         nested_gateways.sort(key=lambda g: g[DOC_NAME])
         json.dump({"nested_gateways": nested_gateways}, file, indent=4)
+
+    with open(os.path.join(ROOT_DIR, "data/paper_stats/activity_relation/branch_lengths.json"), 'w') as file:
+        branch_lengths.sort(key=lambda g: g[DOC_NAME])
+        json.dump({"branch_lengths": branch_lengths}, file, indent=4)
 
     if return_type == dict:
         relations_final = _relations_to_dict(relations_final)
