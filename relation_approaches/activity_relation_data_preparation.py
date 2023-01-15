@@ -379,21 +379,22 @@ def _relations_to_dict(relations: List[Tuple]) -> List[Dict]:
 # B) MAIN METHOD
 
 
-def generated_activity_relations(doc_names: List[str] = None, return_type: type = List, overwrite: bool = False) \
-        -> List[Tuple]:
+def generated_activity_relations(doc_names: List[str] = None, drop_loops: bool = True, return_type: type = List,
+                                 overwrite: bool = False) -> List[Tuple]:
     """
     generate activity relation data
     relations are represented as (doc_name, (a1), (a2), relation type, comment)
     split/merge points are represented as directly follow relations from activity before/after the gateway and
     first/last activities inside the gateway
     :param doc_names: list of documents which should be processed, if None -> all
+    :param drop_loops: flag if flow connections that cause loops should be dropped
     :param return_type: type of single relation
     :param overwrite: flag if data should be generated new and overwrite an already existing cache
     :return: list of relations with data [doc_name, (a1), (a2), relation type, comment] in list or dict form
     """
 
     # prepare cache path where to load/save data
-    cache_path = os.path.join(ROOT_DIR, f"data/other/data_cache/activity_relation_data_"
+    cache_path = os.path.join(ROOT_DIR, f"data/other/data_cache/activity_relation_data_[drop_loops={drop_loops}]"
                                         f"[{str(doc_names) if doc_names else 'all'}]")
     # reload from cache if already exists
     if os.path.exists(cache_path) and not overwrite:
@@ -422,6 +423,13 @@ def generated_activity_relations(doc_names: List[str] = None, return_type: type 
         # special case: remove flows that causes process loops
         if doc_name == 'doc-9.5':
             flow_relations = flow_relations[:-1]
+        if doc_name == 'doc-2.1':
+            flow_relations.remove({'source': (7, 2, ['the', 'customer', 'is', 'of', 'certain', 'significance'],
+                                              'Condition Specification'),
+                                   'target': (5, 4, ['determines'], 'Activity')})
+        if doc_name == 'doc-2.2':
+            flow_relations.remove({'source': (12, 5, ['generated'], 'Activity'),
+                                   'target': (10, 5, ['check'], 'Activity')})
 
         for f in flow_relations:
 
