@@ -100,6 +100,7 @@ SGC_CONTEXT_LABEL_ACTIVITY = 2
 DF = 'directly_following'
 EXCLUSIVE = 'exclusive'
 CONCURRENT = 'concurrent'
+NON_RELATED = 'non_related'
 
 # other helper keys
 DOC_START = 'Document Start'
