@@ -373,14 +373,14 @@ def _relations_to_dict(relations: List[Tuple]) -> List[Dict]:
     :param relations: relations as tuples
     :return: relations as dicts
     """
-    return [{DOC_NAME: r[0], GATEWAY_1: r[1], GATEWAY_2: r[2], RELATION_TYPE: r[3], COMMENT: r[4]} for r in relations]
+    return [{DOC_NAME: r[0], ACTIVITY_1: r[1], ACTIVITY_2: r[2], RELATION_TYPE: r[3], COMMENT: r[4]} for r in relations]
 
 
 # B) MAIN METHOD
 
 
-def generated_activity_relations(doc_names: List[str] = None, drop_loops: bool = True, return_type: type = List,
-                                 overwrite: bool = False) -> List[Tuple]:
+def get_activity_relations(doc_names: List[str] = None, drop_loops: bool = True, return_type: type = List,
+                           overwrite: bool = False) -> List[Tuple]:
     """
     generate activity relation data
     relations are represented as (doc_name, (a1), (a2), relation type, comment)
@@ -551,4 +551,4 @@ def generated_activity_relations(doc_names: List[str] = None, drop_loops: bool =
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
 
-    relations = generated_activity_relations(overwrite=True)
+    relations = get_activity_relations(overwrite=True)

@@ -14,12 +14,12 @@ import logging
 import pandas as pd
 
 from labels import *
-from relation_approaches.activity_relation_data_preparation import generated_activity_relations
+from relation_approaches.activity_relation_data_preparation import get_activity_relations
 from utils import ROOT_DIR
 
 
 def _create_statistics():
-    relations = generated_activity_relations(return_type=dict)
+    relations = get_activity_relations(return_type=dict)
     df = pd.DataFrame.from_dict(relations)
 
     relation_type_count = df.groupby(RELATION_TYPE).count()
