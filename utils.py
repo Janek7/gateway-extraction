@@ -300,6 +300,15 @@ def save_args_to_file(args, log_dir):
             file.write(f"{f'{k}:'.ljust(longest_key + 2)}{v}\n")
 
 
+def flatten_list(two_dim_list: List[List]) -> List:
+    """
+    flattens a two dimensional list
+    :param two_dim_list: nested list
+    :return: not nested list
+    """
+    return [item for sublist in two_dim_list for item in sublist]
+
+
 # save in variable, because it has to be always called random.seed(...) before every random.X call
 CURRENT_USED_SEED = 0
 

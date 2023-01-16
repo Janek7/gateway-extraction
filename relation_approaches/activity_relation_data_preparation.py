@@ -1,5 +1,4 @@
 # add parent dir to sys path for import of modules
-import json
 import os
 import sys
 
@@ -10,6 +9,7 @@ while not os.path.exists(os.path.join(parent_dir, "README.md")):
 sys.path.insert(0, parent_dir)
 
 import logging
+import json
 import itertools
 from typing import List, Tuple, Dict
 
@@ -17,7 +17,7 @@ from petreader.labels import *
 
 from labels import *
 from PetReader import pet_reader
-from utils import GatewayExtractionException, ROOT_DIR, load_pickle, save_as_pickle
+from utils import GatewayExtractionException, ROOT_DIR, load_pickle, save_as_pickle, flatten_list
 
 logger = logging.getLogger('Data Generation [Activity Relations]')
 doc_black_list = ['doc-6.4']
@@ -367,6 +367,29 @@ def _create_branch_relations(doc_name: str, flow_relations: List[Dict], same_gat
     return relations
 
 
+def _create_non_related_relations(doc_name: str, normal_relations: List[Tuple]) -> List[Tuple]:
+    """
+    create relations between all pairs that do not have a relation assigned yet
+    :param doc_name: document
+    :param normal_relations: set of already extracted relations (df, exclusive, concurrent)
+    :return: list of non-related relations
+    """
+    # get all activities of a document and transfer to internal format
+    doc_activites = pet_reader.get_index_enriched_activities(doc_name)
+    doc_activites = [[(i, a[1], a[0], ACTIVITY) for a in sentence_activities] for i, sentence_activities in
+                     enumerate(doc_activites)]
+    doc_activites = flatten_list(doc_activites)
+
+    # create relations between all pairs that do not have a relation assigned yet
+    new_relations = []
+    for a1, a2 in itertools.combinations(doc_activites, 2):
+        normal_relations_filtered = list(filter(lambda r: r[1] == a1 and r[2] == a2, normal_relations))
+        if not normal_relations_filtered:
+            new_relations.append((doc_name, a1, a2, NON_RELATED, None))
+
+    return new_relations
+
+
 def _relations_to_dict(relations: List[Tuple]) -> List[Dict]:
     """
     transforms every relation into a dict format
@@ -411,14 +434,16 @@ def get_activity_relations(doc_names: List[str] = None, drop_loops: bool = True,
         if i % 5 == 0:
             logger.info(f"Processed {i} documents")
 
+        doc_relations = []
+
         if (doc_names and doc_name not in doc_names) or doc_name in doc_black_list:
             continue
 
         # 1) Search for relations using gateways
-        doc_relations = pet_reader.relations_dataset.GetRelations(pet_reader.get_document_number(doc_name))
-        flow_relations = _transform_relations(doc_relations[FLOW])
+        pet_relations = pet_reader.relations_dataset.GetRelations(pet_reader.get_document_number(doc_name))
+        flow_relations = _transform_relations(pet_relations[FLOW])
         flow_relations = _enrich_doc_start_flow(flow_relations)
-        same_gateway_relations = _transform_relations(doc_relations[SAME_GATEWAY])
+        same_gateway_relations = _transform_relations(pet_relations[SAME_GATEWAY])
 
         # special case: remove flows that causes process loops
         if doc_name == 'doc-9.5':
@@ -435,7 +460,7 @@ def get_activity_relations(doc_names: List[str] = None, drop_loops: bool = True,
 
             # a) DIRECTLY FOLLOWING RELATIONS
             if f[SOURCE][3] == f[TARGET][3] == ACTIVITY:
-                relations.append((doc_name, f[SOURCE], f[TARGET], DF, "normal df"))
+                doc_relations.append((doc_name, f[SOURCE], f[TARGET], DF, "normal df"))
 
             # b) RELATIONS INVOLVING GATEWAYS
             if f[TARGET][3] in [XOR_GATEWAY, AND_GATEWAY]:
@@ -467,7 +492,7 @@ def get_activity_relations(doc_names: List[str] = None, drop_loops: bool = True,
                 for e in directly_linked_entities:
                     if e[3] == ACTIVITY:
                         for source_activity in source_activities:
-                            relations.append((doc_name, source_activity, e, DF, "g -> a"))
+                            doc_relations.append((doc_name, source_activity, e, DF, "g -> a"))
                 directly_linked_entities_filtered = _filter_merge_point(gateway_merge_point, directly_linked_entities)
                 directly_linked_entities_filtered = _filter_cond_spec(directly_linked_entities_filtered)
                 branch_start_entities.extend(directly_linked_entities_filtered)
@@ -478,7 +503,7 @@ def get_activity_relations(doc_names: List[str] = None, drop_loops: bool = True,
                 for e in condition_spec_linked:
                     if e[3] == ACTIVITY:
                         for source_activity in source_activities:
-                            relations.append((doc_name, source_activity, e, DF, "g -> cond -> a"))
+                            doc_relations.append((doc_name, source_activity, e, DF, "g -> cond -> a"))
                         gateway_branches_entities_directly_linked.append(e)
                     # not activity is linked, but other (gateway) from which fol. act. will be included as well
                     else:
@@ -494,7 +519,7 @@ def get_activity_relations(doc_names: List[str] = None, drop_loops: bool = True,
                     for e in sg_linked_entities:
                         if e[3] == ACTIVITY:
                             for source_activity in source_activities:
-                                relations.append((doc_name, source_activity, e, DF, "g -> sg -> a"))
+                                doc_relations.append((doc_name, source_activity, e, DF, "g -> sg -> a"))
                             sg_entities_linked.append(e)
                         # not activity is linked, but other (gateway) from which fol. act. will be included as well
                         elif e[3] in [XOR_GATEWAY, AND_GATEWAY]:
@@ -506,7 +531,7 @@ def get_activity_relations(doc_names: List[str] = None, drop_loops: bool = True,
                         for e in sg_gateway_condition_spec_linked:
                             if e[3] == ACTIVITY:
                                 for source_activity in source_activities:
-                                    relations.append((doc_name, source_activity, e, DF, "g -> sg -> cond -> a"))
+                                    doc_relations.append((doc_name, source_activity, e, DF, "g -> sg -> cond -> a"))
                                 sg_entities_linked.append(e)
                             # not activity is linked, but other (gateway) from which fol. act. will be included as well
                             else:
@@ -517,8 +542,14 @@ def get_activity_relations(doc_names: List[str] = None, drop_loops: bool = True,
                 branch_start_entities.extend(sg_entities_linked)
 
                 # Create relations between activities of all branches
-                relations.extend(_create_branch_relations(doc_name, flow_relations, same_gateway_relations,
-                                                          gateway, gateway_merge_point, branch_start_entities))
+                doc_relations.extend(_create_branch_relations(doc_name, flow_relations, same_gateway_relations,
+                                                             gateway, gateway_merge_point, branch_start_entities))
+
+        # add relations of type 'non_related' between all so far unrelated activities in the document
+        doc_relations.extend(_create_non_related_relations(doc_name, doc_relations))
+
+        # add doc_relations to global set of relations
+        relations.extend(doc_relations)
 
     # filter duplicates & sort
     relations_final = []
@@ -526,8 +557,7 @@ def get_activity_relations(doc_names: List[str] = None, drop_loops: bool = True,
         # check if pair (order of gateways doesnt matter) is already in set
         if r not in relations_final and (r[0], r[2], r[1], r[3], r[4]) not in relations_final and r[1] != r[2]:
             relations_final.append(r)
-    # sort by doc, g1 sentence idx, g1 word idx, g2 sentence idx, g2 word idx
-    relations_final.sort(key=lambda r: (r[0], r[1][0], r[1][1], r[2][0], r[2][1]))
+    relations_final.sort(key=lambda r: (r[0], not (r[3] != NON_RELATED), r[1][0], r[1][1], r[2][0], r[2][1]))
 
     # save in cache
     save_as_pickle(relations_final, cache_path)

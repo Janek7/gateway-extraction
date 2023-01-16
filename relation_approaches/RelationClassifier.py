@@ -1,5 +1,4 @@
 # add parent dir to sys path for import of modules
-import json
 import os
 import sys
 

@@ -21,25 +21,40 @@ from utils import ROOT_DIR
 def _create_statistics():
     relations = get_activity_relations(return_type=dict)
     df = pd.DataFrame.from_dict(relations)
+    df.fillna("", inplace=True)
 
     relation_type_count = df.groupby(RELATION_TYPE).count()
     print(relation_type_count)
     print(100 * '-')
     comment_count = df.groupby([RELATION_TYPE, COMMENT]).count()
     print(comment_count)
+
+    # counts for normal (not non_related) relations
+    df_normal = df[df[RELATION_TYPE] != NON_RELATED]
     print(100 * '-')
-    doc_count = df.groupby(DOC_NAME).count()
-    print(doc_count)
+    doc_count_normal = df_normal.groupby(DOC_NAME).count()
+    print(doc_count_normal)
     print(100 * '-')
-    doc_stats = df.groupby(DOC_NAME).count().describe()
-    print(doc_stats)
+    doc_stats_normal = df_normal.groupby(DOC_NAME).count().describe()
+    print(doc_stats_normal)
+
+    # counts for non_related relations
+    df_non_related = df[df[RELATION_TYPE] == NON_RELATED]
+    print(100 * '-')
+    doc_count_non_related = df_non_related.groupby(DOC_NAME).count()
+    print(doc_count_non_related)
+    print(100 * '-')
+    doc_stats_non_related = df_non_related.groupby(DOC_NAME).count().describe()
+    print(doc_stats_non_related)
 
     with pd.ExcelWriter(os.path.join(ROOT_DIR, 'data/paper_stats/activity_relation/activity_relation_data_stats.xlsx')) \
             as writer:
         relation_type_count.to_excel(writer, sheet_name='Relation Type Count')
         comment_count.to_excel(writer, sheet_name='Comment Count')
-        doc_count.to_excel(writer, sheet_name='Doc Count')
-        doc_stats.to_excel(writer, sheet_name='Doc Stats')
+        doc_count_normal.to_excel(writer, sheet_name='Doc Count Normal')
+        doc_stats_normal.to_excel(writer, sheet_name='Doc Stats Normal')
+        doc_count_non_related.to_excel(writer, sheet_name='Doc Count Non-related')
+        doc_stats_non_related.to_excel(writer, sheet_name='Doc Stats Non-related')
 
 
 def _analyze_nested_gateways():
@@ -84,5 +99,5 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
 
     _create_statistics()
-    _analyze_nested_gateways()
-    _analyze_branch_lengths()
+    # _analyze_nested_gateways()
+    # _analyze_branch_lengths()
