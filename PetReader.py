@@ -8,7 +8,7 @@ from petreader.RelationsExtraction import RelationsExtraction
 from petreader.TokenClassification import TokenClassification
 from petreader.labels import *
 
-from utils import ROOT_DIR, load_pickle, save_as_pickle
+from utils import ROOT_DIR, load_pickle, save_as_pickle, flatten_list
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('PetReader')
@@ -105,6 +105,17 @@ class PetReader:
                 sentence_activity_tokens.append((activity, activity_token_triple[1]))
             doc_activity_tokens.append(sentence_activity_tokens)
         return doc_activity_tokens
+
+    def get_activities_in_relation_approach_format(self, doc_name: str) -> List[Tuple]:
+        """
+        return (flattened) list of activities of a document in format (sentence idx, word idx, token list)
+        :param doc_name:
+        :return:
+        """
+        activities = self.get_index_enriched_activities(doc_name)
+        activities = [[(i, a[1], a[0], ACTIVITY) for a in sentence_activities] for i, sentence_activities in
+                      enumerate(activities)]
+        return flatten_list(activities)
 
     @property
     def most_common_activities(self) -> List[str]:

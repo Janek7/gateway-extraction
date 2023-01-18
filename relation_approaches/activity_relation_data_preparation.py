@@ -375,14 +375,11 @@ def _create_non_related_relations(doc_name: str, normal_relations: List[Tuple]) 
     :return: list of non-related relations
     """
     # get all activities of a document and transfer to internal format
-    doc_activites = pet_reader.get_index_enriched_activities(doc_name)
-    doc_activites = [[(i, a[1], a[0], ACTIVITY) for a in sentence_activities] for i, sentence_activities in
-                     enumerate(doc_activites)]
-    doc_activites = flatten_list(doc_activites)
+    doc_activities = pet_reader.get_activities_in_relation_approach_format(doc_name)
 
     # create relations between all pairs that do not have a relation assigned yet
     new_relations = []
-    for a1, a2 in itertools.combinations(doc_activites, 2):
+    for a1, a2 in itertools.combinations(doc_activities, 2):
         normal_relations_filtered = list(filter(lambda r: r[1] == a1 and r[2] == a2, normal_relations))
         if not normal_relations_filtered:
             new_relations.append((doc_name, a1, a2, NON_RELATED, None))
