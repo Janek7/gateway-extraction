@@ -109,3 +109,9 @@ ACTIVITY_1 = 'activity_1'
 ACTIVITY_2 = 'activity_2'
 RELATION_TYPE = 'relation_type'
 COMMENT = 'comment'
+
+# Gateway extraction
+SPLIT = 'split'
+MERGE = 'merge'
+XOR_OPT = 'XOR Gateway - Optional'
+DIFFERENT_RELATIONS = 'different relation types between start activities of branches'

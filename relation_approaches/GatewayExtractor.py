@@ -22,10 +22,6 @@ from utils import GatewayExtractionException
 
 logger = logging.getLogger('GatewayExtractor')
 
-# internal constants
-SPLIT = 'split'
-MERGE = 'merge'
-
 
 class GatewayPoint:
 
@@ -34,9 +30,27 @@ class GatewayPoint:
         self.pointing_activities = pointing_activities
         self.receiving_activities = receiving_activities
 
+    @property
+    def earliest_activity(self):
+        pointing_activities = self.pointing_activities.copy()
+        pointing_activities.sort(key=lambda a: (a[0], a[1]))
+        return pointing_activities[0]
+
     def __repr__(self):
         return f"Gateway {self.type} [pointing activities={self.pointing_activities};" \
                f"receiving activities={self.receiving_activities}]"
+
+
+class Gateway:
+
+    def __init__(self, split_point: GatewayPoint):
+        self.split_point = split_point
+        # merge point and gateway type are not known yet
+        self.merge_point = None
+        self.gateway_type = None
+
+    def __repr__(self):
+        return f"Gateway (type={self.gateway_type})\n    split={self.split_point}\n    merge={self.merge_point}"
 
 
 class GatewayExtractor:
@@ -63,29 +77,34 @@ class GatewayExtractor:
         print("-"*100)
 
         # 2) detect split and merge points in relation set
-        print("split_points")
+        # print("split_points")
         split_points = self._detect_split_points(relations)
-        for sp in split_points:
-            print(sp)
-        print("-" * 100)
+        # for sp in split_points:
+        #     print(sp)
+        # print("-" * 100)
         print("split points merged")
         split_points_merged = self._merge_gateway_point_candidates(split_points)
         for sp in split_points_merged:
             print(sp)
         print("-" * 100)
 
-        print("merge points")
+        # print("merge points")
         merge_points = self._detect_merge_points(relations)
-        for mp in merge_points:
-            print(mp)
-        print("-" * 100)
-        print("merge points merged")
+        # for mp in merge_points:
+        #     print(mp)
+        # print("-" * 100)
+        # print("merge points merged")
         merge_points_merged = self._merge_gateway_point_candidates(merge_points)
         for mp in merge_points_merged:
             print(mp)
         print("-" * 100)
 
-        gateways = []
+        # 3) Detect gateways
+        gateways = self._detect_gateways(relations, split_points, merge_points)
+
+        # 4) Classify gateways
+        gateways = self._classify_gateways(gateways, relations)
+
         return gateways
 
     def _detect_split_points(self, relations: List[Tuple]) -> List[GatewayPoint]:
@@ -125,18 +144,98 @@ class GatewayExtractor:
         return [gc for gc in gateway_candidates if len(gc.pointing_activities) > 1]
 
     @staticmethod
-    def _merge_gateway_point_candidates(gateway_candidates):
+    def _merge_gateway_point_candidates(gateway_point_candidates):
+        """
+        merge gateway point candidates:
+            merge split point if they are pointing to the same activity(s)
+            merge merge point if they are receiving the same activity(s)
+        :param gateway_point_candidates: list of GatewayPoint candidates
+        :return: merged list of GatewayPoint candidates
+        """
         final_candidates = []
-        if gateway_candidates:
-            key_attr = 'pointing_activities' if gateway_candidates[0].type == MERGE else 'receiving_activities'
-            merge_attr = 'receiving_activities' if gateway_candidates[0].type == MERGE else 'pointing_activities'
-            for gc in gateway_candidates:
+        if gateway_point_candidates:
+            key_attr = 'pointing_activities' if gateway_point_candidates[0].type == MERGE else 'receiving_activities'
+            merge_attr = 'receiving_activities' if gateway_point_candidates[0].type == MERGE else 'pointing_activities'
+            for gc in gateway_point_candidates:
                 tmp = list(filter(lambda fc: getattr(fc, key_attr) == getattr(gc, key_attr), final_candidates))
                 if tmp:
                     getattr(tmp[0], merge_attr).extend(getattr(gc, merge_attr))
                 else:
                     final_candidates.append(gc)
         return final_candidates
+
+    @staticmethod
+    def _detect_gateways(relations: List[Tuple], split_points: List[GatewayPoint],
+                         merge_points: List[GatewayPoint]) -> List[Gateway]:
+        """
+        detect gateways in a rule-based way from a set of relations and detected split and merge points
+        gateway points are iterated by order of first activity and a merge point get always assigned to the latest
+        opened gateway (most close split point)
+        :param relations: list of activity relations
+        :param split_points: list of gateway split points
+        :param merge_points: list of gateway merge points
+        :return: list of (unclassified) Gateways
+        """
+        logger.info(f"Detecting gateways from {len(relations)} relations and {len(split_points)} split and "
+                    f"{len(merge_points)} merge points")
+        # assumes that gateway split/merges are mentioned in correct order in text
+        gateway_points = split_points + merge_points
+        gateway_points.sort(key=lambda p: (p.earliest_activity[0], p.earliest_activity[1],
+                                           # assure that SPLIT is preferred in case of optional gateway where one
+                                           # activity is part of pointing activities of  split and merge
+                                           0 if p.type == SPLIT else 1))
+
+        gateways = []
+        print(" Sequence of Gateway points ".center(100, '-'))
+        for p in gateway_points:
+            print(p)
+            if p.type == SPLIT:
+                gateways.append(Gateway(split_point=p))
+            elif p.type == MERGE:
+                newest_opened_gateway = [g for g in gateways if g.merge_point is None][-1]
+                newest_opened_gateway.merge_point = p
+
+        return gateways
+
+    @staticmethod
+    def _classify_gateways(gateways: List[Gateway], relations: List[Tuple]) -> List[Gateway]:
+        """
+        classify if a gateway with a defined split (and optionally merge point) is exclusive or parralel
+        :param gateways: list of gateways
+        :param relations: list of activity relations
+        :return: list of gateways enriched with gateway types
+        """
+        print(" Gateways ".center(100, '-'))
+        for g in gateways:
+            branch_activities = g.split_point.receiving_activities
+
+            # all in combinations necessary in case of >2 branches
+            branch_activities_relations = []
+            for a1, a2 in itertools.combinations(branch_activities, 2):
+                try:
+                    relation = list(filter(lambda r: r[0] == a1 and r[1] == a2, relations))[0]
+                except IndexError:
+                    raise GatewayExtractionException(f"relation of {a1} - {a2} is not relation set")
+                branch_activities_relations.append(relation)
+
+            # check set of relations -> if all the same, if yes what, or if different ones
+            branch_activities_relations_types = [relation[2] for relation in branch_activities_relations]
+            branch_activities_relations_types_unique = list(set(branch_activities_relations_types))
+            if branch_activities_relations_types_unique == [DF]:
+                g.gateway_type = XOR_OPT
+            elif branch_activities_relations_types_unique == [EXCLUSIVE]:
+                g.gateway_type = XOR_GATEWAY
+            elif branch_activities_relations_types_unique == [CONCURRENT]:
+                g.gateway_type = AND_GATEWAY
+            elif branch_activities_relations_types_unique == [NON_RELATED]:
+                g.gateway_type = NON_RELATED
+            else:
+                g.gateway_type = DIFFERENT_RELATIONS
+
+        for g in gateways:
+            print(g)
+
+        return gateways
 
     @staticmethod
     def _filter_relations(relations, label=None, exclude_label=None):
@@ -155,11 +254,19 @@ class GatewayExtractor:
 
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.DEBUG)
     gateway_extractor = GatewayExtractor(relation_classifier=GoldstandardRelationClassifier())
-    # simple one
-    gateway_extractor.extract_document_gateways(doc_name="doc-3.8")
 
-    # optional gateway at the end; multiple closing behind each other
+    # test one
+    gateway_extractor.extract_document_gateways(doc_name="doc-9.5")
+
+    # simple one
+    # gateway_extractor.extract_document_gateways(doc_name="doc-3.8")
+
+    # not closing gateway at the beginning;optional gateway at the end;nested gateways opening behind each other
+    # gateway_extractor.extract_document_gateways(doc_name="doc-1.2")
+
+    # not closing gateway at the beginning;optional gateway at the end;nested gateways closing behind each other
     # gateway_extractor.extract_document_gateways(doc_name="doc-1.1")
 
     # includes gateway at start
