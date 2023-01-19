@@ -4,7 +4,8 @@
 __pycache__/
 
 # data & logs
-results/
+data/results
+data/results_relation_approaches
 data/logs/
 data/logs_server/
 data/final_models/
