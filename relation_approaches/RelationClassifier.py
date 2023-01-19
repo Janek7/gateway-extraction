@@ -15,6 +15,7 @@ from typing import Tuple
 
 from labels import *
 from relation_approaches.activity_relation_data_preparation import get_activity_relations
+from utils import GatewayExtractionException
 
 """
 label set: (imported from labels)
@@ -77,14 +78,16 @@ class GoldstandardRelationClassifier(RelationClassifier):
         self.relation_data = get_activity_relations(return_type=dict)
 
     def predict_activity_pair(self, doc_name, activity_1, activity_2) -> str:
-        target_relation = list(filter(lambda r: r[DOC_NAME] == doc_name and r[ACTIVITY_1] == activity_1
-                                                and r[ACTIVITY_2] == activity_2,
+        target_relation = list(filter(lambda r: r[DOC_NAME] == doc_name and
+                                                ((r[ACTIVITY_1] == activity_1 and r[ACTIVITY_2] == activity_2) or
+                                                 (r[ACTIVITY_1] == activity_2 and r[ACTIVITY_2] == activity_1)),
                                       self.relation_data))
+        if len(target_relation) > 1:
+            raise GatewayExtractionException(f"Multiple relations of {activity_1} and {activity_2} found")
         if target_relation:
             return target_relation[0][RELATION_TYPE]
-        # TODO: remove after non_related is introduced as well -> throw exception here then
         else:
-            return NON_RELATED
+            raise GatewayExtractionException(f"No relation of {activity_1} and {activity_2} found")
 
 
 if __name__ == '__main__':
