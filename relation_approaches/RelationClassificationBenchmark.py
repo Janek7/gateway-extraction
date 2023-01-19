@@ -16,8 +16,14 @@ from petreader.labels import *
 from relation_approaches.activity_relation_data_preparation import get_activity_relations
 from relation_approaches.RelationClassifier import RelationClassifier, GoldstandardRelationClassifier, \
     DFBaselineRelationClassifier, RandomBaselineRelationClassifier, classify_documents
+from relation_approaches import metrics
 from utils import ROOT_DIR
 from PetReader import pet_reader
+from labels import *
+
+
+# activity relation types/labels
+LABELS = [DF, EXCLUSIVE, CONCURRENT, NON_RELATED]
 
 
 class RelationClassificationBenchmark:
@@ -39,6 +45,7 @@ class RelationClassificationBenchmark:
             self.output_folder = os.path.join(ROOT_DIR, f"data/results_relation_approaches/relation_classification"
                                                         f"/{approach_name}")
         self.round_digits = round_digits
+        self.gold_activity_relations = get_activity_relations()
 
     def evaluate_documents(self, doc_names: List[str]):
         """
@@ -52,27 +59,42 @@ class RelationClassificationBenchmark:
         # 1) Create predictions
         relation_predictions = classify_documents(self.relation_classifier, doc_names)
 
-        # 2) Compute metrics per document & compute average statistics for whole document set
-        doc_metrics = self.evaluate_activity_relations(relation_predictions)
+        # 2) Compute metrics per class and document
+        for doc_name in doc_names:
+            print(doc_name.center(100, '-'))
+            doc_relation_predictions = {doc_name: relation_predictions[doc_name]}
+            for label in LABELS:
+                doc_label_metrics = self.evaluate_activity_relations(doc_relation_predictions, label=label)
+                print(label, doc_label_metrics)
+
+        # 4) Compute average statistics for whole document set
+        # averaged_metrics = metrics.average_metrics(list(doc_metrics.values()), self.round_digits)
+        # print(averaged_metrics)
 
         # 3) Write results & statistics into output folder
 
-    def evaluate_activity_relations(self, relations: Dict) -> Dict[Dict]:
+    def evaluate_activity_relations(self, relations: Dict, label: str = None) -> Dict:
         """
         evaluate relations against "gold" relations created by activity relation data generation algorithm
+        evaluation can be limited to one label by setting label
         internal relations tuple format: (a1, a2, relation_label)
         :param relations: relations given in dictionary (key = doc_name, value: list of activity
                           relations format -> (doc_name, a1, a2, relation_label, comment)
+        :param label: if set, only one class is evaluated
         :return: dictionary with metrics for each document
         """
-        gold_standard = get_activity_relations()
         # filter gold_relation on data in scope (doc_names passed in relations) and reduce relation to (a1, a2, label)
-        gold_standard = {doc_name: [r[1:4] for r in gold_standard if r[0] == doc_name] for doc_name in relations.keys()}
+        gold_standard = {doc_name: [r[1:4] for r in self.gold_activity_relations if r[0] == doc_name]
+                         for doc_name in relations.keys()}
 
         doc_metrics = {}
         for doc_name in relations.keys():
             pred_relations = deepcopy(relations[doc_name])
             gold_relations = deepcopy(gold_standard[doc_name])
+
+            if label:
+                pred_relations = [r for r in pred_relations if r[2] == label]
+                gold_relations = [r for r in gold_relations if r[2] == label]
 
             # define counters
             tp = 0
@@ -94,9 +116,9 @@ class RelationClassificationBenchmark:
             fn = len(gold_relations) - tp
 
             # compute metrics
-            precision = tp / (tp + fp)
-            recall = tp / (tp + fn)
-            f1 = 2 * (precision * recall) / (precision + recall + 1e-10)
+            precision = metrics.precision(tp, fp)
+            recall = metrics.recall(tp, fn)
+            f1 = metrics.f1(precision, recall)
 
             # store in metrics dict
             doc_metrics[doc_name] = {
@@ -114,3 +136,4 @@ class RelationClassificationBenchmark:
 
 if __name__ == '__main__':
     b = RelationClassificationBenchmark("baseline_df", DFBaselineRelationClassifier())
+    b.evaluate_documents(["doc-1.1", "doc-1.2"])#, "doc-1.2"])
