@@ -59,7 +59,7 @@ def _create_statistics():
 
 def _analyze_nested_gateways():
     with open(
-            "C:\\Users\\janek\\Development\\Git\\master-thesis\\data\\paper_stats\\activity_relation\\nested_gateways.json",
+            "/data/paper_stats/activity_relation/nested_gateways.json",
             'r') as file:
         nested_gateways = json.load(file)["nested_gateways"]
     df = pd.DataFrame.from_dict(nested_gateways)
@@ -82,7 +82,7 @@ def _analyze_nested_gateways():
 
 def _analyze_branch_lengths():
     with open(
-            "C:\\Users\\janek\\Development\\Git\\master-thesis\\data\\paper_stats\\activity_relation\\branch_lengths.json",
+            "/data/paper_stats/activity_relation/branch_lengths.json",
             'r') as file:
         branch_lengths = json.load(file)["branch_lengths"]
     df = pd.DataFrame.from_dict(branch_lengths)

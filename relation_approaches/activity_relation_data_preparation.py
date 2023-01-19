@@ -232,7 +232,6 @@ def _get_entities_until_merge_point(element: Tuple, next_merge: Tuple, flow_rela
     :param same_gateway_relations: set of same gateway relations to check
     :return: list of flows
     """
-    relevant_flows = _get_following_flows(element, flow_relations, same_gateway_relations)
     entities_between = [element]
 
     # iterate twice because semantical structure does not always follows textual structure AND because of same gateways
@@ -443,15 +442,16 @@ def get_activity_relations(doc_names: List[str] = None, drop_loops: bool = True,
         same_gateway_relations = _transform_relations(pet_relations[SAME_GATEWAY])
 
         # special case: remove flows that causes process loops
-        if doc_name == 'doc-9.5':
-            flow_relations = flow_relations[:-1]
-        if doc_name == 'doc-2.1':
-            flow_relations.remove({'source': (7, 2, ['the', 'customer', 'is', 'of', 'certain', 'significance'],
-                                              'Condition Specification'),
-                                   'target': (5, 4, ['determines'], 'Activity')})
-        if doc_name == 'doc-2.2':
-            flow_relations.remove({'source': (12, 5, ['generated'], 'Activity'),
-                                   'target': (10, 5, ['check'], 'Activity')})
+        if drop_loops:
+            if doc_name == 'doc-9.5':
+                flow_relations = flow_relations[:-1]
+            if doc_name == 'doc-2.1':
+                flow_relations.remove({'source': (7, 2, ['the', 'customer', 'is', 'of', 'certain', 'significance'],
+                                                  'Condition Specification'),
+                                       'target': (5, 4, ['determines'], 'Activity')})
+            if doc_name == 'doc-2.2':
+                flow_relations.remove({'source': (12, 5, ['generated'], 'Activity'),
+                                       'target': (10, 5, ['check'], 'Activity')})
 
         for f in flow_relations:
 
