@@ -24,14 +24,27 @@ logger = logging.getLogger('GatewayExtractor')
 
 
 class GatewayPoint:
+    """
+    Class that represents a gateway split or merge point by defining activities pointing to this point and receiving
+    activities that are pointed to
+    """
 
     def __init__(self, type, pointing_activities, receiving_activities):
+        """
+        create a GatewayPoint
+        :param type: gateway point type -> 'split' or 'merge'
+        :param pointing_activities: activities pointing to this point
+        :param receiving_activities: receiving activities that are pointed to
+        """
         self.type = type
         self.pointing_activities = pointing_activities
         self.receiving_activities = receiving_activities
 
     @property
     def earliest_activity(self):
+        """
+        :return: return in the text mentioned earliest activity
+        """
         pointing_activities = self.pointing_activities.copy()
         pointing_activities.sort(key=lambda a: (a[0], a[1]))
         return pointing_activities[0]
@@ -42,27 +55,43 @@ class GatewayPoint:
 
 
 class Gateway:
+    """
+    Gateway class that wraps important information of one gateway
+    """
 
     def __init__(self, split_point: GatewayPoint):
+        """
+        gateway is defined by split point, merge point may be added later optionally
+        gateway type and relations of the activities in the branches are added later
+        :param split_point: split point
+        """
         self.split_point = split_point
         # merge point and gateway type are not known yet
         self.merge_point = None
         self.gateway_type = None
+        self.branch_activity_relations = None
 
     def __repr__(self):
         return f"Gateway (type={self.gateway_type})\n    split={self.split_point}\n    merge={self.merge_point}"
 
 
 class GatewayExtractor:
+    """
+    extracts Gateways in a rule-based manner using relations between activities provided by a RelationClassifier
+    """
 
     def __init__(self, relation_classifier: RelationClassifier):
+        """
+        defines a new GatewayExtractor by passing the RelationClassifier
+        :param relation_classifier: RelationClassifier obj
+        """
         self.relation_classifier = relation_classifier
 
-    def extract_document_gateways(self, doc_name: str) -> List:
+    def extract_document_gateways(self, doc_name: str) -> List[Gateway]:
         """
-
-        :param doc_name:
-        :return:
+        extracts the gateways of one document
+        :param doc_name: doc name
+        :return: list of Gateway objects
         """
         doc_activities = pet_reader.get_activities_in_relation_approach_format(doc_name)
 
@@ -70,9 +99,9 @@ class GatewayExtractor:
         relations = []
         for a1, a2 in itertools.combinations(doc_activities, 2):
             relations.append((a1, a2, self.relation_classifier.predict_activity_pair(doc_name, a1, a2)))
-        relations_existing = self._filter_relations(relations, exclude_label=NON_RELATED)
+        # relations = self._filter_relations(relations, exclude_label=NON_RELATED)
 
-        for r in relations_existing:
+        for r in relations:
             print(r)
         print("-"*100)
 
@@ -213,9 +242,10 @@ class GatewayExtractor:
             branch_activities_relations = []
             for a1, a2 in itertools.combinations(branch_activities, 2):
                 try:
-                    relation = list(filter(lambda r: r[0] == a1 and r[1] == a2, relations))[0]
+                    relation = list(filter(lambda r: (r[0] == a1 and r[1] == a2) or (r[1] == a1 and r[0] == a2),
+                                           relations))[0]
                 except IndexError:
-                    raise GatewayExtractionException(f"relation of {a1} - {a2} is not relation set")
+                    raise GatewayExtractionException(f"relation of {a1} and {a2} is not relation set")
                 branch_activities_relations.append(relation)
 
             # check set of relations -> if all the same, if yes what, or if different ones
@@ -231,6 +261,8 @@ class GatewayExtractor:
                 g.gateway_type = NON_RELATED
             else:
                 g.gateway_type = DIFFERENT_RELATIONS
+
+            g.branch_activity_relations = branch_activities_relations
 
         for g in gateways:
             print(g)
