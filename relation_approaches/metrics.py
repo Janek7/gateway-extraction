@@ -3,17 +3,19 @@ from typing import List, Dict
 import numpy as np
 from petreader.labels import *
 
+EPSILON = 1e-10
+
 
 def precision(tp, fp):
-    return tp / (tp + fp + 1e-10)
+    return tp / (tp + fp + EPSILON)
 
 
 def recall(tp, fn):
-    return tp / (tp + fn)
+    return tp / (tp + fn + EPSILON)
 
 
 def f1(precision, recall):
-    return 2 * (precision * recall) / (precision + recall + 1e-10)
+    return 2 * (precision * recall) / (precision + recall + EPSILON)
 
 
 def average_metrics(metric_list: List[Dict], round_digits=2) -> Dict:
