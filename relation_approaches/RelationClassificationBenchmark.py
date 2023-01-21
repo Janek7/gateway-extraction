@@ -57,7 +57,7 @@ class RelationClassificationBenchmark:
             self.n = n
         elif isinstance(n, int):
             self.n = list(range(1, n + 1))
-        n.append(N_ALL)
+        self.n.append(N_ALL)
         # prepare output folder
         if output_folder:
             self.output_folder = output_folder
@@ -80,7 +80,7 @@ class RelationClassificationBenchmark:
         relation_predictions = classify_documents(self.relation_classifier, doc_names)
 
         logger.info(f"Evaluate predictions with set of n's: {self.n}")
-        all_doc_metrics_nearest_n = self.compute_document_label_metrics_nearest_n(relation_predictions, doc_names)
+        all_doc_metrics_nearest_n = self.compute_document_label_metrics_nearest_n(relation_predictions)
         label_avg_metrics_nearest_n = {i: self.average_label_wise(m) for i, m in all_doc_metrics_nearest_n.items()}
         overall_avg_metrics_n = {i: metrics.average_metrics([m for label, m in lm.items()], self.round_digits)
                                  for i, lm in label_avg_metrics_nearest_n.items()}
@@ -92,17 +92,16 @@ class RelationClassificationBenchmark:
             self.write_metrics(all_doc_metrics_nearest_n[i], label_avg_metrics_nearest_n[i], overall_avg_metrics_n[i],
                                name=name)
 
-    def compute_document_label_metrics(self, relation_predictions: Dict[str, List], doc_names: List[str],
+    def compute_document_label_metrics(self, relation_predictions: Dict[str, List],
                                        gold_relations: Dict[str, List] = None) -> Dict[str, Dict]:
         """
         Compute metrics per class and document
         :param relation_predictions: dictionary of predicted relations per document
-        :param doc_names: target document names
         :param gold_relations: dictionary of gold relations per document
         :return: dictionary with structure {doc-name: {label: {metric: value}}}
         """
         all_doc_metrics = {}
-        for doc_name in doc_names:
+        for doc_name in relation_predictions.keys():
             doc_relation_predictions = {doc_name: relation_predictions[doc_name]}
             doc_metrics = {}
             for label in LABELS:
@@ -112,13 +111,11 @@ class RelationClassificationBenchmark:
             all_doc_metrics[doc_name] = doc_metrics
         return all_doc_metrics
 
-    def compute_document_label_metrics_nearest_n(self, relation_predictions, doc_names: List[str]) \
-            -> Dict[int, Dict]:
+    def compute_document_label_metrics_nearest_n(self, relation_predictions) -> Dict[int, Dict]:
         """
         compute document/label metrics n times with limiting relations to evaluate to activities that are within a
         distance of n in the sequence of activities in the whole document
         :param relation_predictions: dictionary of relations per document
-        :param doc_names: target document names
         :return: dict with n as key and dictionary with structure {doc-name: {label: {metric: value}}} as value
         """
         all_doc_metrics_nearest_n = {}
@@ -138,7 +135,7 @@ class RelationClassificationBenchmark:
                 gold_relations_limited[doc_name] = self.limit_relations_to_nearest_n(doc_name, doc_gold_relations, i)
 
             # create predictions for limited sets as in normal version
-            preds = self.compute_document_label_metrics(relation_predictions_limited, doc_names, gold_relations_limited)
+            preds = self.compute_document_label_metrics(relation_predictions_limited, gold_relations_limited)
             all_doc_metrics_nearest_n[i] = preds
         return all_doc_metrics_nearest_n
 

@@ -110,7 +110,7 @@ def classify_documents(relation_classifier: RelationClassifier, doc_names: List[
     evaluate a RelationClassifier by applying it to given list of doc_names (if empty, evaluate all)
     :param relation_classifier: RelationClassifier instance
     :param doc_names: documents to evaluate
-    :return:
+    :return: dictionary with {doc_name: list of activity relations)
     """
     relations = {}
     if not doc_names:

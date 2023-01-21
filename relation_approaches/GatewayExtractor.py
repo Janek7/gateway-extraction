@@ -10,7 +10,7 @@ sys.path.insert(0, parent_dir)
 
 
 import logging
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 import itertools
 
 from petreader.labels import *
@@ -21,6 +21,9 @@ from labels import *
 from utils import GatewayExtractionException
 
 logger = logging.getLogger('GatewayExtractor')
+
+
+# A) HELPER CLASSES
 
 
 class GatewayPoint:
@@ -53,6 +56,9 @@ class GatewayPoint:
         return f"Gateway {self.type} [pointing activities={self.pointing_activities};" \
                f"receiving activities={self.receiving_activities}]"
 
+    def __str__(self):
+        return self.__repr__()
+
 
 class Gateway:
     """
@@ -71,8 +77,38 @@ class Gateway:
         self.gateway_type = None
         self.branch_activity_relations = None
 
+    def check_type_for_evaluation(self, gateway_type) -> bool:
+        """
+        check if the gateway is XOR_GATEWAY or AND_GATEWAY
+        method necessary, because GatewayExtractor is able to extract refined exclusive XOR optional gateways (which
+        count for evaluation as XOR_GATEWAY as well)
+        :param gateway_type: gateway type to check for (XOR_GATEWAY or AND_GATEWAY)
+        :return: true/false
+        """
+        if gateway_type == XOR_GATEWAY:
+            return self.gateway_type in [XOR_GATEWAY, XOR_OPT]
+        elif gateway_type == AND_GATEWAY:
+            return self.gateway_type == AND_GATEWAY
+        else:
+            raise ValueError(f"Only XOR_GATEAY and AND_GATEWAY are allowed for evaluation")
+
     def __repr__(self):
         return f"Gateway (type={self.gateway_type})\n    split={self.split_point}\n    merge={self.merge_point}"
+
+    def __str__(self) -> str:
+        return f"Gateway (type={self.gateway_type}) | split={self.split_point} | merge={self.merge_point} | " \
+               f"branch_activity_relations={self.branch_activity_relations}"
+
+    def to_json(self) -> Dict:
+        return {
+            "type": self.gateway_type,
+            "split_point": self.split_point.__repr__(),
+            "merge_point": self.merge_point.__repr__(),
+            "branch_activity_relations": self.branch_activity_relations
+        }
+
+
+# B) MAIN CLASS
 
 
 class GatewayExtractor:
@@ -257,15 +293,13 @@ class GatewayExtractor:
                 g.gateway_type = XOR_GATEWAY
             elif branch_activities_relations_types_unique == [CONCURRENT]:
                 g.gateway_type = AND_GATEWAY
-            elif branch_activities_relations_types_unique == [NON_RELATED]:
-                g.gateway_type = NON_RELATED
             else:
                 g.gateway_type = DIFFERENT_RELATIONS
 
             g.branch_activity_relations = branch_activities_relations
 
         for g in gateways:
-            print(g)
+            print(g.__repr__())
 
         return gateways
 
