@@ -17,6 +17,7 @@ from abc import abstractmethod, ABC
 import pandas as pd
 from petreader.labels import *
 
+from relation_approaches.AbstractClassificationBenchmark import AbstractClassificationBenchmark
 from relation_approaches.GatewayExtractor import GatewayExtractor, Gateway
 from relation_approaches.RelationClassifier import DFBaselineRelationClassifier, GoldstandardRelationClassifier
 from relation_approaches import metrics
@@ -27,7 +28,7 @@ logger = logging.getLogger('Gateway Extraction Benchmark')
 GATEWAY_TYPES = [XOR_GATEWAY, AND_GATEWAY]
 
 
-class GatewayExtractionBenchmark(ABC):
+class GatewayExtractionBenchmark(AbstractClassificationBenchmark):
     """
     Creates and evaluates extraction of gateways created by a GatewayExtractor instance
     """
@@ -35,14 +36,13 @@ class GatewayExtractionBenchmark(ABC):
     def __init__(self, approach_name: str, gateway_extractor: GatewayExtractor, output_folder: str = None,
                  round_digits: int = 2):
         self.gateway_extractor = gateway_extractor
-        self.round_digits = round_digits
+
         # prepare output folder
-        if output_folder:
-            self.output_folder = output_folder
-        else:
-            self.output_folder = os.path.join(ROOT_DIR, f"data/results_relation_approaches/gateway_extraction"
-                                                        f"/{approach_name}")
-        os.makedirs(self.output_folder, exist_ok=True)
+        if not output_folder:
+            output_folder = os.path.join(ROOT_DIR,
+                                         f"data/results_relation_approaches/gateway_extraction/{approach_name}")
+
+        AbstractClassificationBenchmark.__init__(self, GATEWAY_TYPES, approach_name, output_folder, round_digits)
 
     def evaluate_documents(self, doc_names: List[str]):
         """
@@ -73,7 +73,7 @@ class GatewayExtractionBenchmark(ABC):
         all_doc_metrics = {}
         for doc_name in gateway_extractions.keys():
             doc_metrics = {label: self.evaluate_gateway_extractions(doc_name, gateway_extractions[doc_name],
-                                                                    label=label) for label in GATEWAY_TYPES}
+                                                                    label=label) for label in self.labels}
             all_doc_metrics[doc_name] = doc_metrics
         return all_doc_metrics
 
@@ -87,43 +87,6 @@ class GatewayExtractionBenchmark(ABC):
         :return: dictionary with metrics
         """
         pass
-
-    def average_label_wise(self, all_doc_metrics: Dict) -> Dict:
-        """
-        create averaged metrics for each label
-        :param all_doc_metrics: metrics for each label in each document (nested dictionary)
-        :return: dictionary with labels as key and averaged metric dict
-        """
-        label_avg_metrics = {}
-        for label in GATEWAY_TYPES:
-            label_doc_metrics = [doc_metrics[label] for doc_name, doc_metrics in all_doc_metrics.items()]
-            label_avg = metrics.average_metrics(label_doc_metrics, self.round_digits)
-            label_avg_metrics[label] = label_avg
-        return label_avg_metrics
-
-    def write_metrics(self, all_doc_metrics: Dict, label_avg_metrics: Dict, overall_avg_metrics: Dict,
-                      name: str = None) -> None:
-        """
-        Write all metrics in a normalized version to excel
-        """
-        # prepare outputs
-        all_doc_metrics_list = flatten_list([[{**{"doc_name": doc_name, "label": label}, **one_label_metrics}
-                                              for label, one_label_metrics in label_metrics.items()]
-                                             for doc_name, label_metrics in all_doc_metrics.items()])
-        all_doc_metrics_df = pd.DataFrame.from_dict(all_doc_metrics_list)
-
-        label_avg_metrics_list = [{**{"label": label}, **one_label_metrics}
-                                  for label, one_label_metrics in label_avg_metrics.items()]
-        label_avg_metrics_df = pd.DataFrame.from_dict(label_avg_metrics_list)
-
-        overall_avg_metrics_df = pd.DataFrame.from_dict([overall_avg_metrics])
-
-        # write to excel
-        path = os.path.join(self.output_folder, f'results{f"-{name}" if name else ""}.xlsx')
-        with pd.ExcelWriter(path) as writer:
-            all_doc_metrics_df.to_excel(writer, sheet_name='Doc-level metrics', index=False)
-            label_avg_metrics_df.to_excel(writer, sheet_name='Label-wise metrics', index=False)
-            overall_avg_metrics_df.to_excel(writer, sheet_name='Overall metrics', index=False)
 
     def write_results(self, gateway_extractions: Dict[str, List[Gateway]]) -> None:
         """
@@ -191,23 +154,7 @@ class SimpleGatewayTypeAndNumberBenchmark(GatewayExtractionBenchmark):
         # fn = number of elements in gold standard that remain unmatched
         fn = number_gold_gateways - tp
 
-        # compute metrics
-        precision = metrics.precision(tp, fp)
-        recall = metrics.recall(tp, fn)
-        f1 = metrics.f1(precision, recall)
-
-        # store in metrics dict
-        doc_metrics = {
-            TRUE_POSITIVE: tp,
-            FALSE_POSITIVE: fp,
-            FALSE_NEGATIVE: fn,
-            PRECISION: round(precision, self.round_digits),
-            RECALL: round(recall, self.round_digits),
-            F1SCORE: round(f1, self.round_digits),
-            SUPPORT: len(gold_gateways)
-        }
-
-        return doc_metrics
+        return self.compute_metrics_dict(tp, fp, fn, number_gold_gateways)
 
 
 if __name__ == '__main__':

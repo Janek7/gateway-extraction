@@ -13,29 +13,24 @@ from copy import deepcopy
 import logging
 import json
 
-from petreader.labels import *
-import pandas as pd
-
+from relation_approaches.AbstractClassificationBenchmark import AbstractClassificationBenchmark
 from relation_approaches.activity_relation_data_preparation import get_activity_relations
 from relation_approaches.RelationClassifier import RelationClassifier, GoldstandardRelationClassifier, \
     DFBaselineRelationClassifier, RandomBaselineRelationClassifier, classify_documents
 from relation_approaches import metrics
-from utils import ROOT_DIR, flatten_list
+from utils import ROOT_DIR
 from PetReader import pet_reader
 from labels import *
-
-# activity relation types/labels
-LABELS = [DF, EXCLUSIVE, CONCURRENT, NON_RELATED]
-# parameter for n value to evaluate all activity pairs
-N_ALL = 1000
 
 logger = logging.getLogger('Relation Classification Benchmark')
 
 
-class RelationClassificationBenchmark:
+class RelationClassificationBenchmark(AbstractClassificationBenchmark):
     """
     Creates and evaluates predictions of activity relation pairs using a given RelationClassifier instance
     """
+    # parameter for n value to evaluate all activity pairs
+    N_ALL = 1000
 
     def __init__(self, approach_name: str, relation_classifier: RelationClassifier, n=None,
                  output_folder: str = None, round_digits: int = 2) -> None:
@@ -47,9 +42,7 @@ class RelationClassificationBenchmark:
         :param output_folder: output folder; if None, generate based on approach_approach_name
         :param round_digits: number of digits to round metrics
         """
-        self.approach_name = approach_name
         self.relation_classifier = relation_classifier
-        self.round_digits = round_digits
         # define nearest n's to check & append a arbitrary large number to evaluate all
         if n is None:
             self.n = [1, 2, 5, 10]
@@ -57,16 +50,18 @@ class RelationClassificationBenchmark:
             self.n = n
         elif isinstance(n, int):
             self.n = list(range(1, n + 1))
-        self.n.append(N_ALL)
-        # prepare output folder
-        if output_folder:
-            self.output_folder = output_folder
-        else:
-            self.output_folder = os.path.join(ROOT_DIR, f"data/results_relation_approaches/relation_classification"
-                                                        f"/{approach_name}")
-        os.makedirs(self.output_folder, exist_ok=True)
+        self.n.append(self.N_ALL)
+
         # load gold standard
         self.gold_activity_relations = get_activity_relations()
+
+        # prepare output folder
+        if not output_folder:
+            output_folder = os.path.join(ROOT_DIR,
+                                         f"data/results_relation_approaches/relation_classification/{approach_name}")
+
+        AbstractClassificationBenchmark.__init__(self, [DF, EXCLUSIVE, CONCURRENT, NON_RELATED],
+                                                 approach_name, output_folder, round_digits)
 
     def evaluate_documents(self, doc_names: List[str]):
         """
@@ -88,7 +83,7 @@ class RelationClassificationBenchmark:
         logger.info(f"Write results & predictions to {self.output_folder}")
         self.write_results(relation_predictions)
         for i in self.n:
-            name = "all" if i == N_ALL else f"n={str(i)}"
+            name = "all" if i == self.N_ALL else f"n={str(i)}"
             self.write_metrics(all_doc_metrics_nearest_n[i], label_avg_metrics_nearest_n[i], overall_avg_metrics_n[i],
                                name=name)
 
@@ -104,7 +99,7 @@ class RelationClassificationBenchmark:
         for doc_name in relation_predictions.keys():
             doc_relation_predictions = {doc_name: relation_predictions[doc_name]}
             doc_metrics = {}
-            for label in LABELS:
+            for label in self.labels:
                 doc_label_metrics = self.evaluate_activity_relations(doc_relation_predictions,
                                                                      gold_relations=gold_relations, label=label)
                 doc_metrics[label] = doc_label_metrics[doc_name]
@@ -197,60 +192,10 @@ class RelationClassificationBenchmark:
             # fn = number of elements in gold standard that remain unmatched
             fn = len(gold_relations) - tp
 
-            # compute metrics
-            precision = metrics.precision(tp, fp)
-            recall = metrics.recall(tp, fn)
-            f1 = metrics.f1(precision, recall)
-
             # store in metrics dict
-            doc_metrics[doc_name] = {
-                TRUE_POSITIVE: tp,
-                FALSE_POSITIVE: fp,
-                FALSE_NEGATIVE: fn,
-                PRECISION: round(precision, self.round_digits),
-                RECALL: round(recall, self.round_digits),
-                F1SCORE: round(f1, self.round_digits),
-                SUPPORT: len(gold_relations)
-            }
+            doc_metrics[doc_name] = self.compute_metrics_dict(tp, fp, fn, len(gold_relations))
 
         return doc_metrics
-
-    def average_label_wise(self, all_doc_metrics: Dict) -> Dict:
-        """
-        create averaged metrics for each label
-        :param all_doc_metrics: metrics for each label in each document (nested dictionary)
-        :return: dictionary with labels as key and averaged metric dict
-        """
-        label_avg_metrics = {}
-        for label in LABELS:
-            label_doc_metrics = [doc_metrics[label] for doc_name, doc_metrics in all_doc_metrics.items()]
-            label_avg = metrics.average_metrics(label_doc_metrics, self.round_digits)
-            label_avg_metrics[label] = label_avg
-        return label_avg_metrics
-
-    def write_metrics(self, all_doc_metrics: Dict, label_avg_metrics: Dict, overall_avg_metrics: Dict,
-                      name: str = None) -> None:
-        """
-        Write all metrics in a normalized version to excel
-        """
-        # prepare outputs
-        all_doc_metrics_list = flatten_list([[{**{"doc_name": doc_name, "label": label}, **one_label_metrics}
-                                              for label, one_label_metrics in label_metrics.items()]
-                                             for doc_name, label_metrics in all_doc_metrics.items()])
-        all_doc_metrics_df = pd.DataFrame.from_dict(all_doc_metrics_list)
-
-        label_avg_metrics_list = [{**{"label": label}, **one_label_metrics}
-                                  for label, one_label_metrics in label_avg_metrics.items()]
-        label_avg_metrics_df = pd.DataFrame.from_dict(label_avg_metrics_list)
-
-        overall_avg_metrics_df = pd.DataFrame.from_dict([overall_avg_metrics])
-
-        # write to excel
-        path = os.path.join(self.output_folder, f'results{f"-{name}" if name else ""}.xlsx')
-        with pd.ExcelWriter(path) as writer:
-            all_doc_metrics_df.to_excel(writer, sheet_name='Doc-level metrics', index=False)
-            label_avg_metrics_df.to_excel(writer, sheet_name='Label-wise metrics', index=False)
-            overall_avg_metrics_df.to_excel(writer, sheet_name='Overall metrics', index=False)
 
     def write_results(self, relation_predictions: Dict) -> None:
         """
