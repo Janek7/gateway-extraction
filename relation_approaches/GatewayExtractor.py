@@ -273,6 +273,8 @@ class GatewayExtractor:
         print(" Gateways ".center(100, '-'))
         for g in gateways:
             branch_activities = g.split_point.receiving_activities
+            # filter merge point activities (in case of empty branches)
+            branch_activities = [a for a in branch_activities if a not in g.merge_point.receiving_activities]
 
             # all in combinations necessary in case of >2 branches
             branch_activities_relations = []
@@ -284,17 +286,19 @@ class GatewayExtractor:
                     raise GatewayExtractionException(f"relation of {a1} and {a2} is not relation set")
                 branch_activities_relations.append(relation)
 
-            # check set of relations -> if all the same, if yes what, or if different ones
-            branch_activities_relations_types = [relation[2] for relation in branch_activities_relations]
-            branch_activities_relations_types_unique = list(set(branch_activities_relations_types))
-            if branch_activities_relations_types_unique == [DF]:
+            # check if list is empty; if yes -> optional gateway with only one branch
+            if not branch_activities_relations:
                 g.gateway_type = XOR_OPT
-            elif branch_activities_relations_types_unique == [EXCLUSIVE]:
-                g.gateway_type = XOR_GATEWAY
-            elif branch_activities_relations_types_unique == [CONCURRENT]:
-                g.gateway_type = AND_GATEWAY
             else:
-                g.gateway_type = DIFFERENT_RELATIONS
+                # check set of relations -> if all the same, if yes what, or if different ones
+                branch_activities_relations_types = [relation[2] for relation in branch_activities_relations]
+                branch_activities_relations_types_unique = list(set(branch_activities_relations_types))
+                if branch_activities_relations_types_unique == [EXCLUSIVE]:
+                    g.gateway_type = XOR_GATEWAY
+                elif branch_activities_relations_types_unique == [CONCURRENT]:
+                    g.gateway_type = AND_GATEWAY
+                else:
+                    g.gateway_type = DIFFERENT_RELATIONS
 
             g.branch_activity_relations = branch_activities_relations
 
