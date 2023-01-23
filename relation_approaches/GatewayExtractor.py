@@ -18,7 +18,7 @@ from petreader.labels import *
 from relation_approaches.RelationClassifier import RelationClassifier, GoldstandardRelationClassifier
 from PetReader import pet_reader
 from labels import *
-from utils import GatewayExtractionException
+from utils import GatewayExtractionException, debugging
 
 logger = logging.getLogger('GatewayExtractor')
 
@@ -125,6 +125,28 @@ class GatewayExtractor:
 
     def extract_document_gateways(self, doc_name: str) -> List[Gateway]:
         """
+        extracts the gateways of one document
+        :param doc_name: doc name
+        :return: list of Gateway objects
+        """
+        doc_activities = pet_reader.get_activities_in_relation_approach_format(doc_name)
+
+        relations = []
+        for a1, a2 in itertools.combinations(doc_activities, 2):
+            relations.append((a1, a2, self.relation_classifier.predict_activity_pair(doc_name, a1, a2)))
+
+        split_points = self._detect_split_points(relations)
+        merge_points = self._detect_merge_points(relations)
+        split_points_merged = self._merge_gateway_point_candidates(split_points)
+        merge_points_merged = self._merge_gateway_point_candidates(merge_points)
+        gateways = self._detect_gateways(relations, split_points_merged, merge_points_merged)
+        gateways = self._classify_gateways(gateways, relations)
+        return gateways
+
+    @debugging
+    def extract_document_gateways_debug(self, doc_name: str) -> List[Gateway]:
+        """
+        ONLY USE FOR DEBUGGING
         extracts the gateways of one document
         :param doc_name: doc name
         :return: list of Gateway objects
@@ -265,7 +287,7 @@ class GatewayExtractor:
     @staticmethod
     def _classify_gateways(gateways: List[Gateway], relations: List[Tuple]) -> List[Gateway]:
         """
-        classify if a gateway with a defined split (and optionally merge point) is exclusive or parralel
+        classify if a gateway with a defined split (and optionally merge point) is exclusive or parallel
         :param gateways: list of gateways
         :param relations: list of activity relations
         :return: list of gateways enriched with gateway types

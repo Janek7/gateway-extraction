@@ -42,6 +42,15 @@ class GatewayExtractionException(Exception):
         super().__init__(message)
 
 
+def debugging(func):
+    """
+    empty decorator function to mark functions for debugging use only
+    :param func: function
+    :return: unmodified function
+    """
+    return func
+
+
 def get_keywords(keywords: str, token_flattened: bool = False) -> Tuple[List[str], List[str]]:
     """
     load and return key word lists based on passed variant
