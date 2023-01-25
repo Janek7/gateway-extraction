@@ -12,10 +12,12 @@ sys.path.insert(0, parent_dir)
 import logging
 from typing import List, Tuple, Dict
 import itertools
+from collections import Counter
 
 from petreader.labels import *
 
-from relation_approaches.RelationClassifier import RelationClassifier, GoldstandardRelationClassifier
+from relation_approaches.RelationClassifier import RelationClassifier, GoldstandardRelationClassifier, \
+    RandomBaselineRelationClassifier, DFBaselineRelationClassifier
 from PetReader import pet_reader
 from labels import *
 from utils import GatewayExtractionException, debugging
@@ -75,6 +77,7 @@ class Gateway:
         # merge point and gateway type are not known yet
         self.merge_point = None
         self.gateway_type = None
+        self.gateway_type_confidence = None
         self.branch_activity_relations = None
 
     def check_type_for_evaluation(self, gateway_type) -> bool:
@@ -93,15 +96,18 @@ class Gateway:
             raise ValueError(f"Only XOR_GATEAY and AND_GATEWAY are allowed for evaluation")
 
     def __repr__(self):
-        return f"Gateway (type={self.gateway_type})\n    split={self.split_point}\n    merge={self.merge_point}"
+        return f"Gateway (type={self.gateway_type};confidence={self.gateway_type_confidence})" \
+               f"\n    split={self.split_point}\n    merge={self.merge_point}"
 
     def __str__(self) -> str:
-        return f"Gateway (type={self.gateway_type}) | split={self.split_point} | merge={self.merge_point} | " \
+        return f"Gateway (type={self.gateway_type};confidence={self.gateway_type_confidence}) " \
+               f"| split={self.split_point} | merge={self.merge_point} | " \
                f"branch_activity_relations={self.branch_activity_relations}"
 
     def to_json(self) -> Dict:
         return {
             "type": self.gateway_type,
+            "confidence": self.gateway_type_confidence,
             "split_point": self.split_point.__repr__(),
             "merge_point": self.merge_point.__repr__(),
             "branch_activity_relations": self.branch_activity_relations
@@ -116,12 +122,14 @@ class GatewayExtractor:
     extracts Gateways in a rule-based manner using relations between activities provided by a RelationClassifier
     """
 
-    def __init__(self, relation_classifier: RelationClassifier):
+    def __init__(self, relation_classifier: RelationClassifier, full_branch_vote: bool = True):
         """
         defines a new GatewayExtractor by passing the RelationClassifier
         :param relation_classifier: RelationClassifier obj
+        :param full_branch_vote: flag if full branches should be used for gateway type determination
         """
         self.relation_classifier = relation_classifier
+        self.full_branch_vote = full_branch_vote
 
     def extract_document_gateways(self, doc_name: str) -> List[Gateway]:
         """
@@ -164,30 +172,30 @@ class GatewayExtractor:
         print("-"*100)
 
         # 2) detect split and merge points in relation set
-        # print("split_points")
+        print("split_points")
         split_points = self._detect_split_points(relations)
-        # for sp in split_points:
-        #     print(sp)
-        # print("-" * 100)
+        for sp in split_points:
+            print(sp)
+        print("-" * 100)
         print("split points merged")
         split_points_merged = self._merge_gateway_point_candidates(split_points)
         for sp in split_points_merged:
             print(sp)
         print("-" * 100)
 
-        # print("merge points")
+        print("merge points")
         merge_points = self._detect_merge_points(relations)
-        # for mp in merge_points:
-        #     print(mp)
-        # print("-" * 100)
-        # print("merge points merged")
+        for mp in merge_points:
+            print(mp)
+        print("-" * 100)
+        print("merge points merged")
         merge_points_merged = self._merge_gateway_point_candidates(merge_points)
         for mp in merge_points_merged:
             print(mp)
         print("-" * 100)
 
         # 3) Detect gateways
-        gateways = self._detect_gateways(relations, split_points, merge_points)
+        gateways = self._detect_gateways(relations, split_points_merged, merge_points_merged)
 
         # 4) Classify gateways
         gateways = self._classify_gateways(gateways, relations)
@@ -229,6 +237,21 @@ class GatewayExtractor:
             else:
                 gateway_candidates.append(GatewayPoint(MERGE, [r[0]], [r[1]]))
         return [gc for gc in gateway_candidates if len(gc.pointing_activities) > 1]
+
+    @staticmethod
+    def _filter_relations(relations, label=None, exclude_label=None):
+        """
+        filters relation list on given label
+        :param relations: relations
+        :param exclude_label: label to exclude
+        :return: filtered list
+        """
+        if (label and exclude_label) or (not label and not exclude_label):
+            raise GatewayExtractionException
+        elif label:
+            return list(filter(lambda r: r[2] == label, relations))
+        elif exclude_label:
+            return list(filter(lambda r: r[2] != exclude_label, relations))
 
     @staticmethod
     def _merge_gateway_point_candidates(gateway_point_candidates):
@@ -279,13 +302,14 @@ class GatewayExtractor:
             if p.type == SPLIT:
                 gateways.append(Gateway(split_point=p))
             elif p.type == MERGE:
-                newest_opened_gateway = [g for g in gateways if g.merge_point is None][-1]
-                newest_opened_gateway.merge_point = p
+                opened_gateways = [g for g in gateways if g.merge_point is None]
+                if opened_gateways:
+                    newest_opened_gateway = opened_gateways[-1]
+                    newest_opened_gateway.merge_point = p
 
         return gateways
 
-    @staticmethod
-    def _classify_gateways(gateways: List[Gateway], relations: List[Tuple]) -> List[Gateway]:
+    def _classify_gateways(self, gateways: List[Gateway], relations: List[Tuple]) -> List[Gateway]:
         """
         classify if a gateway with a defined split (and optionally merge point) is exclusive or parallel
         :param gateways: list of gateways
@@ -294,34 +318,14 @@ class GatewayExtractor:
         """
         print(" Gateways ".center(100, '-'))
         for g in gateways:
-            branch_activities = g.split_point.receiving_activities
-            # filter merge point activities (in case of empty branches)
-            branch_activities = [a for a in branch_activities if a not in g.merge_point.receiving_activities]
-
-            # all in combinations necessary in case of >2 branches
-            branch_activities_relations = []
-            for a1, a2 in itertools.combinations(branch_activities, 2):
-                try:
-                    relation = list(filter(lambda r: (r[0] == a1 and r[1] == a2) or (r[1] == a1 and r[0] == a2),
-                                           relations))[0]
-                except IndexError:
-                    raise GatewayExtractionException(f"relation of {a1} and {a2} is not relation set")
-                branch_activities_relations.append(relation)
-
-            # check if list is empty; if yes -> optional gateway with only one branch
-            if not branch_activities_relations:
-                g.gateway_type = XOR_OPT
+            branch_start_activities = self.get_branch_start_activities(g)
+            if self.full_branch_vote:
+                branches = self.get_full_branch(g, branch_start_activities, relations)
             else:
-                # check set of relations -> if all the same, if yes what, or if different ones
-                branch_activities_relations_types = [relation[2] for relation in branch_activities_relations]
-                branch_activities_relations_types_unique = list(set(branch_activities_relations_types))
-                if branch_activities_relations_types_unique == [EXCLUSIVE]:
-                    g.gateway_type = XOR_GATEWAY
-                elif branch_activities_relations_types_unique == [CONCURRENT]:
-                    g.gateway_type = AND_GATEWAY
-                else:
-                    g.gateway_type = DIFFERENT_RELATIONS
+                branches = [[a] for a in branch_start_activities]
+            branch_activities_relations = self.get_branch_activity_relations(branches, relations)
 
+            self.determine_gateway_type_from_relations(g, branch_activities_relations)
             g.branch_activity_relations = branch_activities_relations
 
         for g in gateways:
@@ -330,24 +334,90 @@ class GatewayExtractor:
         return gateways
 
     @staticmethod
-    def _filter_relations(relations, label=None, exclude_label=None):
+    def get_branch_start_activities(g: Gateway) -> List[Tuple]:
         """
-        filters relation list on given label
-        :param relations: relations
-        :param exclude_label: label to exclude
-        :return: filtered list
+        Return the start activity for each branch of a gateway
+        :param g: gateway
+        :return: list of activities
         """
-        if (label and exclude_label) or (not label and not exclude_label):
-            raise GatewayExtractionException
-        elif label:
-            return list(filter(lambda r: r[2] == label, relations))
-        elif exclude_label:
-            return list(filter(lambda r: r[2] != exclude_label, relations))
+        branch_activities = g.split_point.receiving_activities
+        # filter merge point activities if merge point exists (for empty branches)
+        if g.merge_point:
+            branch_activities = [a for a in branch_activities if a not in g.merge_point.receiving_activities]
+        return branch_activities
+
+    def get_full_branch(self, g: Gateway, branch_start_activities: List[Tuple], relations: List[Tuple]) \
+            -> List[List[Tuple]]:
+        """
+        extend branch that contains start activities with activities until merge point
+        """
+        merge_activities = g.merge_point.receiving_activities if g.merge_point else ["dummy"]
+        branches = [[a] + self.get_next_activities(relations, a, merge_activities) for a in branch_start_activities]
+        return branches
+
+    def get_next_activities(self, relations: List[Tuple], start: Tuple, stop_activities: List[Tuple]) -> List[Tuple]:
+        """
+        return recursively the next directly following activities of a given start activity
+        stop at a given set of stop activities (merge activities if exist)
+        """
+        next_activities = [r[1] for r in list(filter(lambda r: r[0] == start and r[1] not in stop_activities and r[2] == DF,
+                                                     relations))]
+        if next_activities:
+            for next_activity in next_activities:
+                tmp = self.get_next_activities(relations, next_activity, stop_activities)
+                if tmp:
+                    next_activities.extend(tmp)
+        return next_activities
+
+    @staticmethod
+    def get_branch_activity_relations(branches: List[List[Tuple]], relations: List[Tuple]) -> List[Tuple]:
+        """
+        get relations between all pairs of activities in all branches
+        :param branches: branches defined as two dim list of activities
+        :param relations: doc relations
+        :return: list of relations
+        """
+        # all in combinations necessary in case of >2 branches
+        branch_activities_relations = []
+        for branchA, branchB in itertools.combinations(branches, 2):
+            for a1, a2 in itertools.product(*[branchA, branchB]):
+                if a1 != a2:
+                    try:
+                        relation = list(filter(lambda r: (r[0] == a1 and r[1] == a2) or (r[1] == a1 and r[0] == a2),
+                                               relations))[0]
+                    except IndexError:
+                        raise GatewayExtractionException(f"relation of {a1} and {a2} is not relation set")
+                    branch_activities_relations.append(relation)
+        return branch_activities_relations
+
+    @staticmethod
+    def determine_gateway_type_from_relations(g: Gateway, branch_activities_relations: List[Tuple]) -> None:
+        """
+        Determine gateway type from relations by voting the gateway type by a majority vote from relation labels between
+        all activity pairs from all branches (may be limited to start activities if self.full_branch_vote
+        """
+        if branch_activities_relations:
+            branch_activities_relations_types = [relation[2] for relation in branch_activities_relations]
+            most_common_label = Counter(branch_activities_relations_types).most_common()[0]
+            label = most_common_label[0]
+            if label in [EXCLUSIVE, CONCURRENT]:
+                g.gateway_type = most_common_label[0]
+            # if most common label is "directly following" or "non related" (i.e. no gateway relations as exclusive or
+            # concurrent are the majority) the gateway could not be determined in a reasonable way
+            else:
+                g.gateway_type = NO_GATEWAY_RELATIONS
+            g.gateway_type_confidence = most_common_label[1] / len(branch_activities_relations_types)
+
+            # special case with only one optional branch -> no relations to activities from other branches
+        else:
+            g.gateway_type = XOR_OPT
+            g.gateway_type_confidence = 1.0
 
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
-    gateway_extractor = GatewayExtractor(relation_classifier=GoldstandardRelationClassifier())
+    gateway_extractor = GatewayExtractor(relation_classifier=GoldstandardRelationClassifier(),
+                                         full_branch_vote=True)
 
     # test one
     gateway_extractor.extract_document_gateways(doc_name="doc-9.5")

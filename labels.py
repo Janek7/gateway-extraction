@@ -113,5 +113,5 @@ COMMENT = 'comment'
 # Gateway extraction
 SPLIT = 'split'
 MERGE = 'merge'
-XOR_OPT = 'XOR Gateway - Optional'
-DIFFERENT_RELATIONS = 'different relation types between start activities of branches'
+XOR_OPT = 'exclusive (optional)'
+NO_GATEWAY_RELATIONS = 'no_gateway_relations'
