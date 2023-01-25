@@ -20,14 +20,21 @@ from utils import ROOT_DIR
 
 def _create_statistics():
     relations = get_activity_relations(return_type=dict)
+
+    for r in relations:
+        r["same_sentence"] = r["activity_1"][0] == r["activity_2"][0]
+
     df = pd.DataFrame.from_dict(relations)
     df.fillna("", inplace=True)
 
     relation_type_count = df.groupby(RELATION_TYPE).count()
     print(relation_type_count)
     print(100 * '-')
-    comment_count = df.groupby([RELATION_TYPE, COMMENT]).count()
-    print(comment_count)
+    relation_type_same_sentence_count = df.groupby(["same_sentence", RELATION_TYPE]).count()
+    print(relation_type_same_sentence_count)
+    print(100 * '-')
+    relation_type_comment_count = df.groupby([RELATION_TYPE, COMMENT]).count()
+    print(relation_type_comment_count)
 
     # counts for normal (not non_related) relations
     df_normal = df[df[RELATION_TYPE] != NON_RELATED]
@@ -50,7 +57,8 @@ def _create_statistics():
     with pd.ExcelWriter(os.path.join(ROOT_DIR, 'data/paper_stats/activity_relation/activity_relation_data_stats.xlsx')) \
             as writer:
         relation_type_count.to_excel(writer, sheet_name='Relation Type Count')
-        comment_count.to_excel(writer, sheet_name='Comment Count')
+        relation_type_same_sentence_count.to_excel(writer, sheet_name='Same Sentence Count')
+        relation_type_comment_count.to_excel(writer, sheet_name='Comment Count')
         doc_count_normal.to_excel(writer, sheet_name='Doc Count Normal')
         doc_stats_normal.to_excel(writer, sheet_name='Doc Stats Normal')
         doc_count_non_related.to_excel(writer, sheet_name='Doc Count Non-related')
