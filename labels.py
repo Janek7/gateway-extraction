@@ -7,6 +7,7 @@ LABEL_SET = 'label-set'
 LABEL_NUMBER = 'label-number'
 NUM_LABELS = 'num-labels'
 SAME_GATEWAY_CLASSIFIER = 'same-gateway-classifier'
+ACTIVITY_RELATION_CLASSIFIER = 'activity-relation-classifier'
 CONTEXT_LABEL_LENGTH = 'context_label_length'
 SYNONYM_SAMPLES_START_NUMBER = 'synonym-samples-start-number'
 

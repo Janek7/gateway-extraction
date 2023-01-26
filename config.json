@@ -9,5 +9,8 @@
   "same-gateway-classifier": {
     "context_label_length": 350
   },
-  "synonym-samples-start-number": 500
+  "synonym-samples-start-number": 500,
+  "activity_relation-classifier": {
+    "context_label_length": 350
+  }
 }

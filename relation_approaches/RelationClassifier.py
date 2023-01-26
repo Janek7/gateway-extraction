@@ -13,11 +13,15 @@ from abc import ABC, abstractmethod
 import random
 from typing import Tuple, List, Dict
 import itertools
+import argparse
+
+import tensorflow as tf
+import transformers
 
 from PetReader import pet_reader
 from labels import *
 from relation_approaches.activity_relation_data_preparation import get_activity_relations
-from utils import GatewayExtractionException
+from utils import GatewayExtractionException, config
 
 """
 label set: (imported from labels)
@@ -29,6 +33,30 @@ NON_RELATED = 'non_related'
 label_set = [DF, EXCLUSIVE, CONCURRENT, NON_RELATED]
 
 logger = logging.getLogger('Relation Classifier')
+logger_ensemble = logging.getLogger('Relation ClassifierEnsemble')
+
+parser = argparse.ArgumentParser()
+# Standard params
+parser.add_argument("--batch_size", default=8, type=int, help="Batch size.")
+parser.add_argument("--epochs", default=1, type=int, help="Number of epochs.")
+parser.add_argument("--seed_general", default=42, type=int, help="Random seed.")
+parser.add_argument("--ensemble", default=True, type=bool, help="Use ensemble learning with config.json seeds.")
+parser.add_argument("--seeds_ensemble", default="0-1", type=str, help="Random seed range to use for ensembles")
+# routine params
+parser.add_argument("--routine", default="cv", type=str, help="Cross validation 'cv' or "
+                                                              "full training without validation 'ft'.")
+parser.add_argument("--folds", default=2, type=int, help="Number of folds in cross validation routine.")
+parser.add_argument("--store_weights", default=False, type=bool, help="Flag if best weights should be stored.")
+# Architecture params
+parser.add_argument("--dropout", default=0.2, type=float, help="Dropout rate.")
+parser.add_argument("--hidden_layer", default=32, type=int, help="Hidden layer size")
+parser.add_argument("--learning_rate", default=2e-5, type=float, help="Learning rate.")
+parser.add_argument("--warmup", default=0, type=int, help="Number of warmup steps.")
+parser.add_argument("--filters", default=32, type=int, help="Number of filters in CNN")
+parser.add_argument("--kernel_size", default=3, type=int, help="Kernel size in CNN")
+parser.add_argument("--pool_size", default=2, type=int, help="Max pooling size")
+
+# A) RelationClassifier classes
 
 
 # A) RelationClassifier classes
@@ -100,6 +128,134 @@ class GoldstandardRelationClassifier(RelationClassifier):
             return target_relation[0][RELATION_TYPE]
         else:
             raise GatewayExtractionException(f"No relation of {activity_1} and {activity_2} found")
+
+
+# A2) Neural classes
+
+
+class NeuralRelationClassifier(tf.keras.Model, RelationClassifier, ABC):
+    """
+    classification model to classify relation of two activities
+    class is abstract because hidden and output layers must be defined in abstract method for different architectures
+    """
+
+    def __init__(self, args: argparse.Namespace = None, bert_model=None, train_size: int = None,
+                 weights_path: str = None) -> None:
+        """
+        creates a NeuralRelationClassifier
+        :param args: args Namespace
+        :param bert_model: bert like transformer token classification model
+        :param train_size: train dataset size
+        :param weights_path: path of stored weights. If set, load from there
+        """
+        logger.info("Create and initialize a NeuralRelationClassifier")
+        if not args:
+            logger.warning("No parsed args passed to NeuralRelationClassifier, use standard values")
+            args = parser.parse_args([] if "__file__" not in globals() else None)
+        self.args = args
+        self.weights_path = weights_path
+
+        # A) ARCHITECTURE
+        inputs = {
+            "input_ids": tf.keras.layers.Input(shape=[None], dtype=tf.int32),
+            "attention_mask": tf.keras.layers.Input(shape=[None], dtype=tf.int32),
+            # TODO: SET after data generation to observed max value
+            "context_labels": tf.keras.layers.Input(shape=[config[ACTIVITY_RELATION_CLASSIFIER][CONTEXT_LABEL_LENGTH]],
+                                                    dtype=tf.int32),
+        }
+
+        if not bert_model:
+            bert_model = transformers.TFAutoModel.from_pretrained(config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME])
+        # includes one dense layer with linear activation function
+        bert_output = bert_model({"input_ids": inputs["input_ids"],
+                                  "attention_mask": inputs["attention_mask"]}).last_hidden_state
+        # extract cls token for every sample
+        cls_token = bert_output[:, 0]
+        dropout1 = tf.keras.layers.Dropout(self.args.dropout)(cls_token)
+
+        predictions = self.create_hidden_output_layers(bert_output=bert_output)
+
+        tf.keras.Model.__init__(self, inputs=inputs, outputs=predictions)
+        RelationClassifier.__init__(self)
+
+        # B) COMPILE (only needed when training is intended)
+        if args and train_size:
+            logger.info("Create optimizer for training")
+            optimizer, lr_schedule = transformers.create_optimizer(
+                init_lr=args.learning_rate,
+                num_train_steps=(train_size // args.batch_size) * args.epochs,
+                weight_decay_rate=0.01,
+                num_warmup_steps=args.warmup,
+            )
+
+            self.compile(optimizer=optimizer,
+                         loss=tf.keras.losses.BinaryCrossentropy(),
+                         metrics=[tf.keras.metrics.BinaryAccuracy(),
+                                  tf.keras.metrics.Precision(name="precision"), tf.keras.metrics.Recall(name="recall")])
+
+        # self.summary()
+
+        # if model path is passed, restore weights
+        if self.weights_path:
+            logger.info(f"Restored weights from {weights_path}")
+            self.load_weights(weights_path).expect_partial()
+
+    @abstractmethod
+    def create_hidden_output_layers(self, bert_output) -> tf.keras.layers.Dense:
+        """
+        creates sequence of hidden layers and output -> extracted to method for easy extensions with different
+        architectures
+        :param bert_output: BERT output of input sequence
+        :return: a dense classification layer
+        """
+        pass
+
+    def predict_activity_pair(self, doc_name: str, activity_1: Tuple, activity_2: Tuple) -> str:
+        # TODO: !!!
+        return "dummy"
+
+
+class CustomNeuralRelationClassifier(NeuralRelationClassifier):
+    """
+    architecture: BERT -> dropout -> hidden -> dropout -> cls head
+    """
+
+    def create_hidden_output_layers(self, bert_output) -> tf.keras.layers.Dense:
+        """
+        creates sequence of hidden layers and output -> extracted to method for easy extensions with different
+        architectures
+        :param bert_output: BERT output of input sequence
+        :return: a dense classification layer
+        """
+        cls_token = bert_output[:, 0]  # extract cls token for every sample
+        dropout1 = tf.keras.layers.Dropout(self.args.dropout)(cls_token)
+        hidden = tf.keras.layers.Dense(self.args.hidden_layer, activation=tf.nn.relu)(dropout1)
+        dropout2 = tf.keras.layers.Dropout(self.args.dropout)(hidden)
+        predictions = tf.keras.layers.Dense(len(label_set), activation=tf.nn.softmax)(dropout2)
+        return predictions
+
+
+class CNNRelationClassifier(NeuralRelationClassifier):
+    """
+    architecture: BERT -> dropout -> CNN -> max pooling -> dropout -> hidden -> dropout -> cls head
+    """
+
+    def create_hidden_output_layers(self, bert_output) -> tf.keras.layers.Dense:
+        """
+        creates sequence of hidden layers and output -> extracted to method for easy extensions with different
+        architectures
+        :param bert_output: BERT output of input sequence
+        :return: a dense classification layer
+        """
+        dropout1 = tf.keras.layers.Dropout(self.args.dropout)(bert_output)
+        cnn = tf.keras.layers.ReLU()(tf.keras.layers.BatchNormalization()(tf.keras.layers.Conv1D(
+            self.args.filters, self.args.kernel_size, 1, "same")))(dropout1)
+        max_pooling = tf.keras.layers.MaxPool1D(pool_size=self.args.pool_size)(cnn)
+        dropout2 = tf.keras.layers.Dropout(self.args.dropout)(max_pooling)
+        hidden = tf.keras.layers.Dense(self.args.hidden_layer, activation=tf.nn.relu)(dropout2)
+        dropout3 = tf.keras.layers.Dropout(self.args.dropout)(hidden)
+        predictions = tf.keras.layers.Dense(len(label_set), activation=tf.nn.softmax)(dropout3)
+        return predictions
 
 
 # B) APPLICATION OF RelationClassifier
