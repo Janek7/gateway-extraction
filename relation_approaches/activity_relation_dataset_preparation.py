@@ -34,6 +34,9 @@ text_labels = {
     NON_RELATED: AR_LABEL_NON_RELATED
 }
 
+# maximal length of relation text (concatenation of text between activities and activity entities)
+MAX_LENGTH = 512
+
 _tokenizer = transformers.AutoTokenizer.from_pretrained(config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME])
 assert isinstance(_tokenizer, transformers.PreTrainedTokenizerFast)
 
@@ -78,7 +81,7 @@ def _prepare_dataset(relations: List, cache_path: str = None, save_results: bool
                                   if i in range(relation[ACTIVITY_1][0], relation[ACTIVITY_2][0] + 1)]))
             activity_tuples.append((' '.join(relation[ACTIVITY_1][2]), ' '.join(relation[ACTIVITY_2][2])))
             labels.append(text_labels[relation[RELATION_TYPE]])
-        results = (_tokenize_textual_features(texts, activity_tuples), tf.constant(labels))
+        results = (_tokenize_textual_features(texts, activity_tuples, labels=labels), tf.constant(labels))
         if cache_path and save_results:
             logger.info("Save activity relation data to cache")
             save_as_pickle(results, cache_path)
@@ -86,16 +89,17 @@ def _prepare_dataset(relations: List, cache_path: str = None, save_results: bool
     return _create_dataset(results[0]["input_ids"], results[0]["attention_mask"], results[1])
 
 
-def _tokenize_textual_features(texts: List[str], activity_tuples: List[Tuple[str, str]]) -> transformers.BatchEncoding:
+def _tokenize_textual_features(texts: List[str], activity_tuples: List[Tuple[str, str]], labels: List[int] = None) \
+        -> transformers.BatchEncoding:
     """
     tokenize pairs of (text, (activity 1, activity 2))
     :param texts: list of text
     :param activity_tuples: list of activity tuples
+    :param labels: optional label list to analyze for pairs longer than 512 tokens
     :return: BatchEncoding
     """
     # tokenize text & tuples separately, because it is not possible to concat triple
-    max_length = 512
-    text_tokens = _tokenizer(texts, padding='max_length', truncation=True, max_length=max_length, return_tensors='tf')
+    text_tokens = _tokenizer(texts, padding='max_length', truncation=True, max_length=MAX_LENGTH, return_tensors='tf')
     activity_tuple_tokens = _tokenizer(activity_tuples, padding=True, return_tensors="tf")
 
     # concat manually after (cut the CLS token of the second pair); activities first because at the end it may be sliced
@@ -105,15 +109,28 @@ def _tokenize_textual_features(texts: List[str], activity_tuples: List[Tuple[str
                                            text_tokens["attention_mask"][:, 1:]], axis=1)
 
     # limit again to max length because concatenated tuple can be longer than 512
-    concatted_input_ids = concatted_input_ids[:, :max_length]
-    concatted_attention_masks = concatted_attention_masks[:, :max_length]
+    concatted_input_ids = concatted_input_ids[:, :MAX_LENGTH]
+    concatted_attention_masks = concatted_attention_masks[:, :MAX_LENGTH]
 
-    number_longer_512 = tf.boolean_mask(concatted_attention_masks[:, -1],
-                                        tf.greater(concatted_attention_masks[:, -1], 0)
-                                        ).shape[0]
-    logger.info(f"{number_longer_512} of {concatted_attention_masks.shape[0]} samples are longer than 512 tokens")
+    _analyze_relation_text_lengths(concatted_attention_masks, tf.constant(labels))
 
     return transformers.BatchEncoding({"input_ids": concatted_input_ids, "attention_mask": concatted_attention_masks})
+
+
+def _analyze_relation_text_lengths(attention_masks: tf.Tensor, labels: tf.Tensor):
+    """
+    analyze how often texts of relations are longer than 512 and which labels they have
+    """
+    # check where the last attention mask entry is still 1 -> indicates a sequence of >= 512 tokens
+    number_longer_512 = tf.boolean_mask(attention_masks[:, -1], tf.greater(attention_masks[:, -1], 0)).shape[0]
+    logger.info(f"{number_longer_512} of {attention_masks.shape[0]} samples are longer than 512 tokens")
+
+    # check which labels are affected
+    if labels:
+        labels_larger_512 = tf.boolean_mask(labels, tf.greater(attention_masks[:, -1], 0))
+        with open(os.path.join(ROOT_DIR, "data/paper_stats/activity_relation/labels_from_longer_512.txt"), "w") as file:
+            for label in list(labels_larger_512.numpy()):
+                file.write(str(label) + "\n")
 
 
 def create_activity_relation_cls_dataset_cv(args: argparse.Namespace) -> List[Tuple[tf.data.Dataset, tf.data.Dataset]]:
