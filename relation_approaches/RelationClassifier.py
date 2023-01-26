@@ -158,10 +158,7 @@ class NeuralRelationClassifier(tf.keras.Model, RelationClassifier, ABC):
         # A) ARCHITECTURE
         inputs = {
             "input_ids": tf.keras.layers.Input(shape=[None], dtype=tf.int32),
-            "attention_mask": tf.keras.layers.Input(shape=[None], dtype=tf.int32),
-            # TODO: SET after data generation to observed max value
-            "context_labels": tf.keras.layers.Input(shape=[config[ACTIVITY_RELATION_CLASSIFIER][CONTEXT_LABEL_LENGTH]],
-                                                    dtype=tf.int32),
+            "attention_mask": tf.keras.layers.Input(shape=[None], dtype=tf.int32)
         }
 
         if not bert_model:
@@ -169,11 +166,8 @@ class NeuralRelationClassifier(tf.keras.Model, RelationClassifier, ABC):
         # includes one dense layer with linear activation function
         bert_output = bert_model({"input_ids": inputs["input_ids"],
                                   "attention_mask": inputs["attention_mask"]}).last_hidden_state
-        # extract cls token for every sample
-        cls_token = bert_output[:, 0]
-        dropout1 = tf.keras.layers.Dropout(self.args.dropout)(cls_token)
 
-        predictions = self.create_hidden_output_layers(bert_output=bert_output)
+        predictions = self.create_hidden_and_output_layers(bert_output=bert_output)
 
         tf.keras.Model.__init__(self, inputs=inputs, outputs=predictions)
         RelationClassifier.__init__(self)
@@ -201,7 +195,7 @@ class NeuralRelationClassifier(tf.keras.Model, RelationClassifier, ABC):
             self.load_weights(weights_path).expect_partial()
 
     @abstractmethod
-    def create_hidden_output_layers(self, bert_output) -> tf.keras.layers.Dense:
+    def create_hidden_and_output_layers(self, bert_output) -> tf.keras.layers.Dense:
         """
         creates sequence of hidden layers and output -> extracted to method for easy extensions with different
         architectures
@@ -220,7 +214,7 @@ class CustomNeuralRelationClassifier(NeuralRelationClassifier):
     architecture: BERT -> dropout -> hidden -> dropout -> cls head
     """
 
-    def create_hidden_output_layers(self, bert_output) -> tf.keras.layers.Dense:
+    def create_hidden_and_output_layers(self, bert_output) -> tf.keras.layers.Dense:
         """
         creates sequence of hidden layers and output -> extracted to method for easy extensions with different
         architectures
@@ -240,7 +234,7 @@ class CNNRelationClassifier(NeuralRelationClassifier):
     architecture: BERT -> dropout -> CNN -> max pooling -> dropout -> hidden -> dropout -> cls head
     """
 
-    def create_hidden_output_layers(self, bert_output) -> tf.keras.layers.Dense:
+    def create_hidden_and_output_layers(self, bert_output) -> tf.keras.layers.Dense:
         """
         creates sequence of hidden layers and output -> extracted to method for easy extensions with different
         architectures

@@ -116,3 +116,8 @@ SPLIT = 'split'
 MERGE = 'merge'
 XOR_OPT = 'exclusive (optional)'
 NO_GATEWAY_RELATIONS = 'no_gateway_relations'
+
+AR_LABEL_DF_FOLLOWING = 0
+AR_LABEL_EXCLUSIVE = 1
+AR_LABEL_CONCURRENT = 2
+AR_LABEL_NON_RELATED = 3
