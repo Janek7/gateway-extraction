@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # add parent dir to sys path for import of modules
 import os
 import sys
