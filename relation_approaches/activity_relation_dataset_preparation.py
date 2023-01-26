@@ -53,15 +53,16 @@ def _create_dataset(input_ids: tf.Tensor, attention_masks: tf.Tensor, labels: tf
     return tf.data.Dataset.from_tensor_slices(({'input_ids': input_ids, 'attention_mask': attention_masks}, labels))
 
 
-def _prepare_dataset(relations: List, cache_path: str) -> tf.data.Dataset:
+def _prepare_dataset(relations: List, cache_path: str = None, save_results: bool = True) -> tf.data.Dataset:
     """
     process relation pairs and related text sections to a dataset
     :param relations: list of relations to include in the dataset
     :param cache_path: path to store and (maybe) reload results
+    :param save_results: flag if results should be stored in given cache path
     :return: tensorflow dataset
     """
     # reload from cache if already exists
-    if os.path.exists(cache_path):
+    if cache_path and os.path.exists(cache_path):
         tokens, labels = load_pickle(cache_path)
         logger.info("Reloaded activity relation data from cache")
         results = (tokens, labels)
@@ -70,14 +71,15 @@ def _prepare_dataset(relations: List, cache_path: str) -> tf.data.Dataset:
         texts = []
         activity_tuples = []
         labels = []
-        for i, relation in enumerate(relations[:1]):
+        for i, relation in enumerate(relations):
             texts.append(' '.join([' '.join(s) for i, s in enumerate(pet_reader.get_doc_sentences(relation[DOC_NAME]))
                                   if i in range(relation[ACTIVITY_1][0], relation[ACTIVITY_2][0] + 1)]))
             activity_tuples.append((' '.join(relation[ACTIVITY_1][2]), ' '.join(relation[ACTIVITY_2][2])))
             labels.append(text_labels[relation[RELATION_TYPE]])
         results = (_tokenize_textual_features(texts, activity_tuples), tf.constant(labels))
-        logger.info("Save activity relation data to cache")
-        save_as_pickle(results, cache_path)
+        if cache_path and save_results:
+            logger.info("Save activity relation data to cache")
+            save_as_pickle(results, cache_path)
 
     return _create_dataset(results[0]["input_ids"], results[0]["attention_mask"], results[1])
 
@@ -103,6 +105,11 @@ def _tokenize_textual_features(texts: List[str], activity_tuples: List[Tuple[str
     # limit again to max length because concatenated tuple can be longer than 512
     concatted_input_ids = concatted_input_ids[:, :max_length]
     concatted_attention_masks = concatted_attention_masks[:, :max_length]
+
+    number_longer_512 = tf.boolean_mask(concatted_attention_masks[:, -1],
+                                        tf.greater(concatted_attention_masks[:, -1], 0)
+                                        ).shape[0]
+    logger.info(f"{number_longer_512} of {concatted_attention_masks.shape[0]} samples are longer than 512 tokens")
 
     return transformers.BatchEncoding({"input_ids": concatted_input_ids, "attention_mask": concatted_attention_masks})
 
@@ -166,6 +173,11 @@ def create_activity_relation_cls_dataset_full(args: argparse.Namespace) -> Tuple
     return train_tf_dataset, test_tf_dataset
 
 
+def _process_all_data_for_length_stats():
+    # hand all relations to dataset preparation to observe global stats how many relation texts are longer than 512
+    _prepare_dataset(get_activity_relations(), save_results=False)
+
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
 
@@ -178,9 +190,10 @@ if __name__ == '__main__':
 
     set_seeds(args.seed_general, "args - used for dataset split/shuffling")
 
-    # train, test = create_activity_relation_cls_dataset_full(args)
-    # for x in train:
-    #     print(x)
-    #     break
+    _process_all_data_for_length_stats()
 
-    create_activity_relation_cls_dataset_cv(args)
+    # train, test = create_activity_relation_cls_dataset_full(args)
+    # for x in train.take(2):
+    #     print(x)
+
+    # create_activity_relation_cls_dataset_cv(args)
