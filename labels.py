@@ -122,3 +122,7 @@ MERGE = 'merge'
 XOR_OPT = 'exclusive (optional)'
 NO_GATEWAY_RELATIONS = 'no_gateway_relations'
 
+# Architecture variants
+ARCHITECTURE_CUSTOM = 'custom'
+ARCHITECTURE_CNN = 'CNN'
+ARCHITECTURE_RNN = 'RNN'

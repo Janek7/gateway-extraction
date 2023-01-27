@@ -128,11 +128,10 @@ def _analyze_relation_text_lengths(attention_masks: tf.Tensor, labels: tf.Tensor
     logger.info(f"{number_longer_512} of {attention_masks.shape[0]} samples are longer than 512 tokens")
 
     # check which labels are affected
-    if labels:
-        labels_larger_512 = tf.boolean_mask(labels, tf.greater(attention_masks[:, -1], 0))
-        with open(os.path.join(ROOT_DIR, "data/paper_stats/activity_relation/labels_from_longer_512.txt"), "w") as file:
-            for label in list(labels_larger_512.numpy()):
-                file.write(str(label) + "\n")
+    labels_larger_512 = tf.boolean_mask(labels, tf.greater(attention_masks[:, -1], 0))
+    with open(os.path.join(ROOT_DIR, "data/paper_stats/activity_relation/labels_from_longer_512.txt"), "w") as file:
+        for label in list(labels_larger_512.numpy()):
+            file.write(str(label) + "\n")
 
 
 def create_activity_relation_cls_dataset_cv(args: argparse.Namespace) -> List[Tuple[tf.data.Dataset, tf.data.Dataset]]:

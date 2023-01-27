@@ -165,6 +165,8 @@ class SameGatewayClassifier(tf.keras.Model):
 class SGCEnsemble(Ensemble):
     """
     Ensemble (seeds) of same gateway classification model
+    - During training normal Ensemble class is used
+    - Used only for inference -> extends normal Ensemble by classification methods
     """
 
     def __init__(self, log_folder: str, seeds: List = None, ensemble_path: str = None, es_monitor: str = 'val_loss',

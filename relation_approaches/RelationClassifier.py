@@ -16,22 +16,21 @@ import random
 from typing import Tuple, List, Dict
 import itertools
 import argparse
+import re
 
 import tensorflow as tf
 import transformers
+import numpy as np
 
+from Ensemble import Ensemble
+from training import cross_validation, full_training
 from PetReader import pet_reader
 from labels import *
 from relation_approaches.activity_relation_data_preparation import get_activity_relations
-from relation_approaches.activity_relation_dataset_preparation import label_dict
-from utils import GatewayExtractionException, config
+from relation_approaches.activity_relation_dataset_preparation import label_dict, \
+    create_activity_relation_cls_dataset_cv, create_activity_relation_cls_dataset_full
+from utils import GatewayExtractionException, config, generate_args_logdir, set_seeds
 
-"""
-label_dict
-FOLLOWING = 'following' / 0
-EXCLUSIVE = 'exclusive' / 1
-CONCURRENT = 'concurrent' / 2
-"""
 
 logger = logging.getLogger('Relation Classifier')
 logger_ensemble = logging.getLogger('Relation Classifier Ensemble')
@@ -49,6 +48,7 @@ parser.add_argument("--routine", default="cv", type=str, help="Cross validation 
 parser.add_argument("--folds", default=2, type=int, help="Number of folds in cross validation routine.")
 parser.add_argument("--store_weights", default=False, type=bool, help="Flag if best weights should be stored.")
 # Architecture params
+parser.add_argument("--architecture", default=ARCHITECTURE_CUSTOM, type=str, help="Architecture variants")
 parser.add_argument("--dropout", default=0.2, type=float, help="Dropout rate.")
 parser.add_argument("--hidden_layer", default=32, type=int, help="Hidden layer size")
 parser.add_argument("--learning_rate", default=2e-5, type=float, help="Learning rate.")
@@ -56,8 +56,6 @@ parser.add_argument("--warmup", default=0, type=int, help="Number of warmup step
 parser.add_argument("--filters", default=32, type=int, help="Number of filters in CNN")
 parser.add_argument("--kernel_size", default=3, type=int, help="Kernel size in CNN")
 parser.add_argument("--pool_size", default=2, type=int, help="Max pooling size")
-
-# A) RelationClassifier classes
 
 
 # A) RelationClassifier classes
@@ -253,7 +251,97 @@ class CNNRelationClassifier(NeuralRelationClassifier):
         return predictions
 
 
-# B) APPLICATION OF RelationClassifier
+class RNNRelationClassifier(NeuralRelationClassifier):
+    """
+    architecture: BERT -> dropout -> ? -> cls head
+    """
+
+    def create_hidden_and_output_layers(self, bert_output) -> tf.keras.layers.Dense:
+        """
+        creates sequence of hidden layers and output -> extracted to method for easy extensions with different
+        architectures
+        :param bert_output: BERT output of input sequence
+        :return: a dense classification layer
+        """
+        raise NotImplementedError
+
+
+# A3) ENSEMBLE
+
+architecture_dict = {
+    ARCHITECTURE_CUSTOM: NeuralRelationClassifier,
+    ARCHITECTURE_CNN: CNNRelationClassifier,
+    ARCHITECTURE_RNN: RNNRelationClassifier
+}
+
+
+class NeuralRelationClassifierEnsemble(Ensemble):
+    """
+    Ensemble (seeds) of activity relation classification model
+    - During training normal Ensemble class is used
+    - Used only for inference -> extends normal Ensemble by classification methods
+    """
+
+    def __init__(self, log_folder: str, seeds: List = None, ensemble_path: str = None, es_monitor: str = 'val_loss',
+                 seed_limit: int = None, **kwargs) -> None:
+        """
+        see super class for param description
+        override for fixing model class
+        :param log_folder: log_folder where to store results
+        """
+        self.log_folder = log_folder
+        self.predictions = {}
+        # in case of reload of ensemble args are not passed -> create args, extract used architecture from path and set
+        if ensemble_path:
+            logger.info("Use standard values of args when reloading ensemble")
+            args = parser.parse_args([] if "__file__" not in globals() else None)
+            mode_pattern = re.compile(",a=([a-zA-Z_]+)")
+            args.architecture = mode_pattern.search(ensemble_path).group(1)
+            logger.info(f"Reload model with mode {args.mode}")
+            kwargs["args"] = args
+
+        if kwargs["args"].architecture not in [ARCHITECTURE_CUSTOM, ARCHITECTURE_CNN, ARCHITECTURE_RNN]:
+            raise ValueError(f"{kwargs['args'].architecture} is not a valid architecture")
+
+        super().__init__(architecture_dict[kwargs["args"].architecture], seeds, ensemble_path, es_monitor, seed_limit,
+                         **kwargs)
+
+    def predict_activity_pair(self, doc_name: str, activity_1: Tuple, activity_2: Tuple) -> str:
+        # TODO: !!!
+        return "dummy"
+
+
+# B) TRAINING
+
+def train_routine(args: argparse.Namespace) -> None:
+    """
+    run SameGatewayClassifier training based on passed args
+    :param args: namespace args
+    :return:
+    """
+
+    # Load the model
+    # logger.info(f"Load transformer model ({config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME]})")
+    # bert_model = transformers.TFAutoModel.from_pretrained(config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME])
+
+    # different architectures are implemented as subclasses -> choose already here
+    model_class = architecture_dict[args.architecture]
+
+    # cross validation
+    if args.routine == 'cv':
+        folded_datasets = create_activity_relation_cls_dataset_cv(args)
+        cross_validation(args, model_class, folded_datasets)
+
+    # full training without validation
+    elif args.routine == 'ft':
+        train, test = create_activity_relation_cls_dataset_full(args)
+        full_training(args, model_class, train)
+
+    else:
+        raise ValueError(f"Invalid training routine: {args.routine}")
+
+
+# C) APPLICATION OF RelationClassifier
 
 
 def classify_documents(relation_classifier: RelationClassifier, doc_names: List[str] = None) -> Dict:
@@ -287,11 +375,18 @@ def classify_documents(relation_classifier: RelationClassifier, doc_names: List[
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
+    args = parser.parse_args([] if "__file__" not in globals() else None)
+    args.logdir = generate_args_logdir(args, script_name="SameGatewayClassifier")
 
-    goldstandard_classifier = GoldstandardRelationClassifier()
-    relations = classify_documents(goldstandard_classifier, ["doc-9.5"])
+    # this seed is used by default (only overwritten in case of ensemble)
+    set_seeds(args.seed_general, "args - used for dataset split/shuffling")
 
-    for doc_name, doc_relations in relations.items():
-        print(doc_name.center(100, '-'))
-        for r in doc_relations:
-            print(r)
+    # goldstandard_classifier = GoldstandardRelationClassifier()
+    # relations = classify_documents(goldstandard_classifier, ["doc-9.5"])
+    #
+    # for doc_name, doc_relations in relations.items():
+    #     print(doc_name.center(100, '-'))
+    #     for r in doc_relations:
+    #         print(r)
+
+    train_routine(args)
