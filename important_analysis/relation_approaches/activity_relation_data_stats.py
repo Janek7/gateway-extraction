@@ -22,7 +22,7 @@ def _create_statistics():
     relations = get_activity_relations(return_type=dict)
 
     for r in relations:
-        r["same_sentence"] = r["activity_1"][0] == r["activity_2"][0]
+        r["same_sentence"] = r[ACTIVITY_1][0] == r[ACTIVITY_2][0]
 
     df = pd.DataFrame.from_dict(relations)
     df.fillna("", inplace=True)
@@ -36,39 +36,25 @@ def _create_statistics():
     relation_type_comment_count = df.groupby([RELATION_TYPE, COMMENT]).count()
     print(relation_type_comment_count)
 
-    # counts for normal (not non_related) relations
-    df_normal = df[df[RELATION_TYPE] != NON_RELATED]
+    # counts doc stats
     print(100 * '-')
-    doc_count_normal = df_normal.groupby(DOC_NAME).count()
-    print(doc_count_normal)
+    doc_count = df.groupby(DOC_NAME).count()
+    print(doc_count)
     print(100 * '-')
-    doc_stats_normal = df_normal.groupby(DOC_NAME).count().describe()
-    print(doc_stats_normal)
-
-    # counts for non_related relations
-    df_non_related = df[df[RELATION_TYPE] == NON_RELATED]
-    print(100 * '-')
-    doc_count_non_related = df_non_related.groupby(DOC_NAME).count()
-    print(doc_count_non_related)
-    print(100 * '-')
-    doc_stats_non_related = df_non_related.groupby(DOC_NAME).count().describe()
-    print(doc_stats_non_related)
+    doc_stats = df.groupby(DOC_NAME).count().describe()
+    print(doc_stats)
 
     with pd.ExcelWriter(os.path.join(ROOT_DIR, 'data/paper_stats/activity_relation/activity_relation_data_stats.xlsx')) \
             as writer:
         relation_type_count.to_excel(writer, sheet_name='Relation Type Count')
         relation_type_same_sentence_count.to_excel(writer, sheet_name='Same Sentence Count')
         relation_type_comment_count.to_excel(writer, sheet_name='Comment Count')
-        doc_count_normal.to_excel(writer, sheet_name='Doc Count Normal')
-        doc_stats_normal.to_excel(writer, sheet_name='Doc Stats Normal')
-        doc_count_non_related.to_excel(writer, sheet_name='Doc Count Non-related')
-        doc_stats_non_related.to_excel(writer, sheet_name='Doc Stats Non-related')
+        doc_count.to_excel(writer, sheet_name='Doc Count')
+        doc_stats.to_excel(writer, sheet_name='Doc Stats')
 
 
 def _analyze_nested_gateways():
-    with open(
-            "/data/paper_stats/activity_relation/nested_gateways.json",
-            'r') as file:
+    with open(os.path.join(ROOT_DIR, "data/paper_stats/activity_relation/nested_gateways.json"), 'r') as file:
         nested_gateways = json.load(file)["nested_gateways"]
     df = pd.DataFrame.from_dict(nested_gateways)
 
@@ -78,8 +64,6 @@ def _analyze_nested_gateways():
     print(parent_stats.head(30))
     print("-" * 100)
     print(f"{parent_stats.count()} have nested gateways inside")
-    # print("-" * 100)
-    # print(df[df["parent_str"] == "[6, 0, ['In', 'case'], 'XOR Gateway']"][["parent", "nested_gateway"]].head(10))
 
     print("-" * 100)
 
@@ -89,9 +73,7 @@ def _analyze_nested_gateways():
 
 
 def _analyze_branch_lengths():
-    with open(
-            "/data/paper_stats/activity_relation/branch_lengths.json",
-            'r') as file:
+    with open(os.path.join(ROOT_DIR, "data/paper_stats/activity_relation/branch_lengths.json"),'r') as file:
         branch_lengths = json.load(file)["branch_lengths"]
     df = pd.DataFrame.from_dict(branch_lengths)
 
@@ -107,5 +89,5 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
 
     _create_statistics()
-    # _analyze_nested_gateways()
-    # _analyze_branch_lengths()
+    _analyze_nested_gateways()
+    _analyze_branch_lengths()
