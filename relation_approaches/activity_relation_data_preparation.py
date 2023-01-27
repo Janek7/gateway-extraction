@@ -17,10 +17,11 @@ from petreader.labels import *
 
 from labels import *
 from PetReader import pet_reader
-from utils import GatewayExtractionException, ROOT_DIR, load_pickle, save_as_pickle, flatten_list
+from utils import GatewayExtractionException, ROOT_DIR, load_pickle, save_as_pickle, get_loop_flows
 
 logger = logging.getLogger('Data Generation [Activity Relations]')
 doc_black_list = ['doc-6.4']
+loop_flows = get_loop_flows()
 
 # lists for stats counting of nested gateways & branch lengths
 nested_gateways = []
@@ -319,34 +320,6 @@ def _filter_cond_spec(entity_list: List[Tuple]) -> List[Tuple]:
     return [e for e in entity_list if e[3] != CONDITION_SPECIFICATION]
 
 
-def _remove_loop_flows(doc_name, flow_relations):
-    """
-    remove flows that cause loops
-    :return: reduced flow_relations
-    """
-    if doc_name == "doc-9.5":
-        flow_relations.remove({'source': (6, 25, ['re-submit'], 'Activity'),
-                               'target': (0, 5, ['received'], 'Activity')})
-    elif doc_name == 'doc-2.1':
-        flow_relations.remove({'source': (7, 2, ['the', 'customer', 'is', 'of', 'certain', 'significance'],
-                                          'Condition Specification'),
-                               'target': (5, 4, ['determines'], 'Activity')})
-    elif doc_name == 'doc-2.2':
-        flow_relations.remove({'source': (12, 5, ['generated'], 'Activity'),
-                               'target': (10, 5, ['check'], 'Activity')})
-    elif doc_name == 'doc-8.3':
-        flow_relations.remove({'source': (3, 6, ['ask'], 'Activity'),
-                               'target': (2, 4, ['get'], 'Activity')})
-    elif doc_name == 'doc-3.3':
-        flow_relations.remove({'source': (3, 11, ['sent', 'back'], 'Activity'),
-                               'target': (1, 4, ['writes'], 'Activity')})
-    elif doc_name == 'doc-3.6':
-        flow_relations.remove({'source': (6, 5, ['informed'], 'Activity'),
-                               'target': (4, 4, ['returned'], 'Activity')})
-
-    return flow_relations
-
-
 def log_branch_lengths(doc_name: str, activity_branches: List[List[Tuple]]) -> None:
     """
     Log lengths of branches to shared list
@@ -501,7 +474,6 @@ def get_activity_relations(doc_names: List[str] = None, drop_loops: bool = True,
     # if not generate data and save in cache
     relations = []
     for i, doc_name in enumerate(pet_reader.document_names):
-        print(f"process {doc_name}")
         if i % 5 == 0:
             logger.info(f"Processed {i} documents")
 
@@ -516,9 +488,8 @@ def get_activity_relations(doc_names: List[str] = None, drop_loops: bool = True,
         flow_relations = _enrich_doc_start_flow(flow_relations)
         same_gateway_relations = _transform_relations(pet_relations[SAME_GATEWAY])
 
-        # special case: remove flows that causes process loops
-        if drop_loops:
-            flow_relations = _remove_loop_flows(doc_name, flow_relations)
+        if drop_loops and doc_name in loop_flows:
+            flow_relations.remove(loop_flows[doc_name])
 
         for f in flow_relations:
 

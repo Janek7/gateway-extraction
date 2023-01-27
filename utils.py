@@ -178,6 +178,19 @@ def write_gold_contradictory_keywords_to_files() -> None:
         return contradictory_gateways
 
 
+def get_loop_flows() -> Dict[str, Dict]:
+    """
+    load flows that cause loops from file
+    :return: dictionary with sequence flow that causes loop for each document where a loop is contained
+    """
+    with open(os.path.join(ROOT_DIR, 'data/activity_relation/loops.json'), 'r') as file:
+        loop_flows = json.load(file)["loop_flows"]
+        for doc_name, loop_flow in loop_flows.items():
+            loop_flows[doc_name][SOURCE] = tuple(loop_flows[doc_name][SOURCE])
+            loop_flows[doc_name][TARGET] = tuple(loop_flows[doc_name][TARGET])
+        return loop_flows
+
+
 def format_json_file(filename: str, indent: int = 4) -> None:
     """
     reads a json file and write it back with given indent

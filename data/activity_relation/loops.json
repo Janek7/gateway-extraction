@@ -1,0 +1,118 @@
+{
+  "loop_flows": {
+    "doc-2.1": {
+      "source": [
+        7,
+        2,
+        [
+          "the",
+          "customer",
+          "is",
+          "of",
+          "certain",
+          "significance"
+        ],
+        "Condition Specification"
+      ],
+      "target": [
+        5,
+        4,
+        [
+          "determines"
+        ],
+        "Activity"
+      ]
+    },
+    "doc-2.2": {
+      "source": [
+        12,
+        5,
+        [
+          "generated"
+        ],
+        "Activity"
+      ],
+      "target": [
+        10,
+        5,
+        [
+          "check"
+        ],
+        "Activity"
+      ]
+    },
+    "doc-3.3": {
+      "source": [
+        3,
+        11,
+        [
+          "sent",
+          "back"
+        ],
+        "Activity"
+      ],
+      "target": [
+        1,
+        4,
+        [
+          "writes"
+        ],
+        "Activity"
+      ]
+    },
+    "doc-3.6": {
+      "source": [
+        6,
+        5,
+        [
+          "informed"
+        ],
+        "Activity"
+      ],
+      "target": [
+        4,
+        4,
+        [
+          "returned"
+        ],
+        "Activity"
+      ]
+    },
+    "doc-8.3": {
+      "source": [
+        3,
+        6,
+        [
+          "ask"
+        ],
+        "Activity"
+      ],
+      "target": [
+        2,
+        4,
+        [
+          "get"
+        ],
+        "Activity"
+      ]
+    },
+    "doc-9.5": {
+      "source": [
+        6,
+        25,
+        [
+          "re-submit"
+        ],
+        "Activity"
+      ],
+      "target": [
+        0,
+        5,
+        [
+          "received"
+        ],
+        "Activity"
+      ]
+    }
+  }
+}
