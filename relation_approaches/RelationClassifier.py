@@ -23,19 +23,18 @@ import transformers
 from PetReader import pet_reader
 from labels import *
 from relation_approaches.activity_relation_data_preparation import get_activity_relations
+from relation_approaches.activity_relation_dataset_preparation import label_dict
 from utils import GatewayExtractionException, config
 
 """
-label set: (imported from labels)
-DF = 'directly_following'
-EXCLUSIVE = 'exclusive'
-CONCURRENT = 'concurrent'
-NON_RELATED = 'non_related'
+label_dict
+FOLLOWING = 'following' / 0
+EXCLUSIVE = 'exclusive' / 1
+CONCURRENT = 'concurrent' / 2
 """
-label_set = [DF, EXCLUSIVE, CONCURRENT, NON_RELATED]
 
 logger = logging.getLogger('Relation Classifier')
-logger_ensemble = logging.getLogger('Relation ClassifierEnsemble')
+logger_ensemble = logging.getLogger('Relation Classifier Ensemble')
 
 parser = argparse.ArgumentParser()
 # Standard params
@@ -91,7 +90,7 @@ class RandomBaselineRelationClassifier(RelationClassifier):
     """
 
     def predict_activity_pair(self, doc_name, activity_1, activity_2) -> str:
-        return random.choice(label_set)
+        return random.choice(list(label_dict.keys()))
 
 
 class DFBaselineRelationClassifier(RelationClassifier):
@@ -100,7 +99,7 @@ class DFBaselineRelationClassifier(RelationClassifier):
     """
 
     def predict_activity_pair(self, doc_name, activity_1, activity_2) -> str:
-        return DF
+        return DIRECTLY_FOLLOWING
 
 
 class GoldstandardRelationClassifier(RelationClassifier):
@@ -112,7 +111,7 @@ class GoldstandardRelationClassifier(RelationClassifier):
         super().__init__()
         self.relation_data = get_activity_relations(return_type=dict)
 
-    def predict_activity_pair(self, doc_name, activity_1, activity_2) -> str:
+    def predict_activity_pair(self, doc_name: str, activity_1: Tuple, activity_2: Tuple) -> str:
         """
         predict relation of a given pair of activities in a document
         :param doc_name: document
@@ -227,7 +226,7 @@ class CustomNeuralRelationClassifier(NeuralRelationClassifier):
         dropout1 = tf.keras.layers.Dropout(self.args.dropout)(cls_token)
         hidden = tf.keras.layers.Dense(self.args.hidden_layer, activation=tf.nn.relu)(dropout1)
         dropout2 = tf.keras.layers.Dropout(self.args.dropout)(hidden)
-        predictions = tf.keras.layers.Dense(len(label_set), activation=tf.nn.softmax)(dropout2)
+        predictions = tf.keras.layers.Dense(len(label_dict), activation=tf.nn.softmax)(dropout2)
         return predictions
 
 
@@ -250,7 +249,7 @@ class CNNRelationClassifier(NeuralRelationClassifier):
         dropout2 = tf.keras.layers.Dropout(self.args.dropout)(max_pooling)
         hidden = tf.keras.layers.Dense(self.args.hidden_layer, activation=tf.nn.relu)(dropout2)
         dropout3 = tf.keras.layers.Dropout(self.args.dropout)(hidden)
-        predictions = tf.keras.layers.Dense(len(label_set), activation=tf.nn.softmax)(dropout3)
+        predictions = tf.keras.layers.Dense(len(label_dict), activation=tf.nn.softmax)(dropout3)
         return predictions
 
 

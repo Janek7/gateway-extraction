@@ -8,7 +8,6 @@ while not os.path.exists(os.path.join(parent_dir, "README.md")):
     parent_dir = os.path.abspath(os.path.join(parent_dir, os.pardir))
 sys.path.insert(0, parent_dir)
 
-
 import logging
 from typing import List, Tuple, Dict
 import itertools
@@ -141,7 +140,7 @@ class GatewayExtractor:
 
         relations = []
         for a1, a2 in itertools.combinations(doc_activities, 2):
-            relations.append((a1, a2, self.relation_classifier.predict_activity_pair(doc_name, a1, a2)))
+            relations.append([a1, a2, self.relation_classifier.predict_activity_pair(doc_name, a1, a2)])
 
         split_points = self._detect_split_points(relations)
         merge_points = self._detect_merge_points(relations)
@@ -169,7 +168,7 @@ class GatewayExtractor:
 
         for r in relations:
             print(r)
-        print("-"*100)
+        print("-" * 100)
 
         # 2) detect split and merge points in relation set
         print("split_points")
@@ -209,7 +208,7 @@ class GatewayExtractor:
         :param relations: relation set
         :return: list of activities
         """
-        relations = self._filter_relations(relations, label=DF)
+        relations = self._filter_relations(relations, label=DIRECTLY_FOLLOWING)
         # count outgoing flows for every activity
         gateway_candidates = []
         for r in relations:
@@ -227,7 +226,7 @@ class GatewayExtractor:
         :param relations: relation set
         :return: list of activities
         """
-        relations = self._filter_relations(relations, label=DF)
+        relations = self._filter_relations(relations, label=DIRECTLY_FOLLOWING)
         # count outgoing flows for every activity
         gateway_candidates = []
         for r in relations:
@@ -360,7 +359,8 @@ class GatewayExtractor:
         return recursively the next directly following activities of a given start activity
         stop at a given set of stop activities (merge activities if exist)
         """
-        next_activities = [r[1] for r in list(filter(lambda r: r[0] == start and r[1] not in stop_activities and r[2] == DF,
+        next_activities = [r[1] for r in list(filter(lambda r: r[0] == start and r[1] not in stop_activities
+                                                               and r[2] == DIRECTLY_FOLLOWING,
                                                      relations))]
         if next_activities:
             for next_activity in next_activities:
@@ -397,6 +397,7 @@ class GatewayExtractor:
         all activity pairs from all branches (may be limited to start activities if self.full_branch_vote
         """
         if branch_activities_relations:
+            # TODO: maybe filter out following relations
             branch_activities_relations_types = [relation[2] for relation in branch_activities_relations]
             most_common_label = Counter(branch_activities_relations_types).most_common()[0]
             label = most_common_label[0]

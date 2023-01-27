@@ -27,11 +27,11 @@ from labels import *
 logger = logging.getLogger('Data Preparation [Activity Relations]')
 
 # mapping of textual and numerical labels
-text_labels = {
-    DF: AR_LABEL_DF_FOLLOWING,
+label_dict = {
+    DIRECTLY_FOLLOWING: AR_LABEL_DIRECTLY_FOLLOWING,
+    EVENTUALLY_FOLLOWING: AR_LABEL_EVENTUALLY_FOLLOWING,
     EXCLUSIVE: AR_LABEL_EXCLUSIVE,
-    CONCURRENT: AR_LABEL_CONCURRENT,
-    NON_RELATED: AR_LABEL_NON_RELATED
+    CONCURRENT: AR_LABEL_CONCURRENT
 }
 
 # maximal length of relation text (concatenation of text between activities and activity entities)
@@ -77,10 +77,12 @@ def _prepare_dataset(relations: List, cache_path: str = None, save_results: bool
         activity_tuples = []
         labels = []
         for i, relation in enumerate(relations):
+            if i % 50 == 0:
+                logger.info(f"Processed {i} relations")
             texts.append(' '.join([' '.join(s) for i, s in enumerate(pet_reader.get_doc_sentences(relation[DOC_NAME]))
                                   if i in range(relation[ACTIVITY_1][0], relation[ACTIVITY_2][0] + 1)]))
             activity_tuples.append((' '.join(relation[ACTIVITY_1][2]), ' '.join(relation[ACTIVITY_2][2])))
-            labels.append(text_labels[relation[RELATION_TYPE]])
+            labels.append(label_dict[relation[RELATION_TYPE]])
         results = (_tokenize_textual_features(texts, activity_tuples, labels=labels), tf.constant(labels))
         if cache_path and save_results:
             logger.info("Save activity relation data to cache")
@@ -194,7 +196,7 @@ def create_activity_relation_cls_dataset_full(args: argparse.Namespace) -> Tuple
 
 def _process_all_data_for_length_stats():
     # hand all relations to dataset preparation to observe global stats how many relation texts are longer than 512
-    _prepare_dataset(get_activity_relations(), save_results=False)
+    _prepare_dataset(get_activity_relations(return_type=dict), save_results=False)
 
 
 if __name__ == '__main__':

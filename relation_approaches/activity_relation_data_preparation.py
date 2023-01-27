@@ -319,6 +319,34 @@ def _filter_cond_spec(entity_list: List[Tuple]) -> List[Tuple]:
     return [e for e in entity_list if e[3] != CONDITION_SPECIFICATION]
 
 
+def _remove_loop_flows(doc_name, flow_relations):
+    """
+    remove flows that cause loops
+    :return: reduced flow_relations
+    """
+    if doc_name == "doc-9.5":
+        flow_relations.remove({'source': (6, 25, ['re-submit'], 'Activity'),
+                               'target': (0, 5, ['received'], 'Activity')})
+    elif doc_name == 'doc-2.1':
+        flow_relations.remove({'source': (7, 2, ['the', 'customer', 'is', 'of', 'certain', 'significance'],
+                                          'Condition Specification'),
+                               'target': (5, 4, ['determines'], 'Activity')})
+    elif doc_name == 'doc-2.2':
+        flow_relations.remove({'source': (12, 5, ['generated'], 'Activity'),
+                               'target': (10, 5, ['check'], 'Activity')})
+    elif doc_name == 'doc-8.3':
+        flow_relations.remove({'source': (3, 6, ['ask'], 'Activity'),
+                               'target': (2, 4, ['get'], 'Activity')})
+    elif doc_name == 'doc-3.3':
+        flow_relations.remove({'source': (3, 11, ['sent', 'back'], 'Activity'),
+                               'target': (1, 4, ['writes'], 'Activity')})
+    elif doc_name == 'doc-3.6':
+        flow_relations.remove({'source': (6, 5, ['informed'], 'Activity'),
+                               'target': (4, 4, ['returned'], 'Activity')})
+
+    return flow_relations
+
+
 def log_branch_lengths(doc_name: str, activity_branches: List[List[Tuple]]) -> None:
     """
     Log lengths of branches to shared list
@@ -366,9 +394,11 @@ def _create_branch_relations(doc_name: str, flow_relations: List[Dict], same_gat
     return relations
 
 
-def _create_non_related_relations(doc_name: str, normal_relations: List[Tuple]) -> List[Tuple]:
+def _create_remaining_relations(doc_name: str, normal_relations: List[Tuple], doc_flow_relations: List[Dict],
+                                doc_same_gateway_relations: List[Dict]) -> List[Tuple]:
     """
     create relations between all pairs that do not have a relation assigned yet
+    add a following relation if there is a path between activities; if not exclusive as fall back
     :param doc_name: document
     :param normal_relations: set of already extracted relations (df, exclusive, concurrent)
     :return: list of non-related relations
@@ -379,11 +409,56 @@ def _create_non_related_relations(doc_name: str, normal_relations: List[Tuple]) 
     # create relations between all pairs that do not have a relation assigned yet
     new_relations = []
     for a1, a2 in itertools.combinations(doc_activities, 2):
-        normal_relations_filtered = list(filter(lambda r: r[1] == a1 and r[2] == a2, normal_relations))
+        normal_relations_filtered = list(
+            filter(lambda r: (r[1] == a1 and r[2] == a2) or (r[2] == a1 and r[1] == a2), normal_relations))
         if not normal_relations_filtered:
-            new_relations.append((doc_name, a1, a2, NON_RELATED, None))
-
+            try:
+                if _find_path_to_target(doc_flow_relations, doc_same_gateway_relations, a1, a2):
+                    new_relations.append((doc_name, a1, a2, EVENTUALLY_FOLLOWING, "not directly following"))
+                else:
+                    new_relations.append((doc_name, a1, a2, EXCLUSIVE, "fallback - no path found"))
+            # is only activated in case of last four activities at the end of doc-2.2 in # parallel gateway
+            except RecursionError:
+                new_relations.append((doc_name, a1, a2, EVENTUALLY_FOLLOWING, "not directly following"))
     return new_relations
+
+
+def _find_path_to_target(doc_flow_relations: List[Dict], doc_same_gateway_relations: List[Dict], entity: Tuple,
+                         target_activity: Tuple) -> bool:
+    """
+    check if there is a path via sequence flows between two activities
+    method is applied recursively
+    :param doc_flow_relations: flow relations of whole document
+    :param doc_same_gateway_relations: same gateway relations of whole document
+    :param entity: start entity
+    :param target_activity: target activity
+    :return: false/true if path (not) exists
+    """
+    entity_flows = list(filter(lambda f: f["source"] == entity, doc_flow_relations))
+    connected_entities = [f["target"] for f in entity_flows]
+
+    for gateway in [e for e in connected_entities if e[3] in [XOR_GATEWAY, AND_GATEWAY]]:
+        connected_entities.extend(_get_same_gateways(gateway, doc_same_gateway_relations))
+
+    if target_activity in connected_entities:
+        return True
+    else:
+        return any([_find_path_to_target(doc_flow_relations, doc_same_gateway_relations, e, target_activity)
+                    for e in connected_entities])
+
+
+def _get_same_gateways(gateway: Tuple, same_gateway_relations: List[Dict]) -> List[Tuple]:
+    """
+    search recursively for all gateways that are related via a same gateway relation to the given gateway
+    recursive search necessary because of pair-wise transitive connections in same gateway relations
+    :param gateway: gateway
+    :param same_gateway_relations: same gateway relations of whole document
+    :return: list of gateways
+    """
+    same_gateways = [sg["target"] for sg in same_gateway_relations if sg["source"] == gateway]
+    for same_gateway in same_gateways:
+        same_gateways.extend(_get_same_gateways(same_gateway, same_gateway_relations))
+    return same_gateways
 
 
 def _relations_to_dict(relations: List[Tuple]) -> List[Dict]:
@@ -413,7 +488,7 @@ def get_activity_relations(doc_names: List[str] = None, drop_loops: bool = True,
     """
 
     # prepare cache path where to load/save data
-    cache_path = os.path.join(ROOT_DIR, f"data/other/data_cache/activity_relation_data_[drop_loops={drop_loops}]"
+    cache_path = os.path.join(ROOT_DIR, f"data/other/data_cache/activity_relation/relations_[drop_loops={drop_loops}]"
                                         f"[{str(doc_names) if doc_names else 'all'}]")
     # reload from cache if already exists
     if os.path.exists(cache_path) and not overwrite:
@@ -426,7 +501,7 @@ def get_activity_relations(doc_names: List[str] = None, drop_loops: bool = True,
     # if not generate data and save in cache
     relations = []
     for i, doc_name in enumerate(pet_reader.document_names):
-
+        print(f"process {doc_name}")
         if i % 5 == 0:
             logger.info(f"Processed {i} documents")
 
@@ -443,24 +518,16 @@ def get_activity_relations(doc_names: List[str] = None, drop_loops: bool = True,
 
         # special case: remove flows that causes process loops
         if drop_loops:
-            if doc_name == 'doc-9.5':
-                flow_relations = flow_relations[:-1]
-            if doc_name == 'doc-2.1':
-                flow_relations.remove({'source': (7, 2, ['the', 'customer', 'is', 'of', 'certain', 'significance'],
-                                                  'Condition Specification'),
-                                       'target': (5, 4, ['determines'], 'Activity')})
-            if doc_name == 'doc-2.2':
-                flow_relations.remove({'source': (12, 5, ['generated'], 'Activity'),
-                                       'target': (10, 5, ['check'], 'Activity')})
+            flow_relations = _remove_loop_flows(doc_name, flow_relations)
 
         for f in flow_relations:
 
             # a) DIRECTLY FOLLOWING RELATIONS
             if f[SOURCE][3] == f[TARGET][3] == ACTIVITY:
-                doc_relations.append((doc_name, f[SOURCE], f[TARGET], DF, "normal df"))
+                doc_relations.append((doc_name, f[SOURCE], f[TARGET], DIRECTLY_FOLLOWING, "normal df"))
 
             # b) RELATIONS INVOLVING GATEWAYS
-            if f[TARGET][3] in [XOR_GATEWAY, AND_GATEWAY]:
+            elif f[TARGET][3] in [XOR_GATEWAY, AND_GATEWAY]:
 
                 # extract source activity of current flow for pairing with following activities of gateway (f[TARGET])
                 if f[SOURCE][3] == ACTIVITY:
@@ -489,7 +556,7 @@ def get_activity_relations(doc_names: List[str] = None, drop_loops: bool = True,
                 for e in directly_linked_entities:
                     if e[3] == ACTIVITY:
                         for source_activity in source_activities:
-                            doc_relations.append((doc_name, source_activity, e, DF, "g -> a"))
+                            doc_relations.append((doc_name, source_activity, e, DIRECTLY_FOLLOWING, "g -> a"))
                 directly_linked_entities_filtered = _filter_merge_point(gateway_merge_point, directly_linked_entities)
                 directly_linked_entities_filtered = _filter_cond_spec(directly_linked_entities_filtered)
                 branch_start_entities.extend(directly_linked_entities_filtered)
@@ -500,7 +567,7 @@ def get_activity_relations(doc_names: List[str] = None, drop_loops: bool = True,
                 for e in condition_spec_linked:
                     if e[3] == ACTIVITY:
                         for source_activity in source_activities:
-                            doc_relations.append((doc_name, source_activity, e, DF, "g -> cond -> a"))
+                            doc_relations.append((doc_name, source_activity, e, DIRECTLY_FOLLOWING, "g -> cond -> a"))
                         gateway_branches_entities_directly_linked.append(e)
                     # not activity is linked, but other (gateway) from which fol. act. will be included as well
                     else:
@@ -516,7 +583,7 @@ def get_activity_relations(doc_names: List[str] = None, drop_loops: bool = True,
                     for e in sg_linked_entities:
                         if e[3] == ACTIVITY:
                             for source_activity in source_activities:
-                                doc_relations.append((doc_name, source_activity, e, DF, "g -> sg -> a"))
+                                doc_relations.append((doc_name, source_activity, e, DIRECTLY_FOLLOWING, "g -> sg -> a"))
                             sg_entities_linked.append(e)
                         # not activity is linked, but other (gateway) from which fol. act. will be included as well
                         elif e[3] in [XOR_GATEWAY, AND_GATEWAY]:
@@ -528,22 +595,23 @@ def get_activity_relations(doc_names: List[str] = None, drop_loops: bool = True,
                         for e in sg_gateway_condition_spec_linked:
                             if e[3] == ACTIVITY:
                                 for source_activity in source_activities:
-                                    doc_relations.append((doc_name, source_activity, e, DF, "g -> sg -> cond -> a"))
+                                    doc_relations.append(
+                                        (doc_name, source_activity, e, DIRECTLY_FOLLOWING, "g -> sg -> cond -> a"))
                                 sg_entities_linked.append(e)
                             # not activity is linked, but other (gateway) from which fol. act. will be included as well
                             else:
                                 sg_entities_linked.append(e)
                     except IndexError:
-                        # in case of 2.1 were relation is removed due to loop -> just skip this branch
+                        # in case of doc-2.1 were relation is removed due to loop -> just skip this branch
                         pass
                 branch_start_entities.extend(sg_entities_linked)
 
                 # Create relations between activities of all branches
                 doc_relations.extend(_create_branch_relations(doc_name, flow_relations, same_gateway_relations,
-                                                             gateway, gateway_merge_point, branch_start_entities))
+                                                              gateway, gateway_merge_point, branch_start_entities))
 
-        # add relations of type 'non_related' between all so far unrelated activities in the document
-        doc_relations.extend(_create_non_related_relations(doc_name, doc_relations))
+        doc_relations.extend(_create_remaining_relations(doc_name, doc_relations, flow_relations,
+                                                         same_gateway_relations))
 
         # add doc_relations to global set of relations
         relations.extend(doc_relations)
@@ -554,7 +622,7 @@ def get_activity_relations(doc_names: List[str] = None, drop_loops: bool = True,
         # check if pair (order of gateways doesnt matter) is already in set
         if r not in relations_final and (r[0], r[2], r[1], r[3], r[4]) not in relations_final and r[1] != r[2]:
             relations_final.append(r)
-    relations_final.sort(key=lambda r: (r[0], not (r[3] != NON_RELATED), r[1][0], r[1][1], r[2][0], r[2][1]))
+    relations_final.sort(key=lambda r: (r[0], r[1][0], r[1][1], r[2][0], r[2][1]))
 
     # save in cache
     save_as_pickle(relations_final, cache_path)
@@ -578,4 +646,5 @@ def get_activity_relations(doc_names: List[str] = None, drop_loops: bool = True,
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
 
-    relations = get_activity_relations(overwrite=True)
+    relations = get_activity_relations(overwrite=True)#, doc_names=["doc-3.6"])
+    print(len(relations))

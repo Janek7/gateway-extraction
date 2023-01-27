@@ -98,10 +98,15 @@ SGC_CONTEXT_LABEL_ACTIVITY = 2
 # D) LABELS FOR ACTIVITY RELATION APPROACHES
 
 # relation types
-DF = 'directly_following'
+DIRECTLY_FOLLOWING = 'directly_following'
+EVENTUALLY_FOLLOWING = 'eventually_following'
 EXCLUSIVE = 'exclusive'
 CONCURRENT = 'concurrent'
-NON_RELATED = 'non_related'
+
+AR_LABEL_DIRECTLY_FOLLOWING = 0
+AR_LABEL_EVENTUALLY_FOLLOWING = 1
+AR_LABEL_EXCLUSIVE = 2
+AR_LABEL_CONCURRENT = 3
 
 # other helper keys
 DOC_START = 'Document Start'
@@ -117,7 +122,3 @@ MERGE = 'merge'
 XOR_OPT = 'exclusive (optional)'
 NO_GATEWAY_RELATIONS = 'no_gateway_relations'
 
-AR_LABEL_DF_FOLLOWING = 0
-AR_LABEL_EXCLUSIVE = 1
-AR_LABEL_CONCURRENT = 2
-AR_LABEL_NON_RELATED = 3

@@ -17,10 +17,10 @@ from relation_approaches.AbstractClassificationBenchmark import AbstractClassifi
 from relation_approaches.activity_relation_data_preparation import get_activity_relations
 from relation_approaches.RelationClassifier import RelationClassifier, GoldstandardRelationClassifier, \
     DFBaselineRelationClassifier, RandomBaselineRelationClassifier, classify_documents
+from relation_approaches.activity_relation_dataset_preparation import label_dict
 from relation_approaches import metrics
 from utils import ROOT_DIR
 from PetReader import pet_reader
-from labels import *
 
 logger = logging.getLogger('Relation Classification Benchmark')
 
@@ -60,8 +60,8 @@ class RelationClassificationBenchmark(AbstractClassificationBenchmark):
             output_folder = os.path.join(ROOT_DIR,
                                          f"data/results_relation_approaches/relation_classification/{approach_name}")
 
-        AbstractClassificationBenchmark.__init__(self, [DF, EXCLUSIVE, CONCURRENT, NON_RELATED],
-                                                 approach_name, output_folder, round_digits)
+        AbstractClassificationBenchmark.__init__(self, list(label_dict.keys()), approach_name, output_folder,
+                                                 round_digits)
 
     def evaluate_documents(self, doc_names: List[str]):
         """
