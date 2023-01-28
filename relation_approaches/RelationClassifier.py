@@ -65,7 +65,7 @@ parser.add_argument("--pool_size", default=2, type=int, help="Max pooling size")
 # A) RelationClassifier classes
 
 
-class RelationClassifier(ABC):
+class RelationClassifier:
     """
     abstract base class for RelationClassifiers
     """
@@ -136,7 +136,7 @@ class GoldstandardRelationClassifier(RelationClassifier):
 # A2) Neural classes
 
 
-class NeuralRelationClassifier(tf.keras.Model, RelationClassifier, ABC):
+class NeuralRelationClassifier(tf.keras.Model, RelationClassifier):
     """
     classification model to classify relation of two activities
     class is abstract because hidden and output layers must be defined in abstract method for different architectures
@@ -273,7 +273,7 @@ class RNNRelationClassifier(NeuralRelationClassifier):
 # A3) ENSEMBLE
 
 architecture_dict = {
-    ARCHITECTURE_CUSTOM: NeuralRelationClassifier,
+    ARCHITECTURE_CUSTOM: CustomNeuralRelationClassifier,
     ARCHITECTURE_CNN: CNNRelationClassifier,
     ARCHITECTURE_RNN: RNNRelationClassifier
 }
@@ -329,8 +329,8 @@ def train_routine(args: argparse.Namespace) -> None:
     # bert_model = transformers.TFAutoModel.from_pretrained(config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME])
 
     # different architectures are implemented as subclasses -> choose already here
+    logger.info(f"Train model with architecture {args.architecture}")
     model_class = architecture_dict[args.architecture]
-    logger.info(f"Train model with architecture {model_class.__name__}")
 
     # cross validation
     if args.routine == 'cv':
