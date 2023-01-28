@@ -83,7 +83,11 @@ def _prepare_dataset(relations: List, cache_path: str = None, save_results: bool
                                   if i in range(relation[ACTIVITY_1][0], relation[ACTIVITY_2][0] + 1)]))
             activity_tuples.append((' '.join(relation[ACTIVITY_1][2]), ' '.join(relation[ACTIVITY_2][2])))
             labels.append(label_dict[relation[RELATION_TYPE]])
-        results = (_tokenize_textual_features(texts, activity_tuples, labels=labels), tf.constant(labels))
+
+        text_features = _tokenize_textual_features(texts, activity_tuples)
+        labels_encoded = tf.raw_ops.OneHot(indices=tf.constant(labels), depth=len(label_dict), on_value=1, off_value=0)
+        results = (text_features, labels_encoded)
+
         if cache_path and save_results:
             logger.info("Save activity relation data to cache")
             save_as_pickle(results, cache_path)
@@ -204,17 +208,20 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed_general", default=42, type=int, help="Random seed.")
-    parser.add_argument("--batch_size", default=1, type=int, help="Batch size.")
+    parser.add_argument("--batch_size", default=8, type=int, help="Batch size.")
     parser.add_argument("--folds", default=5, type=int, help="K folds.")
     parser.add_argument("--test_share", default=0.1, type=float, help="Share of test set")
+    parser.add_argument("--down_sample_ef", default=False, type=bool,
+                        help="Flag if eventually following samples should be"
+                             "down sampled to comparable number")
     args = parser.parse_args([] if "__file__" not in globals() else None)
 
     set_seeds(args.seed_general, "args - used for dataset split/shuffling")
 
-    _process_all_data_for_length_stats()
+    # _process_all_data_for_length_stats()
 
-    # train, test = create_activity_relation_cls_dataset_full(args)
-    # for x in train.take(2):
-    #     print(x)
+    train, test = create_activity_relation_cls_dataset_full(args)
+    for x in train.take(2):
+        print(x)
 
     # create_activity_relation_cls_dataset_cv(args)
