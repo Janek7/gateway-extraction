@@ -33,6 +33,21 @@ _model_metrics = {
         MONITOR_METRICS: "val_binary_accuracy",
         METRICS_PER_FOLD: ['avg_val_loss', 'avg_val_binary_accuracy', 'avg_val_precision', 'avg_val_recall', 'val_loss',
                            'val_binary_accuracy', 'val_precision', 'val_recall']
+    },
+    "CustomNeuralRelationClassifier": {
+        MONITOR_METRICS: "val_accuracy",
+        METRICS_PER_FOLD: ['avg_val_loss', 'avg_val_accuracy', 'avg_val_precision', 'avg_val_recall',
+                           'val_loss', 'val_accuracy', 'val_precision', 'val_recall']
+    },
+    "CNNRelationClassifier": {
+        MONITOR_METRICS: "val_accuracy",
+        METRICS_PER_FOLD: ['avg_val_loss', 'avg_val_accuracy', 'avg_val_precision', 'avg_val_recall',
+                           'val_loss', 'val_accuracy', 'val_precision', 'val_recall']
+    },
+    "RNNRelationClassifier": {
+        MONITOR_METRICS: "val_accuracy",
+        METRICS_PER_FOLD: ['avg_val_loss', 'avg_val_accuracy', 'avg_val_precision', 'avg_val_recall',
+                           'val_loss', 'val_accuracy', 'val_precision', 'val_recall']
     }
 }
 
