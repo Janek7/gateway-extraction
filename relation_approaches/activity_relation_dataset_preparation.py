@@ -114,7 +114,7 @@ def _tokenize_textual_features(texts: List[str], activity_tuples: List[Tuple[str
     concatted_input_ids = concatted_input_ids[:, :MAX_LENGTH]
     concatted_attention_masks = concatted_attention_masks[:, :MAX_LENGTH]
 
-    _analyze_relation_text_lengths(concatted_attention_masks, tf.constant(labels))
+    # _analyze_relation_text_lengths(concatted_attention_masks, tf.constant(labels))
 
     return transformers.BatchEncoding({"input_ids": concatted_input_ids, "attention_mask": concatted_attention_masks})
 

@@ -12,12 +12,13 @@ import logging
 import json
 import itertools
 from typing import List, Tuple, Dict
+import random
 
 from petreader.labels import *
 
 from labels import *
 from PetReader import pet_reader
-from utils import GatewayExtractionException, ROOT_DIR, load_pickle, save_as_pickle, get_loop_flows
+from utils import config, GatewayExtractionException, ROOT_DIR, load_pickle, save_as_pickle, get_loop_flows
 
 logger = logging.getLogger('Data Generation [Activity Relations]')
 doc_black_list = ['doc-6.4']
@@ -446,8 +447,8 @@ def _relations_to_dict(relations: List[Tuple]) -> List[Dict]:
 # B) MAIN METHOD
 
 
-def get_activity_relations(doc_names: List[str] = None, drop_loops: bool = True, return_type: type = List,
-                           overwrite: bool = False) -> List[Tuple]:
+def _compute_activity_relations(doc_names: List[str] = None, drop_loops: bool = True, return_type: type = List,
+                                overwrite: bool = False) -> List[Tuple]:
     """
     generate activity relation data
     relations are represented as (doc_name, (a1), (a2), relation type, comment)
@@ -614,8 +615,38 @@ def get_activity_relations(doc_names: List[str] = None, drop_loops: bool = True,
     return relations_final
 
 
+def get_activity_relations(doc_names: List[str] = None, drop_loops: bool = True, return_type: type = List,
+                           overwrite: bool = False, down_sample_ef: bool = True) -> List[Tuple]:
+    """
+    return activity relations; see __compute_activity_relations for param descs
+    :param down_sample_ef: flag if relations of type EVENTUALLY_FOLLOWING should be down sampled to comparable size as
+                           other classes (in favor of memory and balanced training)
+    :return: (filtered) list of relations
+    """
+    relations = _compute_activity_relations(doc_names, drop_loops, return_type, overwrite)
+
+    # shuffle to drop relations from different documents
+    random.seed(42)
+    random.shuffle(relations)
+
+    new_relations = []
+    if down_sample_ef:
+        ef_count = 0
+        for r in relations:
+            relation_type = r[RELATION_TYPE] if return_type == dict else r[3]
+            if relation_type == EVENTUALLY_FOLLOWING:
+                if ef_count < config[ACTIVITY_RELATION_CLASSIFIER][EVENTUALLY_FOLLOWS_SAMPLE_LIMIT]:
+                    new_relations.append(r)
+                    ef_count += 1
+            else:
+                new_relations.append(r)
+        return new_relations
+    else:
+        return relations
+
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
 
-    relations = get_activity_relations(overwrite=True)#, doc_names=["doc-3.6"])
+    relations = get_activity_relations(down_sample_ef=False)#, doc_names=["doc-3.6"])
     print(len(relations))
