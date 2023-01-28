@@ -300,7 +300,7 @@ class BRCNNRelationClassifier(NeuralRelationClassifier):
 architecture_dict = {
     ARCHITECTURE_CUSTOM: CustomNeuralRelationClassifier,
     ARCHITECTURE_CNN: CNNRelationClassifier,
-    ARCHITECTURE_RNN: RNNRelationClassifier
+    ARCHITECTURE_RNN: BRCNNRelationClassifier
 }
 
 
