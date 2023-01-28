@@ -330,6 +330,7 @@ def train_routine(args: argparse.Namespace) -> None:
 
     # different architectures are implemented as subclasses -> choose already here
     model_class = architecture_dict[args.architecture]
+    logger.info(f"Train model with architecture {model_class.__name__}")
 
     # cross validation
     if args.routine == 'cv':
