@@ -60,6 +60,8 @@ parser.add_argument("--warmup", default=0, type=int, help="Number of warmup step
 parser.add_argument("--filters", default=32, type=int, help="Number of filters in CNN")
 parser.add_argument("--kernel_size", default=3, type=int, help="Kernel size in CNN")
 parser.add_argument("--pool_size", default=2, type=int, help="Max pooling size")
+parser.add_argument("--rnn_cell", default="LSTM", type=str, help="Type of RNN cell (LSTM or GRU)")
+parser.add_argument("--rnn_units", default=32, type=int, help="Number of units in RNNs")
 
 
 # A) RelationClassifier classes
@@ -207,6 +209,13 @@ class NeuralRelationClassifier(tf.keras.Model, RelationClassifier):
         """
         pass
 
+    @staticmethod
+    def create_output_layer(hidden_layer):
+        """
+        create classification head layer
+        """
+        return tf.keras.layers.Dense(len(label_dict), activation=tf.nn.softmax)(hidden_layer)
+
     def predict_activity_pair(self, doc_name: str, activity_1: Tuple, activity_2: Tuple) -> str:
         # TODO: !!!
         return "dummy"
@@ -228,7 +237,7 @@ class CustomNeuralRelationClassifier(NeuralRelationClassifier):
         dropout1 = tf.keras.layers.Dropout(self.args.dropout)(cls_token)
         hidden = tf.keras.layers.Dense(self.args.hidden_layer, activation=tf.nn.relu)(dropout1)
         dropout2 = tf.keras.layers.Dropout(self.args.dropout)(hidden)
-        predictions = tf.keras.layers.Dense(len(label_dict), activation=tf.nn.softmax)(dropout2)
+        predictions = self.create_output_layer(dropout2)
         return predictions
 
 
@@ -251,13 +260,13 @@ class CNNRelationClassifier(NeuralRelationClassifier):
         dropout2 = tf.keras.layers.Dropout(self.args.dropout)(max_pooling)
         hidden = tf.keras.layers.Dense(self.args.hidden_layer, activation=tf.nn.relu)(dropout2)
         dropout3 = tf.keras.layers.Dropout(self.args.dropout)(hidden)
-        predictions = tf.keras.layers.Dense(len(label_dict), activation=tf.nn.softmax)(dropout3)
+        predictions = self.create_output_layer(dropout3)
         return predictions
 
 
-class RNNRelationClassifier(NeuralRelationClassifier):
+class BRCNNRelationClassifier(NeuralRelationClassifier):
     """
-    architecture: BERT -> dropout -> ? -> cls head
+    architecture: BERT -> 2(forward/backward) x [RNN -> CNN-> max pooling] -> concat -> cls head
     """
 
     def create_hidden_and_output_layers(self, bert_output) -> tf.keras.layers.Dense:
@@ -267,7 +276,23 @@ class RNNRelationClassifier(NeuralRelationClassifier):
         :param bert_output: BERT output of input sequence
         :return: a dense classification layer
         """
-        raise NotImplementedError
+        rnn_cell_type = tf.keras.layers.LSTM if args.rnn_cell == 'LSTM' else tf.keras.layers.GRU
+        forward = rnn_cell_type(args.rnn_units)(bert_output)
+        forward_cnn = self.cnn_block(forward)
+        backward = rnn_cell_type(args.rnn_units, go_backwards=True)(bert_output)
+        backward_cnn = self.cnn_block(backward)
+        concatenated = tf.keras.layers.Concatenate()([forward_cnn, backward_cnn])
+        predictions = self.create_output_layer(concatenated)
+        return predictions
+
+    def cnn_block(self, input_layer):
+        """
+        create a cnn block including a conv layer with batch norm and relu activation followed by a max pooling
+        """
+        cnn = tf.keras.layers.ReLU()(tf.keras.layers.BatchNormalization()(tf.keras.layers.Conv1D(
+            self.args.filters, self.args.kernel_size, 1, "same")))(input_layer)
+        max_pooling = tf.keras.layers.MaxPool1D(pool_size=self.args.pool_size)(cnn)
+        return max_pooling
 
 
 # A3) ENSEMBLE
@@ -312,6 +337,7 @@ class NeuralRelationClassifierEnsemble(Ensemble):
 
     def predict_activity_pair(self, doc_name: str, activity_1: Tuple, activity_2: Tuple) -> str:
         # TODO: !!!
+        # predictions = tf.argmax(predictions, axis = -1)
         return "dummy"
 
 
