@@ -618,15 +618,14 @@ def _compute_activity_relations(doc_names: List[str] = None, drop_loops: bool = 
 def get_activity_relations(doc_names: List[str] = None, drop_loops: bool = True, return_type: type = List,
                            overwrite: bool = False, down_sample_ef: bool = True) -> List[Tuple]:
     """
-    return activity relations; see __compute_activity_relations for param descs
+    return activity relations; see __compute_activity_relations for param descriptions
+    IMPORTANT: make sure a seed is set before (for shuffling)
     :param down_sample_ef: flag if relations of type EVENTUALLY_FOLLOWING should be down sampled to comparable size as
                            other classes (in favor of memory and balanced training)
     :return: (filtered) list of relations
     """
     relations = _compute_activity_relations(doc_names, drop_loops, return_type, overwrite)
-
     # shuffle to drop relations from different documents
-    random.seed(42)
     random.shuffle(relations)
 
     new_relations = []

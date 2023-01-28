@@ -65,7 +65,7 @@ class SameGatewayClassifier(tf.keras.Model):
         """
         creates a SameGatewayClassifier
         :param args: args Namespace
-        :param bert_model: bert like transformer token classification model
+        :param bert_model: bert like transformer model
         :param train_size: train dataset size
         :param weights_path: path of stored weights. If set, load from there
         """

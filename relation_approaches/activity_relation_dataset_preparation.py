@@ -41,14 +41,14 @@ _tokenizer = transformers.AutoTokenizer.from_pretrained(config[KEYWORDS_FILTERED
 assert isinstance(_tokenizer, transformers.PreTrainedTokenizerFast)
 
 
-def _split_test_set(args: argparse.Namespace, relations: List = None) -> Tuple[List, List]:
+def _get_relations_and_split_test_set(args: argparse.Namespace, relations: List = None) -> Tuple[List, List]:
     """
     shuffle and split test set from relations
     :param args: args
     :return: data set as list, test set as list
     """
     if not relations:
-        relations = get_activity_relations(return_type=dict)
+        relations = get_activity_relations(return_type=dict, down_sample_ef=args.down_sample_ef)
     random.shuffle(relations)
     split_point = int(len(relations) * args.test_share)
     return relations[split_point:], relations[:split_point]
@@ -143,7 +143,7 @@ def create_activity_relation_cls_dataset_cv(args: argparse.Namespace) -> List[Tu
     """
     logger.info(
         f"Create activity relation classification cv dataset (folds={args.folds} - batch_size={args.batch_size})")
-    rest, test = _split_test_set(args)
+    rest, test = _get_relations_and_split_test_set(args)
     logger.info(f"Basis are {len(rest)} relations (already splitted test = {len(test)})")
 
     folded_datasets = []
@@ -155,7 +155,7 @@ def create_activity_relation_cls_dataset_cv(args: argparse.Namespace) -> List[Tu
         dev_relations = [p for i, p in enumerate(rest) if i in dev]
 
         cache_path = os.path.join(ROOT_DIR, f"data/other/data_cache/activity_relation/data_{args.seed_general}"
-                                            f"_test{args.test_share}_cv_fold{i}_")
+                                            f"_downef{args.down_sample_ef}_test{args.test_share}_cv_fold{i}_")
 
         train_tf_dataset = _prepare_dataset(train_relations, cache_path=cache_path + "train")
         dev_tf_dataset = _prepare_dataset(dev_relations, cache_path=cache_path + "dev")
@@ -178,11 +178,11 @@ def create_activity_relation_cls_dataset_full(args: argparse.Namespace) -> Tuple
     :return: train set, test set
     """
     logger.info(f"Create full activity relation classification dataset (batch_size={args.batch_size})")
-    train, test = _split_test_set(args)
+    train, test = _get_relations_and_split_test_set(args)
     logger.info(f"Final Dataset -> train={len(train)} / test={len(test)}")
 
     cache_path = os.path.join(ROOT_DIR, f"data/other/data_cache/activity_relation/data_{args.seed_general}"
-                                        f"_test{args.test_share}_full_")
+                                        f"_downef{args.down_sample_ef}_test{args.test_share}_full_")
 
     train_tf_dataset = _prepare_dataset(train, cache_path=cache_path + "train")
     test_tf_dataset = _prepare_dataset(test, cache_path=cache_path + "test")

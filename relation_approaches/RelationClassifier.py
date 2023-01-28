@@ -48,6 +48,9 @@ parser.add_argument("--routine", default="cv", type=str, help="Cross validation 
 parser.add_argument("--folds", default=2, type=int, help="Number of folds in cross validation routine.")
 parser.add_argument("--store_weights", default=False, type=bool, help="Flag if best weights should be stored.")
 parser.add_argument("--test_share", default=0.1, type=float, help="Share of test set")
+# Data params
+parser.add_argument("--down_sample_ef", default=False, type=bool, help="Flag if eventually following samples should be"
+                                                                       "down sampled to comparable number")
 # Architecture params
 parser.add_argument("--architecture", default=ARCHITECTURE_CUSTOM, type=str, help="Architecture variants")
 parser.add_argument("--dropout", default=0.2, type=float, help="Dropout rate.")
@@ -144,7 +147,7 @@ class NeuralRelationClassifier(tf.keras.Model, RelationClassifier, ABC):
         """
         creates a NeuralRelationClassifier
         :param args: args Namespace
-        :param bert_model: bert like transformer token classification model
+        :param bert_model: bert like transformer model
         :param train_size: train dataset size
         :param weights_path: path of stored weights. If set, load from there
         """
