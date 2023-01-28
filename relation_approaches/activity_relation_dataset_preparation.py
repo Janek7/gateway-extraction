@@ -154,8 +154,8 @@ def create_activity_relation_cls_dataset_cv(args: argparse.Namespace) -> List[Tu
         train_relations = [p for i, p in enumerate(rest) if i in train]
         dev_relations = [p for i, p in enumerate(rest) if i in dev]
 
-        cache_path = os.path.join(ROOT_DIR, f"data/other/data_cache/activity_relation/data_{args.seed_general}_cv_"
-                                            f"fold{i}_")
+        cache_path = os.path.join(ROOT_DIR, f"data/other/data_cache/activity_relation/data_{args.seed_general}"
+                                            f"_test{args.test_share}_cv_fold{i}_")
 
         train_tf_dataset = _prepare_dataset(train_relations, cache_path=cache_path + "train")
         dev_tf_dataset = _prepare_dataset(dev_relations, cache_path=cache_path + "dev")
@@ -181,7 +181,8 @@ def create_activity_relation_cls_dataset_full(args: argparse.Namespace) -> Tuple
     train, test = _split_test_set(args)
     logger.info(f"Final Dataset -> train={len(train)} / test={len(test)}")
 
-    cache_path = os.path.join(ROOT_DIR, f"data/other/data_cache/activity_relation/data_{args.seed_general}_full_")
+    cache_path = os.path.join(ROOT_DIR, f"data/other/data_cache/activity_relation/data_{args.seed_general}"
+                                        f"_test{args.test_share}_full_")
 
     train_tf_dataset = _prepare_dataset(train, cache_path=cache_path + "train")
     test_tf_dataset = _prepare_dataset(test, cache_path=cache_path + "test")
