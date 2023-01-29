@@ -33,5 +33,13 @@ def average_metrics(metric_list: List[Dict], round_digits=2) -> Dict:
 
 
 if __name__ == '__main__':
-    print(precision(12, 43))
+    data = [
+        [0.1034,    0.0852],
+        [0.595 ,   0.6398],
+        [0.6639,    0.3878],
+        [0.1942,    0.3237],
+        [0.7625 ,   0.7921],
+    ]
+    for p, r in data:
+        print(round(f1(p, r), 4))
 

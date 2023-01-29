@@ -125,5 +125,5 @@ NO_GATEWAY_RELATIONS = 'no_gateway_relations'
 
 # Architecture variants
 ARCHITECTURE_CUSTOM = 'custom'
-ARCHITECTURE_CNN = 'CNN'
-ARCHITECTURE_RNN = 'RNN'
+ARCHITECTURE_CNN = 'cnn'
+ARCHITECTURE_BRCNN = 'brcnn'

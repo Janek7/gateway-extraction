@@ -301,7 +301,7 @@ class BRCNNRelationClassifier(NeuralRelationClassifier):
 architecture_dict = {
     ARCHITECTURE_CUSTOM: CustomNeuralRelationClassifier,
     ARCHITECTURE_CNN: CNNRelationClassifier,
-    ARCHITECTURE_RNN: BRCNNRelationClassifier
+    ARCHITECTURE_BRCNN: BRCNNRelationClassifier
 }
 
 
@@ -330,7 +330,7 @@ class NeuralRelationClassifierEnsemble(Ensemble):
             logger.info(f"Reload model with mode {args.mode}")
             kwargs["args"] = args
 
-        if kwargs["args"].architecture not in [ARCHITECTURE_CUSTOM, ARCHITECTURE_CNN, ARCHITECTURE_RNN]:
+        if kwargs["args"].architecture not in [ARCHITECTURE_CUSTOM, ARCHITECTURE_CNN, ARCHITECTURE_BRCNN]:
             raise ValueError(f"{kwargs['args'].architecture} is not a valid architecture")
 
         super().__init__(architecture_dict[kwargs["args"].architecture], seeds, ensemble_path, es_monitor, seed_limit,
