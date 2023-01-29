@@ -49,7 +49,7 @@ parser.add_argument("--folds", default=5, type=int, help="Number of folds in cro
 parser.add_argument("--store_weights", default=False, type=bool, help="Flag if best weights should be stored.")
 parser.add_argument("--test_share", default=0.1, type=float, help="Share of test set")
 # Data params
-parser.add_argument("--down_sample_ef", default=True, type=bool, help="Flag if eventually following samples should be"
+parser.add_argument("--down_sample_ef", default=False, type=bool, help="Flag if eventually following samples should be"
                                                                        "down sampled to comparable number")
 # Architecture params
 parser.add_argument("--architecture", default=ARCHITECTURE_CUSTOM, type=str, help="Architecture variants")
