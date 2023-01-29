@@ -211,7 +211,7 @@ if __name__ == '__main__':
     parser.add_argument("--batch_size", default=8, type=int, help="Batch size.")
     parser.add_argument("--folds", default=5, type=int, help="K folds.")
     parser.add_argument("--test_share", default=0.1, type=float, help="Share of test set")
-    parser.add_argument("--down_sample_ef", default=False, type=bool,
+    parser.add_argument("--down_sample_ef", default=True, type=bool,
                         help="Flag if eventually following samples should be"
                              "down sampled to comparable number")
     args = parser.parse_args([] if "__file__" not in globals() else None)
@@ -220,8 +220,11 @@ if __name__ == '__main__':
 
     # _process_all_data_for_length_stats()
 
-    train, test = create_activity_relation_cls_dataset_full(args)
-    for x in train.take(2):
-        print(x)
+    # train, test = create_activity_relation_cls_dataset_full(args)
+    # for x in train.take(2):
+    #     print(x)
 
-    # create_activity_relation_cls_dataset_cv(args)
+    folded_datasets = create_activity_relation_cls_dataset_cv(args)
+    for train, dev in folded_datasets[:1]:
+        for x in train.take(2):
+            print(x)

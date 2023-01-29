@@ -45,11 +45,11 @@ parser.add_argument("--seeds_ensemble", default="0-1", type=str, help="Random se
 # routine params
 parser.add_argument("--routine", default="cv", type=str, help="Cross validation 'cv' or "
                                                               "full training without validation 'ft'.")
-parser.add_argument("--folds", default=2, type=int, help="Number of folds in cross validation routine.")
+parser.add_argument("--folds", default=5, type=int, help="Number of folds in cross validation routine.")
 parser.add_argument("--store_weights", default=False, type=bool, help="Flag if best weights should be stored.")
 parser.add_argument("--test_share", default=0.1, type=float, help="Share of test set")
 # Data params
-parser.add_argument("--down_sample_ef", default=False, type=bool, help="Flag if eventually following samples should be"
+parser.add_argument("--down_sample_ef", default=True, type=bool, help="Flag if eventually following samples should be"
                                                                        "down sampled to comparable number")
 # Architecture params
 parser.add_argument("--architecture", default=ARCHITECTURE_CUSTOM, type=str, help="Architecture variants")
@@ -174,7 +174,7 @@ class NeuralRelationClassifier(tf.keras.Model, RelationClassifier):
 
         predictions = self.create_hidden_and_output_layers(bert_output=bert_output)
 
-        tf.keras.Model.__init__(self, inputs=inputs, outputs=predictions)
+        tf.keras.Model.__init__(self, inputs, predictions)
         RelationClassifier.__init__(self)
 
         # B) COMPILE (only needed when training is intended)
@@ -188,8 +188,8 @@ class NeuralRelationClassifier(tf.keras.Model, RelationClassifier):
             )
 
             self.compile(optimizer=optimizer,
-                         loss=tf.keras.losses.SparseCategoricalCrossentropy(),
-                         metrics=[tf.keras.metrics.SparseCategoricalAccuracy(name="accuracy"),
+                         loss=tf.keras.losses.CategoricalCrossentropy(),
+                         metrics=[tf.keras.metrics.CategoricalAccuracy(name="accuracy"),
                                   tf.keras.metrics.Precision(name="precision"), tf.keras.metrics.Recall(name="recall")])
 
         # self.summary()
