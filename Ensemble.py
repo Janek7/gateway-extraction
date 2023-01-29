@@ -85,7 +85,7 @@ class Ensemble:
 
             history = model.fit(train_dataset, epochs=args.epochs, validation_data=dev_dataset,
                                 callbacks=[tf.keras.callbacks.EarlyStopping(monitor=self.es_monitor,
-                                                                            min_delta=1e-4, patience=2, mode="max",
+                                                                            min_delta=1e-4, patience=1, mode="max",
                                                                             restore_best_weights=True)]
                                 )
             histories.append(history)
