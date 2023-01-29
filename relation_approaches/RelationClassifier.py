@@ -217,6 +217,18 @@ class NeuralRelationClassifier(tf.keras.Model):  # , RelationClassifier):
         """
         return tf.keras.layers.Dense(len(label_dict), activation=tf.nn.softmax)(hidden_layer)
 
+    def create_cnn_block(self, input_layer):
+        """
+        create convolutional block
+        :param input_layer: input layer to block
+        :return: 3 combined layers
+        """
+        cnn = tf.keras.layers.Conv1D(self.args.filters, self.args.kernel_size, 1, "same")(input_layer)
+        batch_norm = tf.keras.layers.BatchNormalization()(cnn)
+        relu = tf.keras.layers.ReLU()(batch_norm)
+        max_pooling = tf.keras.layers.MaxPool1D(pool_size=self.args.pool_size)(relu)
+        return max_pooling
+
     def predict_activity_pair(self, doc_name: str, activity_1: Tuple, activity_2: Tuple) -> str:
         # TODO: !!!
         return "dummy"
@@ -255,10 +267,8 @@ class CNNRelationClassifier(NeuralRelationClassifier):
         :return: a dense classification layer
         """
         dropout1 = tf.keras.layers.Dropout(self.args.dropout)(bert_output)
-        cnn = tf.keras.layers.ReLU()(tf.keras.layers.BatchNormalization()(tf.keras.layers.Conv1D(
-            self.args.filters, self.args.kernel_size, 1, "same")))(dropout1)
-        max_pooling = tf.keras.layers.MaxPool1D(pool_size=self.args.pool_size)(cnn)
-        dropout2 = tf.keras.layers.Dropout(self.args.dropout)(max_pooling)
+        cnn = self.create_cnn_block(dropout1)
+        dropout2 = tf.keras.layers.Dropout(self.args.dropout)(cnn)
         hidden = tf.keras.layers.Dense(self.args.hidden_layer, activation=tf.nn.relu)(dropout2)
         dropout3 = tf.keras.layers.Dropout(self.args.dropout)(hidden)
         predictions = self.create_output_layer(dropout3)
@@ -279,21 +289,12 @@ class BRCNNRelationClassifier(NeuralRelationClassifier):
         """
         rnn_cell_type = tf.keras.layers.LSTM if args.rnn_cell == 'LSTM' else tf.keras.layers.GRU
         forward = rnn_cell_type(args.rnn_units)(bert_output)
-        forward_cnn = self.cnn_block(forward)
+        forward_cnn = self.create_cnn_block(forward)
         backward = rnn_cell_type(args.rnn_units, go_backwards=True)(bert_output)
-        backward_cnn = self.cnn_block(backward)
+        backward_cnn = self.create_cnn_block(backward)
         concatenated = tf.keras.layers.Concatenate()([forward_cnn, backward_cnn])
         predictions = self.create_output_layer(concatenated)
         return predictions
-
-    def cnn_block(self, input_layer):
-        """
-        create a cnn block including a conv layer with batch norm and relu activation followed by a max pooling
-        """
-        cnn = tf.keras.layers.ReLU()(tf.keras.layers.BatchNormalization()(tf.keras.layers.Conv1D(
-            self.args.filters, self.args.kernel_size, 1, "same")))(input_layer)
-        max_pooling = tf.keras.layers.MaxPool1D(pool_size=self.args.pool_size)(cnn)
-        return max_pooling
 
 
 # A3) ENSEMBLE
