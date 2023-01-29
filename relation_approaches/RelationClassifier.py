@@ -138,7 +138,7 @@ class GoldstandardRelationClassifier(RelationClassifier):
 # A2) Neural classes
 
 
-class NeuralRelationClassifier(tf.keras.Model, RelationClassifier):
+class NeuralRelationClassifier(tf.keras.Model):  # , RelationClassifier):
     """
     classification model to classify relation of two activities
     class is abstract because hidden and output layers must be defined in abstract method for different architectures
@@ -174,8 +174,9 @@ class NeuralRelationClassifier(tf.keras.Model, RelationClassifier):
 
         predictions = self.create_hidden_and_output_layers(bert_output=bert_output)
 
-        tf.keras.Model.__init__(self, inputs, predictions)
-        RelationClassifier.__init__(self)
+        # tf.keras.Model.__init__(self, inputs, predictions)
+        # RelationClassifier.__init__(self)
+        super().__init__(inputs=inputs, outputs=predictions)
 
         # B) COMPILE (only needed when training is intended)
         if args and train_size:
@@ -407,7 +408,7 @@ def classify_documents(relation_classifier: RelationClassifier, doc_names: List[
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     args = parser.parse_args([] if "__file__" not in globals() else None)
-    args.logdir = generate_args_logdir(args, script_name="SameGatewayClassifier")
+    args.logdir = generate_args_logdir(args, script_name="RelationClassifier")
 
     # this seed is used by default (only overwritten in case of ensemble)
     set_seeds(args.seed_general, "args - used for dataset split/shuffling")
