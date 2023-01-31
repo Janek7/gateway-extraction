@@ -28,7 +28,7 @@ from PetReader import pet_reader
 from labels import *
 from relation_approaches.activity_relation_data_preparation import get_activity_relations
 from relation_approaches.activity_relation_dataset_preparation import label_dict, \
-    create_activity_relation_cls_dataset_cv, create_activity_relation_cls_dataset_full
+    create_activity_relation_cls_dataset_cv, create_activity_relation_cls_dataset_full, MAX_LENGTH
 from utils import GatewayExtractionException, config, generate_args_logdir, set_seeds
 
 logger = logging.getLogger('Relation Classifier')
@@ -167,8 +167,8 @@ class NeuralRelationClassifier(tf.keras.Model):  # , RelationClassifier):
 
         # A) ARCHITECTURE
         inputs = {
-            "input_ids": tf.keras.layers.Input(shape=[None], dtype=tf.int32),
-            "attention_mask": tf.keras.layers.Input(shape=[None], dtype=tf.int32)
+            "input_ids": tf.keras.layers.Input(shape=[MAX_LENGTH], dtype=tf.int32),
+            "attention_mask": tf.keras.layers.Input(shape=[MAX_LENGTH], dtype=tf.int32)
         }
 
         if not bert_model:
