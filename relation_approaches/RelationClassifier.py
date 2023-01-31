@@ -278,7 +278,8 @@ class CNNRelationClassifier(NeuralRelationClassifier):
         """
         dropout1 = tf.keras.layers.Dropout(self.args.dropout)(bert_output)
         cnn = self.create_cnn_blocks(dropout1)
-        dropout2 = tf.keras.layers.Dropout(self.args.dropout)(cnn)
+        cnn_flattened = tf.keras.layers.Flatten()(cnn)
+        dropout2 = tf.keras.layers.Dropout(self.args.dropout)(cnn_flattened)
         hidden = tf.keras.layers.Dense(self.args.hidden_layer, activation=tf.nn.relu)(dropout2)
         dropout3 = tf.keras.layers.Dropout(self.args.dropout)(hidden)
         predictions = self.create_output_layer(dropout3)
@@ -300,9 +301,11 @@ class BRCNNRelationClassifier(NeuralRelationClassifier):
         rnn_cell_type = tf.keras.layers.LSTM if args.rnn_cell == 'LSTM' else tf.keras.layers.GRU
         forward = rnn_cell_type(args.rnn_units)(bert_output)
         forward_cnn = self.create_cnn_blocks(forward)
+        forward_cnn_flattened = tf.keras.layers.Flatten()(forward_cnn)
         backward = rnn_cell_type(args.rnn_units, go_backwards=True)(bert_output)
         backward_cnn = self.create_cnn_blocks(backward)
-        concatenated = tf.keras.layers.Concatenate()([forward_cnn, backward_cnn])
+        backward_cnn_flattened = tf.keras.layers.Flatten()(forward_cnn)
+        concatenated = tf.keras.layers.Concatenate()([forward_cnn_flattened, backward_cnn_flattened])
         predictions = self.create_output_layer(concatenated)
         return predictions
 
