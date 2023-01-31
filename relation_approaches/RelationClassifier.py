@@ -230,10 +230,10 @@ class NeuralRelationClassifier(tf.keras.Model):  # , RelationClassifier):
         :return: last max pooling layer that combines all layers before
         """
         output = input_layer
-        filters = self.args.filter_start_size
+        filters = int(self.args.filter_start_size / self.args.filter_increase)
         for i in range(1, self.args.cnn_blocks + 1):
-            cnn = tf.keras.layers.Conv1D(int(filters * self.args.filter_increase), self.args.kernel_size, 1, "same")\
-                (output)
+            filters *= self.args.filter_increase
+            cnn = tf.keras.layers.Conv1D(filters, self.args.kernel_size, 1, "same")(output)
             batch_norm = tf.keras.layers.BatchNormalization()(cnn)
             relu = tf.keras.layers.ReLU()(batch_norm)
             output = tf.keras.layers.MaxPool1D(pool_size=self.args.pool_size)(relu)
