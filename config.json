@@ -12,5 +12,6 @@
   "synonym-samples-start-number": 500,
   "activity-relation-classifier": {
     "eventually-follows-sample-limit": 500
-  }
+  },
+  "es_patience": 2
 }

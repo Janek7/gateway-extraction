@@ -6,7 +6,8 @@ from typing import List
 import numpy as np
 import tensorflow as tf
 
-from utils import set_seeds
+from labels import *
+from utils import set_seeds, config
 
 logger = logging.getLogger('Gateway Token Classifier Ensemble')
 
@@ -85,7 +86,9 @@ class Ensemble:
 
             history = model.fit(train_dataset, epochs=args.epochs, validation_data=dev_dataset,
                                 callbacks=[tf.keras.callbacks.EarlyStopping(monitor=self.es_monitor,
-                                                                            min_delta=1e-4, patience=1, mode="max",
+                                                                            min_delta=1e-4,
+                                                                            patience=config[ES_PATIENCE],
+                                                                            mode="max",
                                                                             restore_best_weights=True)]
                                 )
             histories.append(history)

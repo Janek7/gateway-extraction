@@ -11,6 +11,7 @@ ACTIVITY_RELATION_CLASSIFIER = 'activity-relation-classifier'
 CONTEXT_LABEL_LENGTH = 'context-label-length'
 SYNONYM_SAMPLES_START_NUMBER = 'synonym-samples-start-number'
 EVENTUALLY_FOLLOWS_SAMPLE_LIMIT = 'eventually-follows-sample-limit'
+ES_PATIENCE = 'es_patience'
 
 # B) LABELS FOR KEYWORDSAPPROACH
 

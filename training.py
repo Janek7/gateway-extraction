@@ -9,7 +9,8 @@ import numpy as np
 
 from Ensemble import Ensemble
 from metrics import f1_normal
-from utils import get_seed_list, save_args_to_file
+from utils import get_seed_list, save_args_to_file, config
+from labels import *
 
 logger = logging.getLogger('Training')
 
@@ -137,7 +138,7 @@ def cross_validation(args: argparse.Namespace, model_class: type(tf.keras.Model)
                 train_dataset, epochs=args.epochs, validation_data=dev_dataset,
                 callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq='batch', profile_batch=0),
                            tf.keras.callbacks.EarlyStopping(monitor=get_monitor(model_class),
-                                                            min_delta=1e-4, patience=1, mode="max",
+                                                            min_delta=1e-4, patience=config[ES_PATIENCE], mode="max",
                                                             restore_best_weights=True)]
             )
             # store model
@@ -195,7 +196,7 @@ def full_training(args: argparse.Namespace, model_class: type(tf.keras.Model), d
             dataset, epochs=args.epochs,
             callbacks=[tf.keras.callbacks.TensorBoard(args.logdir, update_freq="batch", profile_batch=0),
                        tf.keras.callbacks.EarlyStopping(monitor=get_monitor(model_class),
-                                                        min_delta=1e-4, patience=2, mode="max",
+                                                        min_delta=1e-4, patience=config[ES_PATIENCE], mode="max",
                                                         restore_best_weights=True)]
         )
 
