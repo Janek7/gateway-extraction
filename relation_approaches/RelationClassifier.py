@@ -31,7 +31,6 @@ from relation_approaches.activity_relation_dataset_preparation import label_dict
     create_activity_relation_cls_dataset_cv, create_activity_relation_cls_dataset_full
 from utils import GatewayExtractionException, config, generate_args_logdir, set_seeds
 
-
 logger = logging.getLogger('Relation Classifier')
 logger_ensemble = logging.getLogger('Relation Classifier Ensemble')
 
@@ -57,9 +56,15 @@ parser.add_argument("--dropout", default=0.2, type=float, help="Dropout rate.")
 parser.add_argument("--hidden_layer", default=32, type=int, help="Hidden layer size")
 parser.add_argument("--learning_rate", default=2e-5, type=float, help="Learning rate.")
 parser.add_argument("--warmup", default=0, type=int, help="Number of warmup steps.")
-parser.add_argument("--filters", default=32, type=int, help="Number of filters in CNN")
+# cnn params
+parser.add_argument("--cnn_blocks", default=1, type=int, help="Number of filters in CNN")
+parser.add_argument("--filter_start_size", default=32, type=int,
+                    help="Start (minimal) number of filters in first cnn block")
+parser.add_argument("--filter_increase", default=2, type=int, help="Rate how much the number of filters should grow in "
+                                                                   "each new block")
 parser.add_argument("--kernel_size", default=3, type=int, help="Kernel size in CNN")
 parser.add_argument("--pool_size", default=2, type=int, help="Max pooling size")
+# rnn params
 parser.add_argument("--rnn_cell", default="LSTM", type=str, help="Type of RNN cell (LSTM or GRU)")
 parser.add_argument("--rnn_units", default=32, type=int, help="Number of units in RNNs")
 
@@ -211,23 +216,28 @@ class NeuralRelationClassifier(tf.keras.Model):  # , RelationClassifier):
         pass
 
     @staticmethod
-    def create_output_layer(hidden_layer):
+    def create_output_layer(hidden_layer) -> tf.keras.layers.Layer:
         """
         create classification head layer
         """
         return tf.keras.layers.Dense(len(label_dict), activation=tf.nn.softmax)(hidden_layer)
 
-    def create_cnn_block(self, input_layer):
+    def create_cnn_blocks(self, input_layer) -> tf.keras.layers.Layer:
         """
-        create convolutional block
-        :param input_layer: input layer to block
-        :return: 3 combined layers
+        create sequence of stacked convolutional blocks (dims are shrinking gradually because of max pooling, number of
+        filters increases gradually). Every block is a sequence of [Conv -> BatchNorm -> Relu -> Max Pooling]
+        :param input_layer: input to the whole block
+        :return: last max pooling layer that combines all layers before
         """
-        cnn = tf.keras.layers.Conv1D(self.args.filters, self.args.kernel_size, 1, "same")(input_layer)
-        batch_norm = tf.keras.layers.BatchNormalization()(cnn)
-        relu = tf.keras.layers.ReLU()(batch_norm)
-        max_pooling = tf.keras.layers.MaxPool1D(pool_size=self.args.pool_size)(relu)
-        return max_pooling
+        output = input_layer
+        filters = self.args.filter_start_size
+        for i in range(1, self.args.cnn_blocks + 1):
+            cnn = tf.keras.layers.Conv1D(int(filters * self.args.filter_increase), self.args.kernel_size, 1, "same")\
+                (output)
+            batch_norm = tf.keras.layers.BatchNormalization()(cnn)
+            relu = tf.keras.layers.ReLU()(batch_norm)
+            output = tf.keras.layers.MaxPool1D(pool_size=self.args.pool_size)(relu)
+        return output
 
     def predict_activity_pair(self, doc_name: str, activity_1: Tuple, activity_2: Tuple) -> str:
         # TODO: !!!
@@ -267,7 +277,7 @@ class CNNRelationClassifier(NeuralRelationClassifier):
         :return: a dense classification layer
         """
         dropout1 = tf.keras.layers.Dropout(self.args.dropout)(bert_output)
-        cnn = self.create_cnn_block(dropout1)
+        cnn = self.create_cnn_blocks(dropout1)
         dropout2 = tf.keras.layers.Dropout(self.args.dropout)(cnn)
         hidden = tf.keras.layers.Dense(self.args.hidden_layer, activation=tf.nn.relu)(dropout2)
         dropout3 = tf.keras.layers.Dropout(self.args.dropout)(hidden)
@@ -289,9 +299,9 @@ class BRCNNRelationClassifier(NeuralRelationClassifier):
         """
         rnn_cell_type = tf.keras.layers.LSTM if args.rnn_cell == 'LSTM' else tf.keras.layers.GRU
         forward = rnn_cell_type(args.rnn_units)(bert_output)
-        forward_cnn = self.create_cnn_block(forward)
+        forward_cnn = self.create_cnn_blocks(forward)
         backward = rnn_cell_type(args.rnn_units, go_backwards=True)(bert_output)
-        backward_cnn = self.create_cnn_block(backward)
+        backward_cnn = self.create_cnn_blocks(backward)
         concatenated = tf.keras.layers.Concatenate()([forward_cnn, backward_cnn])
         predictions = self.create_output_layer(concatenated)
         return predictions
