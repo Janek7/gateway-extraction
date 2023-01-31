@@ -16,5 +16,5 @@ for DOWN_SAMPLE_EF in "--down_sample_ef=True" ""; do
   done
 done
 
-# TODO: run increased rnn units with better cell
-# TODO: run multiple cnn blocks with best rnn config
+# TODO: run best with backward sequences as well
+# TODO: run best with increased rnn units

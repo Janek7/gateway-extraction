@@ -67,6 +67,7 @@ parser.add_argument("--pool_size", default=2, type=int, help="Max pooling size")
 # rnn params
 parser.add_argument("--rnn_cell", default="LSTM", type=str, help="Type of RNN cell (LSTM or GRU)")
 parser.add_argument("--rnn_units", default=32, type=int, help="Number of units in RNNs")
+parser.add_argument("--rnn_backwards", default=False, type=bool, help="Flag if backwards should be processed as well.")
 
 
 # A) RelationClassifier classes
@@ -299,14 +300,18 @@ class BRCNNRelationClassifier(NeuralRelationClassifier):
         :return: a dense classification layer
         """
         rnn_cell_type = tf.keras.layers.LSTM if self.args.rnn_cell == 'LSTM' else tf.keras.layers.GRU
-        forward = rnn_cell_type(self.args.rnn_units)(bert_output)
+
+        forward = rnn_cell_type(self.args.rnn_units, return_sequences=True)(bert_output)
         forward_cnn = self.create_cnn_blocks(forward)
         forward_cnn_flattened = tf.keras.layers.Flatten()(forward_cnn)
-        backward = rnn_cell_type(self.args.rnn_units, go_backwards=True)(bert_output)
-        backward_cnn = self.create_cnn_blocks(backward)
-        backward_cnn_flattened = tf.keras.layers.Flatten()(backward_cnn)
-        concatenated = tf.keras.layers.Concatenate()([forward_cnn_flattened, backward_cnn_flattened])
-        predictions = self.create_output_layer(concatenated)
+        hidden = forward_cnn_flattened
+        if self.args.rnn_backwards:
+            backward = rnn_cell_type(self.args.rnn_units, return_sequences=True, go_backwards=True)(bert_output)
+            backward_cnn = self.create_cnn_blocks(backward)
+            backward_cnn_flattened = tf.keras.layers.Flatten()(backward_cnn)
+            concatenated = tf.keras.layers.Concatenate()([forward_cnn_flattened, backward_cnn_flattened])
+            hidden = concatenated
+        predictions = self.create_output_layer(hidden)
         return predictions
 
 
