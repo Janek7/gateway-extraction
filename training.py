@@ -44,7 +44,7 @@ _model_metrics = {
         METRICS_PER_FOLD: ['avg_val_loss', 'avg_val_accuracy', 'avg_val_precision', 'avg_val_recall',
                            'val_loss', 'val_accuracy', 'val_precision', 'val_recall']
     },
-    "RNNRelationClassifier": {
+    "BRCNNRelationClassifier": {
         MONITOR_METRICS: "val_accuracy",
         METRICS_PER_FOLD: ['avg_val_loss', 'avg_val_accuracy', 'avg_val_precision', 'avg_val_recall',
                            'val_loss', 'val_accuracy', 'val_precision', 'val_recall']
