@@ -298,13 +298,13 @@ class BRCNNRelationClassifier(NeuralRelationClassifier):
         :param bert_output: BERT output of input sequence
         :return: a dense classification layer
         """
-        rnn_cell_type = tf.keras.layers.LSTM if args.rnn_cell == 'LSTM' else tf.keras.layers.GRU
-        forward = rnn_cell_type(args.rnn_units)(bert_output)
+        rnn_cell_type = tf.keras.layers.LSTM if self.args.rnn_cell == 'LSTM' else tf.keras.layers.GRU
+        forward = rnn_cell_type(self.args.rnn_units)(bert_output)
         forward_cnn = self.create_cnn_blocks(forward)
         forward_cnn_flattened = tf.keras.layers.Flatten()(forward_cnn)
-        backward = rnn_cell_type(args.rnn_units, go_backwards=True)(bert_output)
+        backward = rnn_cell_type(self.args.rnn_units, go_backwards=True)(bert_output)
         backward_cnn = self.create_cnn_blocks(backward)
-        backward_cnn_flattened = tf.keras.layers.Flatten()(forward_cnn)
+        backward_cnn_flattened = tf.keras.layers.Flatten()(backward_cnn)
         concatenated = tf.keras.layers.Concatenate()([forward_cnn_flattened, backward_cnn_flattened])
         predictions = self.create_output_layer(concatenated)
         return predictions
