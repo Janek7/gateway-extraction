@@ -302,18 +302,20 @@ class BRCNNRelationClassifier(NeuralRelationClassifier):
         :return: a dense classification layer
         """
         rnn_cell_type = tf.keras.layers.LSTM if self.args.rnn_cell == 'LSTM' else tf.keras.layers.GRU
+        dropout1 = tf.keras.layers.Dropout(self.args.dropout)(bert_output)
 
-        forward = rnn_cell_type(self.args.rnn_units, return_sequences=True)(bert_output)
+        forward = rnn_cell_type(self.args.rnn_units, return_sequences=True)(dropout1)
         forward_cnn = self.create_cnn_blocks(forward)
         forward_cnn_flattened = tf.keras.layers.Flatten()(forward_cnn)
         hidden = forward_cnn_flattened
         if self.args.rnn_backwards:
-            backward = rnn_cell_type(self.args.rnn_units, return_sequences=True, go_backwards=True)(bert_output)
+            backward = rnn_cell_type(self.args.rnn_units, return_sequences=True, go_backwards=True)(dropout1)
             backward_cnn = self.create_cnn_blocks(backward)
             backward_cnn_flattened = tf.keras.layers.Flatten()(backward_cnn)
             concatenated = tf.keras.layers.Concatenate()([forward_cnn_flattened, backward_cnn_flattened])
             hidden = concatenated
-        predictions = self.create_output_layer(hidden)
+        dropout2 = tf.keras.layers.Dropout(self.args.dropout)(hidden)
+        predictions = self.create_output_layer(dropout2)
         return predictions
 
 
