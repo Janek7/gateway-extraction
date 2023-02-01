@@ -46,7 +46,8 @@ parser.add_argument("--routine", default="cv", type=str, help="Cross validation 
                                                               "full training without validation 'ft'.")
 parser.add_argument("--folds", default=5, type=int, help="Number of folds in cross validation routine.")
 parser.add_argument("--store_weights", default=False, type=bool, help="Flag if best weights should be stored.")
-parser.add_argument("--test_share", default=0.1, type=float, help="Share of test set")
+parser.add_argument("--test_docs", default=True, type=bool, help="Flag if predefined docs should be used as test set")
+parser.add_argument("--test_share", default=0.1, type=float, help="Share of test set (only applied if not test_docs")
 # Data params
 parser.add_argument("--down_sample_ef", default=False, type=bool, help="Flag if eventually following samples should be"
                                                                        "down sampled to comparable number")
@@ -355,10 +356,16 @@ class NeuralRelationClassifierEnsemble(Ensemble):
         super().__init__(architecture_dict[kwargs["args"].architecture], seeds, ensemble_path, es_monitor, seed_limit,
                          **kwargs)
 
-    def predict_activity_pair(self, doc_name: str, activity_1: Tuple, activity_2: Tuple) -> str:
-        # TODO: !!!
-        # predictions = tf.argmax(predictions, axis = -1)
-        return "dummy"
+    def predict_test_set(self, test: tf.data.Dataset) -> np.ndarray:
+        """
+        predict labels of given test set
+        :param test: tensorflow data set
+        :return: numpy array with numeric labels
+        """
+        predictions = [m.predict(test) for m in self.models]
+        predictions_averaged = np.mean(predictions, axis=0)
+        predictions_argmax = np.argmax(predictions_averaged, axis=-1)
+        return predictions_argmax
 
 
 # B) TRAINING
@@ -385,7 +392,7 @@ def train_routine(args: argparse.Namespace) -> None:
 
     # full training without validation
     elif args.routine == 'ft':
-        train, test = create_activity_relation_cls_dataset_full(args)
+        train, test, test_relations = create_activity_relation_cls_dataset_full(args)
         full_training(args, model_class, train)
 
     else:
@@ -440,4 +447,8 @@ if __name__ == '__main__':
     #     for r in doc_relations:
     #         print(r)
 
-    train_routine(args)
+    # train_routine(args)
+
+    train, test, test_relations = create_activity_relation_cls_dataset_full(args)
+
+    ensemble = NeuralRelationClassifierEnsemble(log_folder="TEST", seeds=[1,2], args=args)
