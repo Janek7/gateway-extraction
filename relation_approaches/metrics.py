@@ -26,7 +26,7 @@ def average_metrics(metric_list: List[Dict], round_digits=2) -> Dict:
     :return: metric dict with averaged values
     """
     metric_keys = [PRECISION, RECALL, F1SCORE, SUPPORT]
-    averaged_metrics = {m: round(float(np.mean([doc_metrics[m] for doc_metrics in metric_list])), round_digits)
+    averaged_metrics = {m: round(float(np.mean([doc_metrics[m] for doc_metrics in metric_list if doc_metrics[SUPPORT] > 0])), round_digits)
                         if m != SUPPORT else sum([doc_metrics[m] for doc_metrics in metric_list])
                         for m in metric_keys}
     return averaged_metrics
@@ -34,10 +34,9 @@ def average_metrics(metric_list: List[Dict], round_digits=2) -> Dict:
 
 if __name__ == '__main__':
     data = [
-        [0.8816,    0.8394],
-        [0.7674,    0.666],
-        [0.8773,    0.8357],
-        [0.7526,    0.6536],
+        [0.8884,    0.8372],
+        [0.8866,    0.8332],
+        [0.8842,    0.8329],
     ]
     for p, r in data:
         print(round(f1(p, r), 4))

@@ -13,5 +13,5 @@
   "activity-relation-classifier": {
     "eventually-follows-sample-limit": 500
   },
-  "es_patience": 2
+  "es_patience": 1
 }

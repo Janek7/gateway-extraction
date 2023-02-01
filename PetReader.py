@@ -99,9 +99,14 @@ class PetReader:
         doc_activity_tokens = []
         for i, (tokens, activities) in enumerate(zip(doc_sentence_ner_labels, doc_activities)):
             sentence_activity_tokens = []
+            # log already assigned tokens to prevent double matching to one because of same activity text
+            already_assigned_tokens = []
             # note: activity is a list because it could consist of more words (neglect here)
             for activity in activities:
-                activity_token_triple = [token_triple for token_triple in tokens if token_triple[0] == activity[0]][0]
+                activity_token_triple = [token_triple for token_triple in tokens
+                                         if token_triple[0] == activity[0]
+                                         and token_triple not in already_assigned_tokens][0]
+                already_assigned_tokens.append(activity_token_triple)
                 sentence_activity_tokens.append((activity, activity_token_triple[1]))
             doc_activity_tokens.append(sentence_activity_tokens)
         return doc_activity_tokens
@@ -156,4 +161,4 @@ else:
 
 
 if __name__ == '__main__':
-    print(pet_reader.xor_key_words_gold)
+    print(pet_reader.get_activities_in_relation_approach_format("doc-10.2"))

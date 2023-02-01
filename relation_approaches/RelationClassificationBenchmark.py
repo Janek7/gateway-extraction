@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # add parent dir to sys path for import of modules
 import os
 import sys
@@ -12,15 +14,19 @@ from typing import Dict, List, Tuple
 from copy import deepcopy
 import logging
 import json
+import argparse
 
 from relation_approaches.AbstractClassificationBenchmark import AbstractClassificationBenchmark
 from relation_approaches.activity_relation_data_preparation import get_activity_relations
-from relation_approaches.RelationClassifier import RelationClassifier, GoldstandardRelationClassifier, \
-    DFBaselineRelationClassifier, RandomBaselineRelationClassifier, classify_documents
-from relation_approaches.activity_relation_dataset_preparation import label_dict
+from relation_approaches.RelationClassifier import RelationClassifier, classify_documents, \
+    NeuralRelationClassifierEnsemble, create_relation_benchmark_format, DFBaselineRelationClassifier, \
+    RandomBaselineRelationClassifier
+from relation_approaches.activity_relation_dataset_preparation import label_dict, \
+    create_activity_relation_cls_dataset_full, TEST_DOCS
 from relation_approaches import metrics
-from utils import ROOT_DIR
+from utils import ROOT_DIR, GatewayExtractionException
 from PetReader import pet_reader
+from labels import *
 
 logger = logging.getLogger('Relation Classification Benchmark')
 
@@ -32,7 +38,7 @@ class RelationClassificationBenchmark(AbstractClassificationBenchmark):
     # parameter for n value to evaluate all activity pairs
     N_ALL = 1000
 
-    def __init__(self, approach_name: str, relation_classifier: RelationClassifier, n=None,
+    def __init__(self, approach_name: str, relation_classifier: RelationClassifier = None, n=None,
                  output_folder: str = None, round_digits: int = 2) -> None:
         """
         initialize a RelationClassificationBenchmark
@@ -63,11 +69,12 @@ class RelationClassificationBenchmark(AbstractClassificationBenchmark):
         AbstractClassificationBenchmark.__init__(self, list(label_dict.keys()), approach_name, output_folder,
                                                  round_digits)
 
-    def evaluate_documents(self, doc_names: List[str], relation_predictions: List = None):
+    def evaluate_documents(self, doc_names: List[str], relation_predictions: Dict[str, List] = None):
         """
         evaluate list of documents with relation_classifier
         :param doc_names: doc names, if none -> all
-        :param relation_predictions: already ready to use predictions
+        :param relation_predictions: already ready to use predictions organized in dictionary per document
+                                     relations in list only consist of (activity1, activity2, relation_type) tuples
                                      if None -> create with self.relation_classifier and classify_documents
         :return:
         """
@@ -100,16 +107,15 @@ class RelationClassificationBenchmark(AbstractClassificationBenchmark):
         """
         all_doc_metrics = {}
         for doc_name in relation_predictions.keys():
-            doc_relation_predictions = {doc_name: relation_predictions[doc_name]}
             doc_metrics = {}
             for label in self.labels:
-                doc_label_metrics = self.evaluate_activity_relations(doc_relation_predictions,
-                                                                     gold_relations=gold_relations, label=label)
-                doc_metrics[label] = doc_label_metrics[doc_name]
+                doc_label_metrics = self.evaluate_activity_relations(doc_name, relation_predictions[doc_name],
+                                                                     gold_relations=gold_relations[doc_name], label=label)
+                doc_metrics[label] = doc_label_metrics
             all_doc_metrics[doc_name] = doc_metrics
         return all_doc_metrics
 
-    def compute_document_label_metrics_nearest_n(self, relation_predictions) -> Dict[int, Dict]:
+    def compute_document_label_metrics_nearest_n(self, relation_predictions: Dict[str, List]) -> Dict[int, Dict]:
         """
         compute document/label metrics n times with limiting relations to evaluate to activities that are within a
         distance of n in the sequence of activities in the whole document
@@ -149,13 +155,14 @@ class RelationClassificationBenchmark(AbstractClassificationBenchmark):
         activity_order = pet_reader.get_activities_in_relation_approach_format(doc_name)
         return [r for r in relations if abs(activity_order.index(r[0]) - activity_order.index(r[1])) <= n]
 
-    def evaluate_activity_relations(self, relations: Dict, gold_relations: Dict = None, label: str = None) -> Dict:
+    def evaluate_activity_relations(self, doc_name: str, relations: List, gold_relations: List = None,
+                                    label: str = None) -> Dict:
         """
-        evaluate relations against "gold" relations created by activity relation data generation algorithm
+        evaluate relations of a document against "gold" relations created by activity relation data generation algorithm
         evaluation can be limited to one label by setting label
-        internal relations tuple format: (a1, a2, relation_label)
+        :param doc_name: doc name
         :param relations: relations given in dictionary (key = doc_name, value: list of activity
-                          relations format -> (doc_name, a1, a2, relation_label, comment)
+                          relations format -> (doc_name, a1, a2, relation_label, comment))
                           HINT: usually just one doc with its relations is passed
         :param gold_relations: gold relations in same format; if none -> take from normal gold standard
                                (can be passed for evaluating nearest n with method compute_document_label_metrics_nearest_n)
@@ -163,41 +170,43 @@ class RelationClassificationBenchmark(AbstractClassificationBenchmark):
         :return: dictionary with metrics for each document
         """
         if not gold_relations:
-            # filter gold_relation on data in scope (doc_names passed in relations) and reduce relation to format (a1, a2, label)
-            gold_relations = {doc_name: [r[1:4] for r in self.gold_activity_relations if r[0] == doc_name]
-                              for doc_name in relations.keys()}
+            # filter gold_relation on document and reduce relation to format (a1, a2, label)
+            gold_relations = [r[1:4] for r in self.gold_activity_relations if r[0] == doc_name]
 
-        doc_metrics = {}
-        for doc_name in relations.keys():
-            pred_relations = deepcopy(relations[doc_name])
-            gold_relations = deepcopy(gold_relations[doc_name])
+        if len(relations) != len(gold_relations):
+            msg = f"Predictions and gold standard of {doc_name} have not the same length " \
+                  f"(label={label}) ({len(relations)} vs. {len(gold_relations)})"
+            # raise GatewayExtractionException(msg)
+            logger.warning(msg)
 
-            if label:
-                pred_relations = [r for r in pred_relations if r[2] == label]
-                gold_relations = [r for r in gold_relations if r[2] == label]
+        pred_relations = deepcopy(relations)
+        gold_relations = deepcopy(gold_relations)
 
-            # define counters
-            tp = 0
-            fp = 0
-            fn = 0
-            # tn does not exist in this use case
+        if label:
+            pred_relations = [r for r in pred_relations if r[2] == label]
+            gold_relations = [r for r in gold_relations if r[2] == label]
 
-            for gold_relation in gold_relations:
-                for pred_relation in pred_relations:
-                    # check both activity orders
-                    if gold_relation == pred_relation \
-                            or gold_relation == (pred_relation[1], pred_relation[0], pred_relation[2]):
-                        tp += 1
-                        pred_relations.remove(pred_relation)
-                        break
-            # fp = number of elements in predictions that remain unmatched
-            fp = len(pred_relations)
-            # fn = number of elements in gold standard that remain unmatched
-            fn = len(gold_relations) - tp
+        # define counters
+        tp = 0
+        fp = 0
+        fn = 0
+        # tn does not exist in this use case
 
-            # store in metrics dict
-            doc_metrics[doc_name] = self.compute_metrics_dict(tp, fp, fn, len(gold_relations))
+        for gold_relation in gold_relations:
+            for pred_relation in pred_relations:
+                # check both activity orders
+                if gold_relation == pred_relation \
+                        or gold_relation == (pred_relation[1], pred_relation[0], pred_relation[2]):
+                    tp += 1
+                    pred_relations.remove(pred_relation)
+                    break
+        # fp = number of elements in predictions that remain unmatched
+        fp = len(pred_relations)
+        # fn = number of elements in gold standard that remain unmatched
+        fn = len(gold_relations) - tp
 
+        # store in metrics dict
+        doc_metrics = self.compute_metrics_dict(tp, fp, fn, len(gold_relations))
         return doc_metrics
 
     def write_results(self, relation_predictions: Dict) -> None:
@@ -217,6 +226,73 @@ class RelationClassificationBenchmark(AbstractClassificationBenchmark):
                 file.write("\n" * 3)
 
 
+def evaluate_ensemble(approach_name: str, ensemble_path: str):
+    """
+    evaluate a ensemble stored in given ensemble path
+    :param approach_name: approach name
+    :param ensemble_path: path
+    :return: writes to folder
+    """
+    if not ensemble_path:
+        # load ensemble ensemble
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--architecture", default=ARCHITECTURE_CUSTOM, type=str, help="Architecture variants")
+        parser.add_argument("--dropout", default=0.2, type=float, help="Dropout rate.")
+        parser.add_argument("--hidden_layer", default=32, type=int, help="Hidden layer size")
+        parser.add_argument("--learning_rate", default=2e-5, type=float, help="Learning rate.")
+        parser.add_argument("--warmup", default=0, type=int, help="Number of warmup steps.")
+        # cnn params
+        parser.add_argument("--cnn_blocks", default=1, type=int, help="Number of filters in CNN")
+        parser.add_argument("--filter_start_size", default=32, type=int,
+                            help="Start (minimal) number of filters in first cnn block")
+        parser.add_argument("--filter_increase", default=2, type=int,
+                            help="Rate how much the number of filters should grow in "
+                                 "each new block")
+        parser.add_argument("--kernel_size", default=3, type=int, help="Kernel size in CNN")
+        parser.add_argument("--pool_size", default=2, type=int, help="Max pooling size")
+        # rnn params
+        parser.add_argument("--rnn_cell", default="LSTM", type=str, help="Type of RNN cell (LSTM or GRU)")
+        parser.add_argument("--rnn_units", default=32, type=int, help="Number of units in RNNs")
+        parser.add_argument("--rnn_backwards", default=False, type=bool,
+                            help="Flag if backwards should be processed as well.")
+
+        args = parser.parse_args([] if "__file__" not in globals() else None)
+        ensemble = NeuralRelationClassifierEnsemble(seeds=[3, 4], args=args)
+    else:
+        ensemble = NeuralRelationClassifierEnsemble(ensemble_path=ensemble_path)
+
+    # load data and predict test set
+    _, test, test_relations = create_activity_relation_cls_dataset_full(get_dummy_args())
+    test_predictions = ensemble.predict_test_set(test)
+    test_relations_predicted = create_relation_benchmark_format(test_predictions, test_relations)
+
+    # evaluate with benchmark by passing test doc list and relations to evaluate_documents
+    b = RelationClassificationBenchmark(approach_name)
+    b.evaluate_documents(TEST_DOCS, test_relations_predicted)
+
+
+def get_dummy_args():
+    """
+    necessary to pass arguments to 'create_activity_relation_cls_dataset_full' call in evaluate_ensemble
+    IMPORTANT: argument values must match with the ones that were used during training of the ensemble
+    :return:
+    """
+    parser = argparse.ArgumentParser()
+    # Standard params
+    parser.add_argument("--batch_size", default=8, type=int, help="Batch size.")
+    parser.add_argument("--seed_general", default=42, type=int, help="Random seed.")
+    parser.add_argument("--test_docs", default=True, type=bool,
+                        help="Flag if predefined docs should be used as test set")
+    parser.add_argument("--test_share", default=0.1, type=float, help="Share of test set")
+    parser.add_argument("--down_sample_ef", default=False, type=bool,
+                        help="Flag if eventually following samples should be"
+                             "down sampled to comparable number")
+    args = parser.parse_args([] if "__file__" not in globals() else None)
+    return args
+
+
 if __name__ == '__main__':
-    b = RelationClassificationBenchmark("baseline_df", DFBaselineRelationClassifier())
-    b.evaluate_documents(["doc-1.1", "doc-1.2"])  # , "doc-1.2"])
+    #b = RelationClassificationBenchmark("baseline_random", RandomBaselineRelationClassifier())
+    #b.evaluate_documents(TEST_DOCS)
+
+    evaluate_ensemble("custom_random", ensemble_path=None)

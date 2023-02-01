@@ -17,6 +17,7 @@ from typing import Tuple, List, Dict
 import itertools
 import argparse
 import re
+from copy import deepcopy
 
 import tensorflow as tf
 import transformers
@@ -241,9 +242,9 @@ class NeuralRelationClassifier(tf.keras.Model):  # , RelationClassifier):
             output = tf.keras.layers.MaxPool1D(pool_size=self.args.pool_size)(relu)
         return output
 
-    def predict_activity_pair(self, doc_name: str, activity_1: Tuple, activity_2: Tuple) -> str:
-        # TODO: !!!
-        return "dummy"
+    def predict_activity_pair(self, doc_name: str, activity_1: Tuple, activity_2: Tuple):
+        print("")
+        raise NotImplementedError
 
 
 class CustomNeuralRelationClassifier(NeuralRelationClassifier):
@@ -332,14 +333,13 @@ class NeuralRelationClassifierEnsemble(Ensemble):
     - Used only for inference -> extends normal Ensemble by classification methods
     """
 
-    def __init__(self, log_folder: str, seeds: List = None, ensemble_path: str = None, es_monitor: str = 'val_loss',
+    def __init__(self, ensemble_path: str = None, seeds: List = None, es_monitor: str = 'val_loss',
                  seed_limit: int = None, **kwargs) -> None:
         """
         see super class for param description
         override for fixing model class
         :param log_folder: log_folder where to store results
         """
-        self.log_folder = log_folder
         self.predictions = {}
         # in case of reload of ensemble args are not passed -> create args, extract used architecture from path and set
         if ensemble_path:
@@ -431,6 +431,27 @@ def classify_documents(relation_classifier: RelationClassifier, doc_names: List[
     return relations
 
 
+def create_relation_benchmark_format(predictions: np.ndarray, original_relations: List) -> Dict[str, List]:
+    """
+    maps predictions to the input relations (copy input list and replace labels) and save in dictionary with format used
+    in RelationClassificationBenchmark -> {doc name: List[(activity1, activity2, relation type), ...]}
+    :param predictions: numpy array with numerical labels
+    :param original_relations: list of input relations (dict format)
+    :return: predicted relations organized in dictionary per document
+    """
+    # create relations
+    relation_predictions = deepcopy(original_relations)
+    for relation, prediction in zip(relation_predictions, predictions):
+        relation[RELATION_TYPE] = [textual for textual, numeric in label_dict.items() if numeric == prediction][0]
+
+    # organize in dict {doc_name: doc_relations}
+    involved_doc_names = list(set([r[DOC_NAME] for r in relation_predictions]))
+    relation_predictions_dict = {doc_name: [(r[ACTIVITY_1], r[ACTIVITY_2], r[RELATION_TYPE])
+                                            for r in relation_predictions if r[DOC_NAME] == doc_name]
+                                 for doc_name in involved_doc_names}
+    return relation_predictions_dict
+
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     args = parser.parse_args([] if "__file__" not in globals() else None)
@@ -447,8 +468,8 @@ if __name__ == '__main__':
     #     for r in doc_relations:
     #         print(r)
 
-    # train_routine(args)
+    train_routine(args)
 
-    train, test, test_relations = create_activity_relation_cls_dataset_full(args)
+    # train, test, test_relations = create_activity_relation_cls_dataset_full(args)
 
-    ensemble = NeuralRelationClassifierEnsemble(log_folder="TEST", seeds=[1,2], args=args)
+    # ensemble = NeuralRelationClassifierEnsemble(log_folder="TEST", seeds=[1,2], args=args)

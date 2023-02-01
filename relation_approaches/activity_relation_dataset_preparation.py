@@ -49,6 +49,7 @@ def _get_relations_and_split_test_set(args: argparse.Namespace, relations: List 
     """
     shuffle and split test set from relations
     :param args: args
+    :param relations: (optional) relations -> if none, load all relations
     :return: data set as list, test set as list
     """
     if not relations:

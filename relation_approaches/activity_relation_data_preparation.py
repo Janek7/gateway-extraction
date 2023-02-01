@@ -616,7 +616,7 @@ def _compute_activity_relations(doc_names: List[str] = None, drop_loops: bool = 
 
 
 def get_activity_relations(doc_names: List[str] = None, drop_loops: bool = True, return_type: type = List,
-                           overwrite: bool = False, down_sample_ef: bool = True) -> List[Tuple]:
+                           overwrite: bool = False, down_sample_ef: bool = False) -> List[Tuple]:
     """
     return activity relations; see __compute_activity_relations for param descriptions
     IMPORTANT: make sure a seed is set before (for shuffling)
@@ -647,5 +647,12 @@ def get_activity_relations(doc_names: List[str] = None, drop_loops: bool = True,
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
 
-    relations = get_activity_relations(down_sample_ef=False)#, doc_names=["doc-3.6"])
+    relations = get_activity_relations(down_sample_ef=False, doc_names=["doc-5.3"])#, doc_names=["doc-3.6"])
+    for r in relations:
+        print(r[1:4])
     print(len(relations))
+
+    all_relations = get_activity_relations(down_sample_ef=False)
+    print(len(all_relations))
+    doc_relations = [r for r in all_relations if r[0] == 'doc-5.3']
+    print(len(doc_relations))
