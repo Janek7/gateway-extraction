@@ -13,7 +13,7 @@ export CUDA_VISIBLE_DEVICES=3
 #  eval "$cmd"
 #done
 
-for NUMBER_BLOCKS in "1" "2"; do
+for NUMBER_BLOCKS in "1" "2" "3" "4"; do
   cmd="python ../RelationClassifier.py --architecture=cnn --seeds_ensemble=10-20 --ensemble=True --batch_size=8 \
     --epochs=10 --routine=cv --folds=5 --cnn_blocks=$NUMBER_BLOCKS --filter_start_size=32"
   echo "$cmd"
