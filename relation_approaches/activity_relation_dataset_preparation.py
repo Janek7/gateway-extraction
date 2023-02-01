@@ -37,6 +37,10 @@ label_dict = {
 # maximal length of relation text (concatenation of text between activities and activity entities)
 MAX_LENGTH = 512
 
+# predefined test set of random docs with overall 387 relations (about 10% of whole set)
+TEST_DOCS = ["doc-1.3", "doc-10.2", "doc-10.9", "doc-3.6", "doc-5.3", "doc-7.1"]
+
+
 _tokenizer = transformers.AutoTokenizer.from_pretrained(config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME])
 assert isinstance(_tokenizer, transformers.PreTrainedTokenizerFast)
 
@@ -50,8 +54,14 @@ def _get_relations_and_split_test_set(args: argparse.Namespace, relations: List 
     if not relations:
         relations = get_activity_relations(return_type=dict, down_sample_ef=args.down_sample_ef)
     random.shuffle(relations)
-    split_point = int(len(relations) * args.test_share)
-    return relations[split_point:], relations[:split_point]
+    if not args.test_docs:
+        logger.info(f"Split test set with test share {args.test_share}")
+        split_point = int(len(relations) * args.test_share)
+        return relations[split_point:], relations[:split_point]
+    else:
+        logger.info(f"Split test set from predefined {len(TEST_DOCS)} documents")
+        return [r for r in relations if r[DOC_NAME] not in TEST_DOCS], \
+               [r for r in relations if r[DOC_NAME] in TEST_DOCS]
 
 
 def _create_dataset(input_ids: tf.Tensor, attention_masks: tf.Tensor, labels: tf.Tensor) -> tf.data.Dataset:
@@ -159,7 +169,8 @@ def create_activity_relation_cls_dataset_cv(args: argparse.Namespace) -> List[Tu
         dev_relations = [p for i, p in enumerate(rest) if i in dev]
 
         cache_path = os.path.join(ROOT_DIR, f"data/other/data_cache/activity_relation/data_{args.seed_general}"
-                                            f"_downef{args.down_sample_ef}_test{args.test_share}_cv_fold{i}_")
+                                            f"_downef{args.down_sample_ef}_testdocs{args.test_docs}_"
+                                            f"testshare{args.test_share}_cv_fold{i}_")
 
         train_tf_dataset = _prepare_dataset(train_relations, cache_path=cache_path + "train")
         dev_tf_dataset = _prepare_dataset(dev_relations, cache_path=cache_path + "dev")
@@ -175,18 +186,20 @@ def create_activity_relation_cls_dataset_cv(args: argparse.Namespace) -> List[Tu
     return folded_datasets
 
 
-def create_activity_relation_cls_dataset_full(args: argparse.Namespace) -> Tuple[tf.data.Dataset, tf.data.Dataset]:
+def create_activity_relation_cls_dataset_full(args: argparse.Namespace) -> Tuple[tf.data.Dataset, tf.data.Dataset,
+                                                                                 List[Tuple]]:
     """
     create one training dataset of the whole data with just a test set separated
     :param args: args namespace
-    :return: train set, test set
+    :return: train set, test set, test original relations (necessary for evaluating test set later)
     """
     logger.info(f"Create full activity relation classification dataset (batch_size={args.batch_size})")
     train, test = _get_relations_and_split_test_set(args)
     logger.info(f"Final Dataset -> train={len(train)} / test={len(test)}")
 
     cache_path = os.path.join(ROOT_DIR, f"data/other/data_cache/activity_relation/data_{args.seed_general}"
-                                        f"_downef{args.down_sample_ef}_test{args.test_share}_full_")
+                                        f"_downef{args.down_sample_ef}_testdocs{args.test_docs}_"
+                                        f"testshare{args.test_share}_full_")
 
     train_tf_dataset = _prepare_dataset(train, cache_path=cache_path + "train")
     test_tf_dataset = _prepare_dataset(test, cache_path=cache_path + "test")
@@ -195,7 +208,7 @@ def create_activity_relation_cls_dataset_full(args: argparse.Namespace) -> Tuple
         train_tf_dataset = train_tf_dataset.batch(args.batch_size)
         test_tf_dataset = test_tf_dataset.batch(args.batch_size)
 
-    return train_tf_dataset, test_tf_dataset
+    return train_tf_dataset, test_tf_dataset, test
 
 
 def _process_all_data_for_length_stats():

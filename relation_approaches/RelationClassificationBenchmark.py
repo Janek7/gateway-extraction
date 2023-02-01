@@ -63,16 +63,19 @@ class RelationClassificationBenchmark(AbstractClassificationBenchmark):
         AbstractClassificationBenchmark.__init__(self, list(label_dict.keys()), approach_name, output_folder,
                                                  round_digits)
 
-    def evaluate_documents(self, doc_names: List[str]):
+    def evaluate_documents(self, doc_names: List[str], relation_predictions: List = None):
         """
         evaluate list of documents with relation_classifier
         :param doc_names: doc names, if none -> all
+        :param relation_predictions: already ready to use predictions
+                                     if None -> create with self.relation_classifier and classify_documents
         :return:
         """
         if not doc_names:
             doc_names = pet_reader.document_names
-        logger.info(f"Create predictions for {len(doc_names)} documents")
-        relation_predictions = classify_documents(self.relation_classifier, doc_names)
+        if not relation_predictions:
+            logger.info(f"Create predictions for {len(doc_names)} documents")
+            relation_predictions = classify_documents(self.relation_classifier, doc_names)
 
         logger.info(f"Evaluate predictions with set of n's: {self.n}")
         all_doc_metrics_nearest_n = self.compute_document_label_metrics_nearest_n(relation_predictions)
