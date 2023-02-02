@@ -57,10 +57,13 @@ class GatewayExtractionBenchmark(AbstractClassificationBenchmark):
             doc_names = [d for d in doc_names if d not in DOC_BLACK_LIST]
         logger.info(f"Create predictions for {len(doc_names)} documents")
 
-        gateway_extractions = {doc_name: self.gateway_extractor.extract_document_gateways(doc_name)
-                               for doc_name in doc_names}
+        gateway_extractions = {doc_name: self.gateway_extractor.extract_document_gateways(doc_name, i)
+                               for i, doc_name in enumerate(doc_names)}
+        logger.info(f"Compute metrics of all labels in all documents")
         all_doc_metrics = self.compute_document_label_metrics(gateway_extractions)
+        logger.info(f"Average label metrics")
         label_avg_metrics = self.average_label_wise(all_doc_metrics)
+        logger.info(f"Average metrics over all documents")
         overall_avg_metrics = metrics.average_metrics([m for label, m in label_avg_metrics.items()], self.round_digits)
 
         logger.info(f"Write results & predictions to {self.output_folder}")

@@ -136,7 +136,8 @@ class GoldstandardRelationClassifier(RelationClassifier):
                                                  (r[ACTIVITY_1] == activity_2 and r[ACTIVITY_2] == activity_1)),
                                       self.relation_data))
         if len(target_relation) > 1:
-            raise GatewayExtractionException(f"{doc_name}: multiple relations of {activity_1} and {activity_2} found")
+            logger.warning(f"{doc_name}: multiple relations of {activity_1} and {activity_2} found")
+            return target_relation[0][RELATION_TYPE]
         if target_relation:
             return target_relation[0][RELATION_TYPE]
         else:

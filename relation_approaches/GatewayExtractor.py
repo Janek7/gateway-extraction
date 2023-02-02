@@ -132,13 +132,14 @@ class GatewayExtractor:
         self.relation_classifier = relation_classifier
         self.full_branch_vote = full_branch_vote
 
-    def extract_document_gateways(self, doc_name: str) -> List[Gateway]:
+    def extract_document_gateways(self, doc_name: str, doc_processing_number: int) -> List[Gateway]:
         """
         extracts the gateways of one document
         :param doc_name: doc name
+        :param doc_processing_number: number in current processing
         :return: list of Gateway objects
         """
-        logger.info(f" {doc_name} ".center(150, "*"))
+        logger.info(f" {doc_name} ({doc_processing_number}) ".center(150, "*"))
         doc_activities = pet_reader.get_activities_in_relation_approach_format(doc_name)
 
         relations = []
@@ -295,9 +296,9 @@ class GatewayExtractor:
                                            0 if p.type == SPLIT else 1))
 
         gateways = []
-        print(" Sequence of Gateway points ".center(100, '-'))
+        logger.debug(" Sequence of Gateway points ".center(100, '-'))
         for p in gateway_points:
-            print(p)
+            logger.debug(p)
             if p.type == SPLIT:
                 gateways.append(Gateway(split_point=p))
             elif p.type == MERGE:
@@ -331,7 +332,7 @@ class GatewayExtractor:
         :return: list of gateways enriched with gateway types
         """
         self._setup_next_relations_dict_for_current_doc(relations)
-        print(" Gateways ".center(100, '-'))
+        logger.info(" Gateways ".center(100, '-'))
         for g in gateways:
             branch_start_activities = self.get_branch_start_activities(g)
             if self.full_branch_vote:
@@ -344,7 +345,7 @@ class GatewayExtractor:
             g.branch_activity_relations = branch_activities_relations
 
         for g in gateways:
-            print(g.__repr__())
+            logger.info(g.__repr__())
 
         return gateways
 
@@ -446,7 +447,7 @@ if __name__ == '__main__':
                                          full_branch_vote=True)
 
     # test one
-    gateway_extractor.extract_document_gateways_debug(doc_name="doc-2.1")
+    gateway_extractor.extract_document_gateways_debug(doc_name="doc-5.3")
 
     # simple one
     # gateway_extractor.extract_document_gateways(doc_name="doc-3.8")

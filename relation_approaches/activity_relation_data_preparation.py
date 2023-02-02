@@ -647,7 +647,7 @@ def get_activity_relations(doc_names: List[str] = None, drop_loops: bool = True,
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
 
-    relations = get_activity_relations(down_sample_ef=False, doc_names=["doc-6.1"])#, doc_names=["doc-3.6"])
+    relations = get_activity_relations(down_sample_ef=False, doc_names=["doc-2.2"])#, doc_names=["doc-3.6"])
     relations.sort(key=lambda r: (r[0][0], r[0][1], r[1][0], r[1][1]))
     for r in relations:
         print(r[1:4])
@@ -655,5 +655,5 @@ if __name__ == '__main__':
 
     all_relations = get_activity_relations(down_sample_ef=False)
     print(len(all_relations))
-    doc_relations = [r for r in all_relations if r[0] == 'doc-6.1']
+    doc_relations = [r for r in all_relations if r[0] == 'doc-2.2']
     print(len(doc_relations))
