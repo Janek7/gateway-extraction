@@ -1,15 +1,31 @@
 {
     "branch_lengths": [
         {
-            "doc_name": "doc-5.3",
+            "doc_name": "doc-6.1",
+            "branch_length": 4
+        },
+        {
+            "doc_name": "doc-6.1",
+            "branch_length": 3
+        },
+        {
+            "doc_name": "doc-6.1",
             "branch_length": 2
         },
         {
-            "doc_name": "doc-5.3",
-            "branch_length": 9
+            "doc_name": "doc-6.1",
+            "branch_length": 1
         },
         {
-            "doc_name": "doc-5.3",
+            "doc_name": "doc-6.1",
+            "branch_length": 1
+        },
+        {
+            "doc_name": "doc-6.1",
+            "branch_length": 1
+        },
+        {
+            "doc_name": "doc-6.1",
             "branch_length": 1
         }
     ]

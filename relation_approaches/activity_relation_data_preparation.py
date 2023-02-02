@@ -21,7 +21,7 @@ from PetReader import pet_reader
 from utils import config, GatewayExtractionException, ROOT_DIR, load_pickle, save_as_pickle, get_loop_flows
 
 logger = logging.getLogger('Data Generation [Activity Relations]')
-doc_black_list = ['doc-6.4']
+DOC_BLACK_LIST = ['doc-6.4']
 loop_flows = get_loop_flows()
 
 # lists for stats counting of nested gateways & branch lengths
@@ -480,7 +480,7 @@ def _compute_activity_relations(doc_names: List[str] = None, drop_loops: bool = 
 
         doc_relations = []
 
-        if (doc_names and doc_name not in doc_names) or doc_name in doc_black_list:
+        if (doc_names and doc_name not in doc_names) or doc_name in DOC_BLACK_LIST:
             continue
 
         # 1) Search for relations using gateways
@@ -647,12 +647,13 @@ def get_activity_relations(doc_names: List[str] = None, drop_loops: bool = True,
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
 
-    relations = get_activity_relations(down_sample_ef=False, doc_names=["doc-5.3"])#, doc_names=["doc-3.6"])
+    relations = get_activity_relations(down_sample_ef=False, doc_names=["doc-6.1"])#, doc_names=["doc-3.6"])
+    relations.sort(key=lambda r: (r[0][0], r[0][1], r[1][0], r[1][1]))
     for r in relations:
         print(r[1:4])
     print(len(relations))
 
     all_relations = get_activity_relations(down_sample_ef=False)
     print(len(all_relations))
-    doc_relations = [r for r in all_relations if r[0] == 'doc-5.3']
+    doc_relations = [r for r in all_relations if r[0] == 'doc-6.1']
     print(len(doc_relations))

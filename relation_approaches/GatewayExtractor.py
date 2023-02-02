@@ -88,11 +88,13 @@ class Gateway:
         :return: true/false
         """
         if gateway_type == XOR_GATEWAY:
-            return self.gateway_type in [XOR_GATEWAY, XOR_OPT]
+            return self.gateway_type in [XOR_GATEWAY, XOR_GATEWAY_OPT]
         elif gateway_type == AND_GATEWAY:
             return self.gateway_type == AND_GATEWAY
+        elif gateway_type == NO_GATEWAY_RELATIONS:
+            return self.gateway_type == NO_GATEWAY_RELATIONS
         else:
-            raise ValueError(f"Only XOR_GATEAY and AND_GATEWAY are allowed for evaluation")
+            raise ValueError(f"Only {XOR_GATEWAY}, {AND_GATEWAY} and {NO_GATEWAY_RELATIONS} are allowed for evaluation")
 
     def __repr__(self):
         return f"Gateway (type={self.gateway_type};confidence={self.gateway_type_confidence})" \
@@ -136,6 +138,7 @@ class GatewayExtractor:
         :param doc_name: doc name
         :return: list of Gateway objects
         """
+        logger.info(f" {doc_name} ".center(150, "*"))
         doc_activities = pet_reader.get_activities_in_relation_approach_format(doc_name)
 
         relations = []
@@ -146,14 +149,13 @@ class GatewayExtractor:
         merge_points = self._detect_merge_points(relations)
         split_points_merged = self._merge_gateway_point_candidates(split_points)
         merge_points_merged = self._merge_gateway_point_candidates(merge_points)
-        gateways = self._detect_gateways(relations, split_points_merged, merge_points_merged)
+        gateways = self._detect_gateways(doc_name, relations, split_points_merged, merge_points_merged)
         gateways = self._classify_gateways(gateways, relations)
         return gateways
 
     @debugging
     def extract_document_gateways_debug(self, doc_name: str) -> List[Gateway]:
         """
-        ONLY USE FOR DEBUGGING
         extracts the gateways of one document
         :param doc_name: doc name
         :return: list of Gateway objects
@@ -194,7 +196,7 @@ class GatewayExtractor:
         print("-" * 100)
 
         # 3) Detect gateways
-        gateways = self._detect_gateways(relations, split_points_merged, merge_points_merged)
+        gateways = self._detect_gateways(doc_name, relations, split_points_merged, merge_points_merged)
 
         # 4) Classify gateways
         gateways = self._classify_gateways(gateways, relations)
@@ -273,20 +275,18 @@ class GatewayExtractor:
                     final_candidates.append(gc)
         return final_candidates
 
-    @staticmethod
-    def _detect_gateways(relations: List[Tuple], split_points: List[GatewayPoint],
+    def _detect_gateways(self, doc_name: str, relations: List[Tuple], split_points: List[GatewayPoint],
                          merge_points: List[GatewayPoint]) -> List[Gateway]:
         """
         detect gateways in a rule-based way from a set of relations and detected split and merge points
         gateway points are iterated by order of first activity and a merge point get always assigned to the latest
         opened gateway (most close split point)
+        :param doc_name: doc name
         :param relations: list of activity relations
         :param split_points: list of gateway split points
         :param merge_points: list of gateway merge points
         :return: list of (unclassified) Gateways
         """
-        logger.info(f"Detecting gateways from {len(relations)} relations and {len(split_points)} split and "
-                    f"{len(merge_points)} merge points")
         # assumes that gateway split/merges are mentioned in correct order in text
         gateway_points = split_points + merge_points
         gateway_points.sort(key=lambda p: (p.earliest_activity[0], p.earliest_activity[1],
@@ -297,7 +297,7 @@ class GatewayExtractor:
         gateways = []
         print(" Sequence of Gateway points ".center(100, '-'))
         for p in gateway_points:
-            print(p)
+            # print(p)
             if p.type == SPLIT:
                 gateways.append(Gateway(split_point=p))
             elif p.type == MERGE:
@@ -305,7 +305,8 @@ class GatewayExtractor:
                 if opened_gateways:
                     newest_opened_gateway = opened_gateways[-1]
                     newest_opened_gateway.merge_point = p
-
+        logger.info(f"Gateway detection {doc_name} -> detected {len(gateways)} gateways from {len(relations)} relations"
+                    f" and {len(split_points)} split and {len(merge_points)} merge points")
         return gateways
 
     def _classify_gateways(self, gateways: List[Gateway], relations: List[Tuple]) -> List[Gateway]:
@@ -367,7 +368,13 @@ class GatewayExtractor:
                 tmp = self.get_next_activities(relations, next_activity, stop_activities)
                 if tmp:
                     next_activities.extend(tmp)
-        return next_activities
+
+        unique_activities = []
+        for a in next_activities:
+            if a not in unique_activities:
+                unique_activities.append(a)
+
+        return unique_activities
 
     @staticmethod
     def get_branch_activity_relations(branches: List[List[Tuple]], relations: List[Tuple]) -> List[Tuple]:
@@ -394,34 +401,36 @@ class GatewayExtractor:
     def determine_gateway_type_from_relations(g: Gateway, branch_activities_relations: List[Tuple]) -> None:
         """
         Determine gateway type from relations by voting the gateway type by a majority vote from relation labels between
-        all activity pairs from all branches (may be limited to start activities if self.full_branch_vote
+        all activity pairs from all branches (may be limited to start activities if self.full_branch_vote)
+        Note: in voting only exclusive/concurrent relations as they indicate possible gateways are included whether in
+              the confidence score all relations are included
         """
         if branch_activities_relations:
-            # TODO: maybe filter out following relations
-            branch_activities_relations_types = [relation[2] for relation in branch_activities_relations]
-            most_common_label = Counter(branch_activities_relations_types).most_common()[0]
-            label = most_common_label[0]
-            if label in [EXCLUSIVE, CONCURRENT]:
-                g.gateway_type = most_common_label[0]
-            # if most common label is "directly following" or "non related" (i.e. no gateway relations as exclusive or
-            # concurrent are the majority) the gateway could not be determined in a reasonable way
+            relevant_relation_labels = [r[2] for r in branch_activities_relations if r[2] in [EXCLUSIVE, CONCURRENT]]
+            if relevant_relation_labels:
+                most_common_labels = Counter(relevant_relation_labels).most_common()
+                most_common_label = most_common_labels[0]
+                g.gateway_type = XOR_GATEWAY if most_common_label[0] == EXCLUSIVE else AND_GATEWAY
+                g.gateway_type_confidence = most_common_label[1] / len(branch_activities_relations)
+            # no exclusive or concurrent relations are present
             else:
                 g.gateway_type = NO_GATEWAY_RELATIONS
-            g.gateway_type_confidence = most_common_label[1] / len(branch_activities_relations_types)
-
-            # special case with only one optional branch -> no relations to activities from other branches
+                g.gateway_type_confidence = -1
+                # logger.warning(f"No gateway relations detected for {g}")
+        # special case with only one optional branch -> no relations to activities from other branches
         else:
-            g.gateway_type = XOR_OPT
+            g.gateway_type = XOR_GATEWAY_OPT
             g.gateway_type_confidence = 1.0
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
+    logger.setLevel(logging.DEBUG)
     gateway_extractor = GatewayExtractor(relation_classifier=GoldstandardRelationClassifier(),
                                          full_branch_vote=True)
 
     # test one
-    gateway_extractor.extract_document_gateways(doc_name="doc-9.5")
+    gateway_extractor.extract_document_gateways_debug(doc_name="doc-2.1")
 
     # simple one
     # gateway_extractor.extract_document_gateways(doc_name="doc-3.8")

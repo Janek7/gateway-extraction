@@ -20,12 +20,14 @@ from petreader.labels import *
 from relation_approaches.AbstractClassificationBenchmark import AbstractClassificationBenchmark
 from relation_approaches.GatewayExtractor import GatewayExtractor, Gateway
 from relation_approaches.RelationClassifier import DFBaselineRelationClassifier, GoldstandardRelationClassifier
+from relation_approaches.activity_relation_data_preparation import DOC_BLACK_LIST
 from relation_approaches import metrics
 from utils import ROOT_DIR, save_as_pickle, flatten_list
 from PetReader import pet_reader
+from labels import *
 
 logger = logging.getLogger('Gateway Extraction Benchmark')
-GATEWAY_TYPES = [XOR_GATEWAY, AND_GATEWAY]
+GATEWAY_TYPES = [XOR_GATEWAY, AND_GATEWAY, NO_GATEWAY_RELATIONS]
 
 
 class GatewayExtractionBenchmark(AbstractClassificationBenchmark):
@@ -44,7 +46,7 @@ class GatewayExtractionBenchmark(AbstractClassificationBenchmark):
 
         AbstractClassificationBenchmark.__init__(self, GATEWAY_TYPES, approach_name, output_folder, round_digits)
 
-    def evaluate_documents(self, doc_names: List[str]):
+    def evaluate_documents(self, doc_names: List[str] = None):
         """
         evaluate list of documents with relation_classifier
         :param doc_names: doc names, if none -> all
@@ -52,6 +54,7 @@ class GatewayExtractionBenchmark(AbstractClassificationBenchmark):
         """
         if not doc_names:
             doc_names = pet_reader.document_names
+            doc_names = [d for d in doc_names if d not in DOC_BLACK_LIST]
         logger.info(f"Create predictions for {len(doc_names)} documents")
 
         gateway_extractions = {doc_name: self.gateway_extractor.extract_document_gateways(doc_name)
@@ -135,6 +138,8 @@ class SimpleGatewayTypeAndNumberBenchmark(GatewayExtractionBenchmark):
             gold_gateways = flatten_list(pet_reader.token_dataset.GetXORGateways(doc_name))
         elif label == AND_GATEWAY:
             gold_gateways = flatten_list(pet_reader.token_dataset.GetANDGateways(doc_name))
+        elif label == NO_GATEWAY_RELATIONS:
+            gold_gateways = []
         else:
             raise ValueError(f"'{label}' is not a valid Gateway type")
 
@@ -158,7 +163,12 @@ class SimpleGatewayTypeAndNumberBenchmark(GatewayExtractionBenchmark):
 
 
 if __name__ == '__main__':
-    geb = SimpleGatewayTypeAndNumberBenchmark(approach_name="ge=normal,re=goldstandard",
+    logging.basicConfig(level=logging.DEBUG)
+    logger.setLevel(logging.DEBUG)
+    geb = SimpleGatewayTypeAndNumberBenchmark(approach_name="ge=standard_rc=goldstandard",
                                               gateway_extractor=GatewayExtractor(GoldstandardRelationClassifier()))
+    # evaluate all documents
+    geb.evaluate_documents()
+
+    # evaluate single documents
     # geb.evaluate_documents(["doc-1.1", "doc-1.2"])
-    geb.evaluate_documents(["doc-9.5"])

@@ -121,7 +121,7 @@ COMMENT = 'comment'
 # Gateway extraction
 SPLIT = 'split'
 MERGE = 'merge'
-XOR_OPT = 'exclusive (optional)'
+XOR_GATEWAY_OPT = 'XOR Gateway (optional)'
 NO_GATEWAY_RELATIONS = 'no_gateway_relations'
 
 # Architecture variants

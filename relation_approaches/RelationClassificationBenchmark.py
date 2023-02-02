@@ -235,28 +235,6 @@ def evaluate_ensemble(approach_name: str, ensemble_path: str):
     """
     if not ensemble_path:
         # load ensemble ensemble
-        parser = argparse.ArgumentParser()
-        parser.add_argument("--architecture", default=ARCHITECTURE_CUSTOM, type=str, help="Architecture variants")
-        parser.add_argument("--dropout", default=0.2, type=float, help="Dropout rate.")
-        parser.add_argument("--hidden_layer", default=32, type=int, help="Hidden layer size")
-        parser.add_argument("--learning_rate", default=2e-5, type=float, help="Learning rate.")
-        parser.add_argument("--warmup", default=0, type=int, help="Number of warmup steps.")
-        # cnn params
-        parser.add_argument("--cnn_blocks", default=1, type=int, help="Number of filters in CNN")
-        parser.add_argument("--filter_start_size", default=32, type=int,
-                            help="Start (minimal) number of filters in first cnn block")
-        parser.add_argument("--filter_increase", default=2, type=int,
-                            help="Rate how much the number of filters should grow in "
-                                 "each new block")
-        parser.add_argument("--kernel_size", default=3, type=int, help="Kernel size in CNN")
-        parser.add_argument("--pool_size", default=2, type=int, help="Max pooling size")
-        # rnn params
-        parser.add_argument("--rnn_cell", default="LSTM", type=str, help="Type of RNN cell (LSTM or GRU)")
-        parser.add_argument("--rnn_units", default=32, type=int, help="Number of units in RNNs")
-        parser.add_argument("--rnn_backwards", default=False, type=bool,
-                            help="Flag if backwards should be processed as well.")
-
-        args = parser.parse_args([] if "__file__" not in globals() else None)
         ensemble = NeuralRelationClassifierEnsemble(seeds=[3, 4], args=args)
     else:
         ensemble = NeuralRelationClassifierEnsemble(ensemble_path=ensemble_path)
@@ -273,7 +251,7 @@ def evaluate_ensemble(approach_name: str, ensemble_path: str):
 
 def get_dummy_args():
     """
-    necessary to pass arguments to 'create_activity_relation_cls_dataset_full' call in evaluate_ensemble
+    necessary to pass arguments to ensemble and 'create_activity_relation_cls_dataset_full' call in evaluate_ensemble
     IMPORTANT: argument values must match with the ones that were used during training of the ensemble
     :return:
     """
@@ -287,6 +265,27 @@ def get_dummy_args():
     parser.add_argument("--down_sample_ef", default=False, type=bool,
                         help="Flag if eventually following samples should be"
                              "down sampled to comparable number")
+    # Architecture params
+    parser.add_argument("--dropout", default=0, type=float, help="Dropout rate.")
+    parser.add_argument("--hidden_layer", default=32, type=int, help="Hidden layer size")
+    parser.add_argument("--learning_rate", default=2e-5, type=float, help="Learning rate.")
+    parser.add_argument("--warmup", default=0, type=int, help="Number of warmup steps.")
+    # cnn params
+    parser.add_argument("--cnn_blocks", default=1, type=int, help="Number of filters in CNN")
+    parser.add_argument("--filter_start_size", default=32, type=int,
+                        help="Start (minimal) number of filters in first cnn block")
+    parser.add_argument("--filter_increase", default=2, type=int,
+                        help="Rate how much the number of filters should grow in "
+                             "each new block")
+    parser.add_argument("--kernel_size", default=3, type=int, help="Kernel size in CNN")
+    parser.add_argument("--pool_size", default=2, type=int, help="Max pooling size")
+    # rnn params
+    parser.add_argument("--rnn_cell", default="LSTM", type=str, help="Type of RNN cell (LSTM or GRU)")
+    parser.add_argument("--rnn_units", default=128, type=int, help="Number of units in RNNs")
+    parser.add_argument("--rnn_backwards", default=False, type=bool,
+                        help="Flag if backwards should be processed as well.")
+
+    args = parser.parse_args([] if "__file__" not in globals() else None)
     args = parser.parse_args([] if "__file__" not in globals() else None)
     return args
 
@@ -295,4 +294,5 @@ if __name__ == '__main__':
     #b = RelationClassificationBenchmark("baseline_random", RandomBaselineRelationClassifier())
     #b.evaluate_documents(TEST_DOCS)
 
-    evaluate_ensemble("custom_random", ensemble_path=None)
+    # evaluate_ensemble("custom_random", ensemble_path=None)
+    evaluate_ensemble("brcnn_128", ensemble_path="/home/japutz/master-thesis/data/final_models/RelationClassifier-2023-02-02_104323-a=brcnn,bs=8,cb=1,dse=False,d=0.0,e=True,e=10,fi=2,fss=32,f=5,hl=32,ks=3,lr=2e-05,ps=2,rb=False,rc=LSTM,ru=128,r=ft,sg=42,se=10-20,sw=True,td=True,ts=0.1,w=0")

@@ -1,3 +1,23 @@
 {
-    "nested_gateways": []
+    "nested_gateways": [
+        {
+            "doc_name": "doc-6.1",
+            "parent": [
+                6,
+                0,
+                [
+                    "Should"
+                ],
+                "XOR Gateway"
+            ],
+            "nested_gateway": [
+                7,
+                24,
+                [
+                    "if"
+                ],
+                "XOR Gateway"
+            ]
+        }
+    ]
 }
