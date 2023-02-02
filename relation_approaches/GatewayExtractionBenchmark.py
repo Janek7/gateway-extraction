@@ -57,7 +57,7 @@ class GatewayExtractionBenchmark(AbstractClassificationBenchmark):
             doc_names = [d for d in doc_names if d not in DOC_BLACK_LIST]
         logger.info(f"Create predictions for {len(doc_names)} documents")
 
-        gateway_extractions = {doc_name: self.gateway_extractor.extract_document_gateways(doc_name, i+1)
+        gateway_extractions = {doc_name: self.gateway_extractor.extract_document_gateways(doc_name, i + 1)
                                for i, doc_name in enumerate(doc_names)}
         logger.info(f"Compute metrics of all labels in all documents")
         all_doc_metrics = self.compute_document_label_metrics(gateway_extractions)
@@ -79,7 +79,7 @@ class GatewayExtractionBenchmark(AbstractClassificationBenchmark):
         """
         all_doc_metrics = {}
         for i, doc_name in enumerate(gateway_extractions.keys()):
-            logger.info(f"Compute metrics for {doc_name} ({i+1}/{len(gateway_extractions.keys())})")
+            logger.info(f"Compute metrics for {doc_name} ({i + 1}/{len(gateway_extractions.keys())})")
             doc_metrics = {label: self.evaluate_gateway_extractions(doc_name, gateway_extractions[doc_name],
                                                                     label=label) for label in self.labels}
             all_doc_metrics[doc_name] = doc_metrics
@@ -170,10 +170,21 @@ class SimpleGatewayTypeAndNumberBenchmark(GatewayExtractionBenchmark):
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
     logger.setLevel(logging.DEBUG)
-    geb = SimpleGatewayTypeAndNumberBenchmark(approach_name="ge=standard_rc=goldstandard_limited",
-                                              gateway_extractor=GatewayExtractor(GoldstandardRelationClassifier()))
-    # evaluate all documents
-    geb.evaluate_documents(["doc-1.1", "doc-1.2"])
 
-    # evaluate single documents
+    # A) evaluate single documents
     # geb.evaluate_documents(["doc-1.1", "doc-1.2"])
+
+    # B) evaluate with gold standard relations
+
+    geb_full = SimpleGatewayTypeAndNumberBenchmark(approach_name="ge=standard_rc=goldstandard_vote=full",
+                                                   gateway_extractor=GatewayExtractor(GoldstandardRelationClassifier(),
+                                                                                      full_branch_vote=True))
+    geb_full.evaluate_documents()
+
+    geb_limited = SimpleGatewayTypeAndNumberBenchmark(approach_name="ge=standard_rc=goldstandard_vote=limited",
+                                                      gateway_extractor=GatewayExtractor(
+                                                          GoldstandardRelationClassifier(),
+                                                          full_branch_vote=False))
+    geb_limited.evaluate_documents()
+
+

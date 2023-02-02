@@ -19,7 +19,7 @@ from relation_approaches.RelationClassifier import RelationClassifier, Goldstand
     RandomBaselineRelationClassifier, DFBaselineRelationClassifier
 from PetReader import pet_reader
 from labels import *
-from utils import GatewayExtractionException, debugging
+from utils import GatewayExtractionException, debugging, flatten_list
 
 logger = logging.getLogger('GatewayExtractor')
 
@@ -77,7 +77,15 @@ class Gateway:
         self.merge_point = None
         self.gateway_type = None
         self.gateway_type_confidence = None
+        self.branches = None
         self.branch_activity_relations = None
+
+    @property
+    def size(self) -> int:
+        """
+        gateway size is defined as number of activities in branches all its branches
+        """
+        return len(flatten_list(self.branches))
 
     def check_type_for_evaluation(self, gateway_type) -> bool:
         """
@@ -97,11 +105,11 @@ class Gateway:
             raise ValueError(f"Only {XOR_GATEWAY}, {AND_GATEWAY} and {NO_GATEWAY_RELATIONS} are allowed for evaluation")
 
     def __repr__(self):
-        return f"Gateway (type={self.gateway_type};confidence={self.gateway_type_confidence})" \
+        return f"Gateway (type={self.gateway_type};confidence={self.gateway_type_confidence};size={self.size})" \
                f"\n    split={self.split_point}\n    merge={self.merge_point}"
 
     def __str__(self) -> str:
-        return f"Gateway (type={self.gateway_type};confidence={self.gateway_type_confidence}) " \
+        return f"Gateway (type={self.gateway_type};confidence={self.gateway_type_confidence};size={self.size}) " \
                f"| split={self.split_point} | merge={self.merge_point} | " \
                f"branch_activity_relations={self.branch_activity_relations}"
 
@@ -111,7 +119,9 @@ class Gateway:
             "confidence": self.gateway_type_confidence,
             "split_point": self.split_point.__repr__(),
             "merge_point": self.merge_point.__repr__(),
-            "branch_activity_relations": self.branch_activity_relations
+            "size": self.size,
+            "branches": self.branches,
+            "branch_activity_relations": self.branch_activity_relations,
         }
 
 
@@ -343,6 +353,7 @@ class GatewayExtractor:
 
             self.determine_gateway_type_from_relations(g, branch_activities_relations)
             g.branch_activity_relations = branch_activities_relations
+            g.branches = branches
 
         for g in gateways:
             logger.info(g.__repr__())
@@ -428,7 +439,7 @@ class GatewayExtractor:
                 most_common_labels = Counter(relevant_relation_labels).most_common()
                 most_common_label = most_common_labels[0]
                 g.gateway_type = XOR_GATEWAY if most_common_label[0] == EXCLUSIVE else AND_GATEWAY
-                g.gateway_type_confidence = most_common_label[1] / len(branch_activities_relations)
+                g.gateway_type_confidence = round(most_common_label[1] / len(branch_activities_relations), 4)
             # no exclusive or concurrent relations are present
             else:
                 g.gateway_type = NO_GATEWAY_RELATIONS
