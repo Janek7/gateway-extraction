@@ -64,7 +64,8 @@ class GatewayExtractionBenchmark(AbstractClassificationBenchmark):
         logger.info(f"Average label metrics")
         label_avg_metrics = self.average_label_wise(all_doc_metrics)
         logger.info(f"Average metrics over all documents")
-        overall_avg_metrics = metrics.average_metrics([m for label, m in label_avg_metrics.items()], self.round_digits)
+        overall_avg_metrics = metrics.average_metrics([m for label, m in label_avg_metrics.items()], self.round_digits,
+                                                      self.support_weighted_average)
 
         logger.info(f"Write results & predictions to {self.output_folder}")
         self.write_results(gateway_extractions)

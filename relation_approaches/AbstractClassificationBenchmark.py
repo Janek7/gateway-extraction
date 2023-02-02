@@ -22,7 +22,8 @@ class AbstractClassificationBenchmark(ABC):
     """
     abstract base class for benchmark classes that evaluate classification scenarios on PET dataset
     """
-    def __init__(self, labels: List[str], approach_name: str, output_folder: str, round_digits: int):
+    def __init__(self, labels: List[str], approach_name: str, output_folder: str, round_digits: int,
+                 support_weighted_average: bool = True):
         """
         init a classification benchmark
         :param labels: list of labels (e.g. to use in average label wise)
@@ -31,12 +32,14 @@ class AbstractClassificationBenchmark(ABC):
         :param approach_name: approach name of the benchmark
         :param output_folder: output folder to store results/predictions
         :param round_digits: number of digits to round metrics to
+        :param support_weighted_average: flag if metrics averaging should be weighted by the respective support values
         """
         self.labels = labels
         self.approach_name = approach_name
         self.output_folder = output_folder
         os.makedirs(output_folder, exist_ok=True)
         self.round_digits = round_digits
+        self.support_weighted_average = support_weighted_average
 
     def compute_metrics_dict(self, tp: int, fp: int, fn: int, gold_length: int) -> Dict:
         precision = metrics.precision(tp, fp)
@@ -63,7 +66,7 @@ class AbstractClassificationBenchmark(ABC):
         label_avg_metrics = {}
         for label in self.labels:
             label_doc_metrics = [doc_metrics[label] for doc_name, doc_metrics in all_doc_metrics.items()]
-            label_avg = metrics.average_metrics(label_doc_metrics, self.round_digits)
+            label_avg = metrics.average_metrics(label_doc_metrics, self.round_digits, self.support_weighted_average)
             label_avg_metrics[label] = label_avg
         return label_avg_metrics
 

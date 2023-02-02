@@ -88,7 +88,8 @@ class RelationClassificationBenchmark(AbstractClassificationBenchmark):
         logger.info(f"Evaluate predictions with set of n's: {self.n}")
         all_doc_metrics_nearest_n = self.compute_document_label_metrics_nearest_n(relation_predictions)
         label_avg_metrics_nearest_n = {i: self.average_label_wise(m) for i, m in all_doc_metrics_nearest_n.items()}
-        overall_avg_metrics_n = {i: metrics.average_metrics([m for label, m in lm.items()], self.round_digits)
+        overall_avg_metrics_n = {i: metrics.average_metrics([m for label, m in lm.items()], self.round_digits,
+                                                            self.support_weighted_average)
                                  for i, lm in label_avg_metrics_nearest_n.items()}
 
         logger.info(f"Write results & predictions to {self.output_folder}")
