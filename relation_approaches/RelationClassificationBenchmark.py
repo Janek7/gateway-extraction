@@ -17,7 +17,7 @@ import json
 import argparse
 
 from relation_approaches.AbstractClassificationBenchmark import AbstractClassificationBenchmark
-from relation_approaches.activity_relation_data_preparation import get_activity_relations
+from relation_approaches.activity_relation_data_preparation import get_activity_relations, DOC_BLACK_LIST
 from relation_approaches.RelationClassifier import RelationClassifier, classify_documents, \
     NeuralRelationClassifierEnsemble, create_relation_benchmark_format, DFBaselineRelationClassifier, \
     RandomBaselineRelationClassifier
@@ -80,6 +80,7 @@ class RelationClassificationBenchmark(AbstractClassificationBenchmark):
         """
         if not doc_names:
             doc_names = pet_reader.document_names
+            doc_names = [d for d in doc_names if d not in DOC_BLACK_LIST]
         if not relation_predictions:
             logger.info(f"Create predictions for {len(doc_names)} documents")
             relation_predictions = classify_documents(self.relation_classifier, doc_names)
@@ -235,7 +236,7 @@ def evaluate_ensemble(approach_name: str, ensemble_path: str):
     """
     if not ensemble_path:
         # load ensemble ensemble
-        ensemble = NeuralRelationClassifierEnsemble(seeds=[3, 4], args=args)
+        ensemble = NeuralRelationClassifierEnsemble(seeds=[3, 4], args=get_dummy_args())
     else:
         ensemble = NeuralRelationClassifierEnsemble(ensemble_path=ensemble_path)
 

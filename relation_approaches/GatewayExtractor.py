@@ -297,7 +297,7 @@ class GatewayExtractor:
         gateways = []
         print(" Sequence of Gateway points ".center(100, '-'))
         for p in gateway_points:
-            # print(p)
+            print(p)
             if p.type == SPLIT:
                 gateways.append(Gateway(split_point=p))
             elif p.type == MERGE:
@@ -309,6 +309,20 @@ class GatewayExtractor:
                     f" and {len(split_points)} split and {len(merge_points)} merge points")
         return gateways
 
+    def _setup_next_relations_dict_for_current_doc(self, relations) -> None:
+        """
+        stores in a dict the list of directly following activities to every activity
+        :param relations: relation set as base
+        """
+        next_relations = {}
+        for r in relations:
+            if r[2] == DIRECTLY_FOLLOWING:
+                if str(r[0]) in next_relations:
+                    next_relations[str(r[0])].append(r[1])
+                else:
+                    next_relations[str(r[0])] = [r[1]]
+        self.next_relations_current_doc = next_relations
+
     def _classify_gateways(self, gateways: List[Gateway], relations: List[Tuple]) -> List[Gateway]:
         """
         classify if a gateway with a defined split (and optionally merge point) is exclusive or parallel
@@ -316,11 +330,12 @@ class GatewayExtractor:
         :param relations: list of activity relations
         :return: list of gateways enriched with gateway types
         """
+        self._setup_next_relations_dict_for_current_doc(relations)
         print(" Gateways ".center(100, '-'))
         for g in gateways:
             branch_start_activities = self.get_branch_start_activities(g)
             if self.full_branch_vote:
-                branches = self.get_full_branch(g, branch_start_activities, relations)
+                branches = self.get_full_branch(g, branch_start_activities)
             else:
                 branches = [[a] for a in branch_start_activities]
             branch_activities_relations = self.get_branch_activity_relations(branches, relations)
@@ -346,35 +361,36 @@ class GatewayExtractor:
             branch_activities = [a for a in branch_activities if a not in g.merge_point.receiving_activities]
         return branch_activities
 
-    def get_full_branch(self, g: Gateway, branch_start_activities: List[Tuple], relations: List[Tuple]) \
-            -> List[List[Tuple]]:
+    def get_full_branch(self, g: Gateway, branch_start_activities: List[Tuple]) -> List[List[Tuple]]:
         """
         extend branch that contains start activities with activities until merge point
         """
-        merge_activities = g.merge_point.receiving_activities if g.merge_point else ["dummy"]
-        branches = [[a] + self.get_next_activities(relations, a, merge_activities) for a in branch_start_activities]
+        merge_activities = g.merge_point.receiving_activities if g.merge_point else []
+        branches = [[a] + self._lookup_next_activities(a, merge_activities)
+                    for a in branch_start_activities]
         return branches
 
-    def get_next_activities(self, relations: List[Tuple], start: Tuple, stop_activities: List[Tuple]) -> List[Tuple]:
+    def _lookup_next_activities(self, activity: Tuple, merge_activities: List[Tuple]) -> List[Tuple]:
         """
-        return recursively the next directly following activities of a given start activity
-        stop at a given set of stop activities (merge activities if exist)
+        Lookup next activities until a (potentially given) merge point. Search is recursive until merge point or end
+        :param activity: activity to start search from
+        :param merge_activities: merge activities where search should be stopped (empty if no merge point exist)
+        :return:
         """
-        next_activities = [r[1] for r in list(filter(lambda r: r[0] == start and r[1] not in stop_activities
-                                                               and r[2] == DIRECTLY_FOLLOWING,
-                                                     relations))]
-        if next_activities:
-            for next_activity in next_activities:
-                tmp = self.get_next_activities(relations, next_activity, stop_activities)
-                if tmp:
-                    next_activities.extend(tmp)
-
-        unique_activities = []
-        for a in next_activities:
-            if a not in unique_activities:
-                unique_activities.append(a)
-
-        return unique_activities
+        if str(activity) in self.next_relations_current_doc:
+            result = []
+            for a in self.next_relations_current_doc[str(activity)]:
+                if a not in merge_activities:
+                    # add activity and its successors if not yet in result set
+                    if a not in result:
+                        result.append(a)
+                    next_a_activities = self._lookup_next_activities(a, merge_activities)
+                    for aa in next_a_activities:
+                        if aa not in result:
+                            result.append(aa)
+            return result
+        else:
+            return []
 
     @staticmethod
     def get_branch_activity_relations(branches: List[List[Tuple]], relations: List[Tuple]) -> List[Tuple]:
