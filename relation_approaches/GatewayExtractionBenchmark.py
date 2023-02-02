@@ -57,7 +57,7 @@ class GatewayExtractionBenchmark(AbstractClassificationBenchmark):
             doc_names = [d for d in doc_names if d not in DOC_BLACK_LIST]
         logger.info(f"Create predictions for {len(doc_names)} documents")
 
-        gateway_extractions = {doc_name: self.gateway_extractor.extract_document_gateways(doc_name, i)
+        gateway_extractions = {doc_name: self.gateway_extractor.extract_document_gateways(doc_name, i+1)
                                for i, doc_name in enumerate(doc_names)}
         logger.info(f"Compute metrics of all labels in all documents")
         all_doc_metrics = self.compute_document_label_metrics(gateway_extractions)
@@ -77,7 +77,8 @@ class GatewayExtractionBenchmark(AbstractClassificationBenchmark):
         :return: dictionary with structure {doc-name: {label: {metric: value}}}
         """
         all_doc_metrics = {}
-        for doc_name in gateway_extractions.keys():
+        for i, doc_name in enumerate(gateway_extractions.keys()):
+            logger.info(f"Compute metrics for {doc_name} ({i+1}/{len(gateway_extractions.keys())})")
             doc_metrics = {label: self.evaluate_gateway_extractions(doc_name, gateway_extractions[doc_name],
                                                                     label=label) for label in self.labels}
             all_doc_metrics[doc_name] = doc_metrics
