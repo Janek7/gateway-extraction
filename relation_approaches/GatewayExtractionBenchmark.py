@@ -169,10 +169,10 @@ class SimpleGatewayTypeAndNumberBenchmark(GatewayExtractionBenchmark):
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
     logger.setLevel(logging.DEBUG)
-    geb = SimpleGatewayTypeAndNumberBenchmark(approach_name="ge=standard_rc=goldstandard",
+    geb = SimpleGatewayTypeAndNumberBenchmark(approach_name="ge=standard_rc=goldstandard_limited",
                                               gateway_extractor=GatewayExtractor(GoldstandardRelationClassifier()))
     # evaluate all documents
-    geb.evaluate_documents()
+    geb.evaluate_documents(["doc-1.1", "doc-1.2"])
 
     # evaluate single documents
     # geb.evaluate_documents(["doc-1.1", "doc-1.2"])
