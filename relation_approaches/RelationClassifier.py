@@ -136,11 +136,11 @@ class GoldstandardRelationClassifier(RelationClassifier):
                                                  (r[ACTIVITY_1] == activity_2 and r[ACTIVITY_2] == activity_1)),
                                       self.relation_data))
         if len(target_relation) > 1:
-            raise GatewayExtractionException(f"Multiple relations of {activity_1} and {activity_2} found")
+            raise GatewayExtractionException(f"{doc_name}: multiple relations of {activity_1} and {activity_2} found")
         if target_relation:
             return target_relation[0][RELATION_TYPE]
         else:
-            raise GatewayExtractionException(f"No relation of {activity_1} and {activity_2} found")
+            raise GatewayExtractionException(f"{doc_name}: no relation of {activity_1} and {activity_2} found")
 
 
 # A2) Neural classes
@@ -347,9 +347,9 @@ class NeuralRelationClassifierEnsemble(Ensemble):
         if ensemble_path:
             logger.info("Use standard values of args when reloading ensemble")
             args = parser.parse_args([] if "__file__" not in globals() else None)
-            mode_pattern = re.compile(",a=([a-zA-Z_]+)")
+            mode_pattern = re.compile("[-,]a=([a-zA-Z_]+)")
             args.architecture = mode_pattern.search(ensemble_path).group(1)
-            logger.info(f"Reload model with mode {args.mode}")
+            logger.info(f"Reload model with architecture {args.architecture}")
             kwargs["args"] = args
 
         if kwargs["args"].architecture not in [ARCHITECTURE_CUSTOM, ARCHITECTURE_CNN, ARCHITECTURE_BRCNN]:
