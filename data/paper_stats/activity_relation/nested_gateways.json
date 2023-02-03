@@ -1,225 +1,64 @@
 {
     "nested_gateways": [
         {
-            "doc_name": "doc-2.2",
+            "doc_name": "doc-1.1",
             "parent": [
-                11,
-                0,
-                [
-                    "In",
-                    "case",
-                    "of"
-                ],
-                "XOR Gateway"
-            ],
-            "nested_gateway": [
-                17,
-                0,
-                [
-                    "In",
-                    "the",
-                    "case",
-                    "of"
-                ],
-                "XOR Gateway"
-            ]
-        },
-        {
-            "doc_name": "doc-2.2",
-            "parent": [
-                11,
-                0,
-                [
-                    "In",
-                    "case",
-                    "of"
-                ],
-                "XOR Gateway"
-            ],
-            "nested_gateway": [
-                20,
-                19,
-                [
-                    "either"
-                ],
-                "XOR Gateway"
-            ]
-        },
-        {
-            "doc_name": "doc-2.2",
-            "parent": [
-                11,
-                0,
-                [
-                    "In",
-                    "case",
-                    "of"
-                ],
-                "XOR Gateway"
-            ],
-            "nested_gateway": [
-                20,
-                25,
-                [
-                    "or"
-                ],
-                "XOR Gateway"
-            ]
-        },
-        {
-            "doc_name": "doc-2.2",
-            "parent": [
-                11,
-                0,
-                [
-                    "In",
-                    "case",
-                    "of"
-                ],
-                "XOR Gateway"
-            ],
-            "nested_gateway": [
-                25,
-                0,
-                [
-                    "At",
-                    "the",
-                    "same",
-                    "time"
-                ],
-                "AND Gateway"
-            ]
-        },
-        {
-            "doc_name": "doc-2.2",
-            "parent": [
-                17,
-                0,
-                [
-                    "In",
-                    "the",
-                    "case",
-                    "of"
-                ],
-                "XOR Gateway"
-            ],
-            "nested_gateway": [
-                20,
-                19,
-                [
-                    "either"
-                ],
-                "XOR Gateway"
-            ]
-        },
-        {
-            "doc_name": "doc-2.2",
-            "parent": [
-                17,
-                0,
-                [
-                    "In",
-                    "the",
-                    "case",
-                    "of"
-                ],
-                "XOR Gateway"
-            ],
-            "nested_gateway": [
-                20,
-                25,
-                [
-                    "or"
-                ],
-                "XOR Gateway"
-            ]
-        },
-        {
-            "doc_name": "doc-2.2",
-            "parent": [
-                17,
-                0,
-                [
-                    "In",
-                    "the",
-                    "case",
-                    "of"
-                ],
-                "XOR Gateway"
-            ],
-            "nested_gateway": [
-                25,
-                0,
-                [
-                    "At",
-                    "the",
-                    "same",
-                    "time"
-                ],
-                "AND Gateway"
-            ]
-        },
-        {
-            "doc_name": "doc-2.2",
-            "parent": [
-                20,
-                19,
-                [
-                    "either"
-                ],
-                "XOR Gateway"
-            ],
-            "nested_gateway": [
-                20,
-                25,
-                [
-                    "or"
-                ],
-                "XOR Gateway"
-            ]
-        },
-        {
-            "doc_name": "doc-2.2",
-            "parent": [
-                20,
-                19,
-                [
-                    "either"
-                ],
-                "XOR Gateway"
-            ],
-            "nested_gateway": [
-                25,
-                0,
-                [
-                    "At",
-                    "the",
-                    "same",
-                    "time"
-                ],
-                "AND Gateway"
-            ]
-        },
-        {
-            "doc_name": "doc-2.2",
-            "parent": [
-                20,
-                25,
+                2,
+                9,
                 [
                     "or"
                 ],
                 "XOR Gateway"
             ],
             "nested_gateway": [
-                25,
+                9,
                 0,
                 [
-                    "At",
+                    "In",
                     "the",
-                    "same",
-                    "time"
+                    "meantime"
                 ],
                 "AND Gateway"
+            ]
+        },
+        {
+            "doc_name": "doc-1.1",
+            "parent": [
+                2,
+                9,
+                [
+                    "or"
+                ],
+                "XOR Gateway"
+            ],
+            "nested_gateway": [
+                6,
+                0,
+                [
+                    "If"
+                ],
+                "XOR Gateway"
+            ]
+        },
+        {
+            "doc_name": "doc-1.1",
+            "parent": [
+                9,
+                0,
+                [
+                    "In",
+                    "the",
+                    "meantime"
+                ],
+                "AND Gateway"
+            ],
+            "nested_gateway": [
+                6,
+                0,
+                [
+                    "If"
+                ],
+                "XOR Gateway"
             ]
         }
     ]
