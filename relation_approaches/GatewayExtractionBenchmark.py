@@ -176,15 +176,15 @@ if __name__ == '__main__':
 
     # B) evaluate with gold standard relations
 
-    geb_full = SimpleGatewayTypeAndNumberBenchmark(approach_name="ge=standard_rc=goldstandard_vote=full",
+    geb_full = SimpleGatewayTypeAndNumberBenchmark(approach_name="ge=standard_rc=goldstandard_vote=full_STARTGATEWAYS",
                                                    gateway_extractor=GatewayExtractor(GoldstandardRelationClassifier(),
                                                                                       full_branch_vote=True))
     geb_full.evaluate_documents()
 
-    geb_limited = SimpleGatewayTypeAndNumberBenchmark(approach_name="ge=standard_rc=goldstandard_vote=limited",
-                                                      gateway_extractor=GatewayExtractor(
-                                                          GoldstandardRelationClassifier(),
-                                                          full_branch_vote=False))
-    geb_limited.evaluate_documents()
+    # geb_limited = SimpleGatewayTypeAndNumberBenchmark(approach_name="ge=standard_rc=goldstandard_vote=limited",
+    #                                                   gateway_extractor=GatewayExtractor(
+    #                                                       GoldstandardRelationClassifier(),
+    #                                                       full_branch_vote=False))
+    # geb_limited.evaluate_documents()
 
 

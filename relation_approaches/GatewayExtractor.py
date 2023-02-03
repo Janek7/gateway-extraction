@@ -222,6 +222,7 @@ class GatewayExtractor:
         :return: list of activities
         """
         relations = self._filter_relations(relations, label=DIRECTLY_FOLLOWING)
+        relations = self._enrich_doc_start_df_relations(relations)
         # count outgoing flows for every activity
         gateway_candidates = []
         for r in relations:
@@ -231,6 +232,25 @@ class GatewayExtractor:
             else:
                 gateway_candidates.append(GatewayPoint(SPLIT, [r[0]], [r[1]]))
         return [gc for gc in gateway_candidates if len(gc.receiving_activities) > 1]
+
+    @staticmethod
+    def _enrich_doc_start_df_relations(relations: List[Tuple]) -> List[Tuple]:
+        """
+        enrich set of relations with relations between artificial document start event and first activities
+        why? necessary to detect gateways at the start
+        :param relations: directly follow relations
+        :return: enriched relations
+        """
+        receiving_activities = [r[1] for r in relations]
+        start_activities = [r[0] for r in relations if r[0] not in receiving_activities]
+        start_activities_unique = []
+        for a in start_activities:
+            if a not in start_activities_unique:
+                start_activities_unique.append(a)
+        doc_start_relations = [((-1, -1, ["doc", "start"], DOC_START), a, DIRECTLY_FOLLOWING)
+                               for a in start_activities_unique]
+        relations_enriched = doc_start_relations + relations
+        return relations_enriched
 
     def _detect_merge_points(self, relations: List[Tuple]) -> List[GatewayPoint]:
         """
@@ -458,7 +478,7 @@ if __name__ == '__main__':
                                          full_branch_vote=True)
 
     # test one
-    gateway_extractor.extract_document_gateways_debug(doc_name="doc-5.3")
+    gateway_extractor.extract_document_gateways_debug(doc_name="doc-3.2")
 
     # simple one
     # gateway_extractor.extract_document_gateways(doc_name="doc-3.8")
