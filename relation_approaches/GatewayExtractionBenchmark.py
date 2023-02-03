@@ -21,6 +21,7 @@ from relation_approaches.AbstractClassificationBenchmark import AbstractClassifi
 from relation_approaches.GatewayExtractor import GatewayExtractor, Gateway
 from relation_approaches.RelationClassifier import DFBaselineRelationClassifier, GoldstandardRelationClassifier
 from relation_approaches.activity_relation_data_preparation import DOC_BLACK_LIST
+from relation_approaches.activity_relation_dataset_preparation import TEST_DOCS
 from relation_approaches import metrics
 from utils import ROOT_DIR, save_as_pickle, flatten_list
 from PetReader import pet_reader
@@ -176,15 +177,15 @@ if __name__ == '__main__':
 
     # B) evaluate with gold standard relations
 
-    geb_full = SimpleGatewayTypeAndNumberBenchmark(approach_name="ge=standard_rc=goldstandard_vote=full_STARTGATEWAYS",
+    geb_full = SimpleGatewayTypeAndNumberBenchmark(approach_name="ge=standard_rc=goldstandard_vote=full_TESTDOCS",
                                                    gateway_extractor=GatewayExtractor(GoldstandardRelationClassifier(),
                                                                                       full_branch_vote=True))
-    geb_full.evaluate_documents()
+    geb_full.evaluate_documents(TEST_DOCS)
 
-    # geb_limited = SimpleGatewayTypeAndNumberBenchmark(approach_name="ge=standard_rc=goldstandard_vote=limited",
-    #                                                   gateway_extractor=GatewayExtractor(
-    #                                                       GoldstandardRelationClassifier(),
-    #                                                       full_branch_vote=False))
-    # geb_limited.evaluate_documents()
+    geb_limited = SimpleGatewayTypeAndNumberBenchmark(approach_name="ge=standard_rc=goldstandard_vote=limited_TESTDOCS",
+                                                      gateway_extractor=GatewayExtractor(
+                                                          GoldstandardRelationClassifier(),
+                                                          full_branch_vote=False))
+    geb_limited.evaluate_documents(TEST_DOCS)
 
 

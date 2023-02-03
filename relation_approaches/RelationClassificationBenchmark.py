@@ -268,6 +268,7 @@ def get_dummy_args():
                         help="Flag if eventually following samples should be"
                              "down sampled to comparable number")
     # Architecture params
+    parser.add_argument("--architecture", default=ARCHITECTURE_BRCNN, type=str, help="Architecture variants")
     parser.add_argument("--dropout", default=0, type=float, help="Dropout rate.")
     parser.add_argument("--hidden_layer", default=32, type=int, help="Hidden layer size")
     parser.add_argument("--learning_rate", default=2e-5, type=float, help="Learning rate.")
@@ -287,14 +288,13 @@ def get_dummy_args():
     parser.add_argument("--rnn_backwards", default=False, type=bool,
                         help="Flag if backwards should be processed as well.")
 
-    args = parser.parse_args([] if "__file__" not in globals() else None)
-    args = parser.parse_args([] if "__file__" not in globals() else None)
+    args = parser.parse_args()
     return args
 
 
 if __name__ == '__main__':
-    #b = RelationClassificationBenchmark("baseline_random", RandomBaselineRelationClassifier())
-    #b.evaluate_documents(TEST_DOCS)
+    # b = RelationClassificationBenchmark("baseline_df", DFBaselineRelationClassifier())
+    # b.evaluate_documents(TEST_DOCS)
 
     # evaluate_ensemble("custom_random", ensemble_path=None)
     evaluate_ensemble("brcnn_128", ensemble_path="/home/japutz/master-thesis/data/final_models/RelationClassifier-2023-02-02_104323-a=brcnn,bs=8,cb=1,dse=False,d=0.0,e=True,e=10,fi=2,fss=32,f=5,hl=32,ks=3,lr=2e-05,ps=2,rb=False,rc=LSTM,ru=128,r=ft,sg=42,se=10-20,sw=True,td=True,ts=0.1,w=0")

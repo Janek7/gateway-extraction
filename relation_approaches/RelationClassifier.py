@@ -345,7 +345,7 @@ class NeuralRelationClassifierEnsemble(Ensemble):
         """
         self.predictions = {}
         # in case of reload of ensemble args are not passed -> create args, extract used architecture from path and set
-        if ensemble_path:
+        if ensemble_path and "args" not in kwargs:
             logger.info("Use standard values of args when reloading ensemble")
             args = parser.parse_args([] if "__file__" not in globals() else None)
             mode_pattern = re.compile("[-,]a=([a-zA-Z_]+)")
