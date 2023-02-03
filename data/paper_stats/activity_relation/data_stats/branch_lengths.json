@@ -1,0 +1,60 @@
+{
+    "branch_lengths": [
+        {
+            "doc_name": "doc-2.2",
+            "branch_length": 1
+        },
+        {
+            "doc_name": "doc-2.2",
+            "branch_length": 2
+        },
+        {
+            "doc_name": "doc-2.2",
+            "branch_length": 2
+        },
+        {
+            "doc_name": "doc-2.2",
+            "branch_length": 3
+        },
+        {
+            "doc_name": "doc-2.2",
+            "branch_length": 19
+        },
+        {
+            "doc_name": "doc-2.2",
+            "branch_length": 4
+        },
+        {
+            "doc_name": "doc-2.2",
+            "branch_length": 11
+        },
+        {
+            "doc_name": "doc-2.2",
+            "branch_length": 1
+        },
+        {
+            "doc_name": "doc-2.2",
+            "branch_length": 8
+        },
+        {
+            "doc_name": "doc-2.2",
+            "branch_length": 8
+        },
+        {
+            "doc_name": "doc-2.2",
+            "branch_length": 6
+        },
+        {
+            "doc_name": "doc-2.2",
+            "branch_length": 5
+        },
+        {
+            "doc_name": "doc-2.2",
+            "branch_length": 2
+        },
+        {
+            "doc_name": "doc-2.2",
+            "branch_length": 2
+        }
+    ]
+}

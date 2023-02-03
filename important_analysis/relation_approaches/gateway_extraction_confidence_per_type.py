@@ -21,7 +21,6 @@ from utils import ROOT_DIR
 def average_confidence_scores(gateway_extractions_file: str) -> Dict[str, float]:
     """
     average confidence score of gateways with passed type in given file
-    :param gateway_type: XOR_GATEWAY or AND_GATEWAY
     :param gateway_extractions_file: root dir relative path to json file with extractions
     :return: avg confidence score
     """
