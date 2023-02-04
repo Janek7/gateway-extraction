@@ -616,32 +616,31 @@ def _compute_activity_relations(doc_names: List[str] = None, drop_loops: bool = 
 
 
 def get_activity_relations(doc_names: List[str] = None, drop_loops: bool = True, return_type: type = List,
-                           overwrite: bool = False, down_sample_ef: bool = False) -> List[Tuple]:
+                           overwrite: bool = False) -> List[Tuple]:
     """
     return activity relations; see __compute_activity_relations for param descriptions
     IMPORTANT: make sure a seed is set before (for shuffling)
-    :param down_sample_ef: flag if relations of type EVENTUALLY_FOLLOWING should be down sampled to comparable size as
-                           other classes (in favor of memory and balanced training)
     :return: (filtered) list of relations
     """
     relations = _compute_activity_relations(doc_names, drop_loops, return_type, overwrite)
     # shuffle to drop relations from different documents
     random.shuffle(relations)
+    return relations
 
-    new_relations = []
-    if down_sample_ef:
-        ef_count = 0
-        for r in relations:
-            relation_type = r[RELATION_TYPE] if return_type == dict else r[3]
-            if relation_type == EVENTUALLY_FOLLOWING:
-                if ef_count < config[ACTIVITY_RELATION_CLASSIFIER][EVENTUALLY_FOLLOWS_SAMPLE_LIMIT]:
-                    new_relations.append(r)
-                    ef_count += 1
-            else:
-                new_relations.append(r)
-        return new_relations
-    else:
-        return relations
+    # new_relations = []
+    # if down_sample_ef:
+    #     ef_count = 0
+    #     for r in relations:
+    #         relation_type = r[RELATION_TYPE] if return_type == dict else r[3]
+    #         if relation_type == EVENTUALLY_FOLLOWING:
+    #             if ef_count < config[ACTIVITY_RELATION_CLASSIFIER][EVENTUALLY_FOLLOWS_SAMPLE_LIMIT]:
+    #                 new_relations.append(r)
+    #                 ef_count += 1
+    #         else:
+    #             new_relations.append(r)
+    #     return new_relations
+    # else:
+    #     return relations
 
 
 if __name__ == '__main__':

@@ -12,7 +12,7 @@ sys.path.insert(0, parent_dir)
 
 import logging
 import argparse
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 import random
 
 from sklearn.model_selection import KFold
@@ -37,7 +37,7 @@ label_dict = {
 # maximal length of relation text (concatenation of text between activities and activity entities)
 MAX_LENGTH = 512
 
-# predefined test set of random docs with overall 387 relations (about 10% of whole set)
+# predefined test set of random docs (about 10% of relations of the whole set)
 TEST_DOCS = ["doc-1.3", "doc-10.2", "doc-10.9", "doc-3.6", "doc-5.3", "doc-7.1"]
 
 
@@ -53,16 +53,41 @@ def _get_relations_and_split_test_set(args: argparse.Namespace, relations: List 
     :return: data set as list, test set as list
     """
     if not relations:
-        relations = get_activity_relations(return_type=dict, down_sample_ef=args.down_sample_ef)
+        relations = get_activity_relations(return_type=dict)
     random.shuffle(relations)
     if not args.test_docs:
         logger.info(f"Split test set with test share {args.test_share}")
         split_point = int(len(relations) * args.test_share)
-        return relations[split_point:], relations[:split_point]
+        rest_relations = relations[split_point:]
+        test_relations = relations[:split_point]
     else:
         logger.info(f"Split test set from predefined {len(TEST_DOCS)} documents")
-        return [r for r in relations if r[DOC_NAME] not in TEST_DOCS], \
-               [r for r in relations if r[DOC_NAME] in TEST_DOCS]
+        rest_relations = [r for r in relations if r[DOC_NAME] not in TEST_DOCS]
+        test_relations = [r for r in relations if r[DOC_NAME] in TEST_DOCS]
+
+    # down sample only train set to keep full original documents for testing later
+    if args.down_sample_ef:
+        rest_relations = _down_sample_ef(rest_relations)
+
+    return rest_relations, test_relations
+
+
+def _down_sample_ef(relations: List[Dict]) -> List[Dict]:
+    """
+    down the number of eventually following samples in a list of given relations to value in the config
+    :param relations: relation list
+    :return: filtered relation list
+    """
+    new_relations = []
+    ef_count = 0
+    for r in relations:
+        if r[RELATION_TYPE] == EVENTUALLY_FOLLOWING:
+            if ef_count < config[ACTIVITY_RELATION_CLASSIFIER][EVENTUALLY_FOLLOWS_SAMPLE_LIMIT]:
+                new_relations.append(r)
+                ef_count += 1
+        else:
+            new_relations.append(r)
+    return new_relations
 
 
 def _create_dataset(input_ids: tf.Tensor, attention_masks: tf.Tensor, labels: tf.Tensor) -> tf.data.Dataset:

@@ -239,7 +239,7 @@ def evaluate_ensemble(approach_name: str, ensemble_path: str):
         # load ensemble ensemble
         ensemble = NeuralRelationClassifierEnsemble(seeds=[3, 4], args=get_dummy_args())
     else:
-        ensemble = NeuralRelationClassifierEnsemble(ensemble_path=ensemble_path)
+        ensemble = NeuralRelationClassifierEnsemble(ensemble_path=ensemble_path, args=get_dummy_args())
 
     # load data and predict test set
     _, test, test_relations = create_activity_relation_cls_dataset_full(get_dummy_args())
