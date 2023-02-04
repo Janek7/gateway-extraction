@@ -21,7 +21,7 @@ from PetReader import pet_reader
 from utils import config, GatewayExtractionException, ROOT_DIR, load_pickle, save_as_pickle, get_loop_flows
 
 logger = logging.getLogger('Data Generation [Activity Relations]')
-DOC_BLACK_LIST = ['doc-6.4', 'doc-6.1']
+DOC_BLACK_LIST = ['doc-6.4']# , 'doc-6.1']
 loop_flows = get_loop_flows()
 
 # lists for stats counting of nested gateways & branch lengths
