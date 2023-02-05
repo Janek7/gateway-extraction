@@ -10,7 +10,7 @@ while not os.path.exists(os.path.join(parent_dir, "README.md")):
     parent_dir = os.path.abspath(os.path.join(parent_dir, os.pardir))
 sys.path.insert(0, parent_dir)
 
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Callable
 from copy import deepcopy
 import logging
 import json
@@ -115,7 +115,8 @@ class RelationClassificationBenchmark(AbstractClassificationBenchmark):
             doc_metrics = {}
             for label in self.labels:
                 doc_label_metrics = self.evaluate_activity_relations(doc_name, relation_predictions[doc_name],
-                                                                     gold_relations=gold_relations[doc_name], label=label)
+                                                                     gold_relations=gold_relations[doc_name],
+                                                                     label=label)
                 doc_metrics[label] = doc_label_metrics
             all_doc_metrics[doc_name] = doc_metrics
         return all_doc_metrics
@@ -273,13 +274,14 @@ def evaluate_ensemble_native(ensemble_path: str) -> None:
     model = ensemble.models[0]
 
     # 2) helper method
-    def filter_label(dataset: tf.data.Dataset, relations: List, label: str) -> Tuple[tf.data.Dataset, List[Dict]]:
+    def filter_relations(dataset: tf.data.Dataset, relations: List, filter_function: Callable[[Dict], bool]) \
+            -> Tuple[tf.data.Dataset, List[Dict]]:
         """
-        filter data (tensorflow dataset and relation list) for samples with target relation label
+        filter data (tensorflow dataset and relation list) for samples that match the filter function
+        :param filter_function: function for evaluating a relation -> Input: relation as dict; Output: bool
         """
         # 1) search for relevant indices
-        label_filtered_indexes = [i for i, relation in enumerate(test_relations) if
-                                  relation[RELATION_TYPE] == label]
+        label_filtered_indexes = [i for i, relation in enumerate(test_relations) if filter_function(relation)]
         # 2a) filter relations for indices
         relations_filtered = [r for i, r in enumerate(relations) if i in label_filtered_indexes]
 
@@ -298,32 +300,43 @@ def evaluate_ensemble_native(ensemble_path: str) -> None:
         return filtered_dataset, relations_filtered
 
     # 3) evaluations
-    main_evaluation = []
+    evaluation_entries = []
+    Ns = [1, 2, 5, 10, 1000]
 
     # 3a) evaluate whole test set
-    loss, accuracy, precision, recall = model.evaluate(test_dataset)
-    main_evaluation.append({"label": "all", "precision": precision, "recall": recall,
-                            "f1": metrics.f1(precision, recall), "support": len(test_relations)})
+    _, _, precision, recall = model.evaluate(test_dataset.batch(8))
+    evaluation_entries.append({"label": "all", " n": "all", "precision": precision, "recall": recall,
+                               "f1": metrics.f1(precision, recall), "support": len(test_relations)})
 
     # 3b) create evaluations for filtered relation sets
     for label in [DIRECTLY_FOLLOWING, EVENTUALLY_FOLLOWING, EXCLUSIVE, CONCURRENT]:
+        # 3b1) evaluate whole label set
         print(f" Evaluate {label} ... ".center(100, '+'))
-        test_dataset_label_filtered, test_relations_label_filtered = filter_label(test_dataset, test_relations, label)
-        print(f"Filtered {len(test_relations_label_filtered)} samples")
-        score = model.evaluate(test_dataset_label_filtered)
-        print(score)
-        loss, accuracy, precision, recall = score
-        main_evaluation.append({"label": label, "precision": precision, "recall": recall,
-                                "f1": metrics.f1(precision, recall), "support": len(test_relations_label_filtered)})
+        test_dataset_label_filtered, test_relations_label_filtered \
+            = filter_relations(test_dataset, test_relations, lambda r: r[RELATION_TYPE] == label)
+        _, _, precision, recall = model.evaluate(test_dataset_label_filtered)
+        evaluation_entries.append({"label": label, "n": "all", "precision": precision, "recall": recall,
+                                   "f1": metrics.f1(precision, recall), "support": len(test_relations_label_filtered)})
+
+        # 3b2) evaluate label set splitted in n relations with activity order distance <= n
+        for n in Ns:
+            print(f" ... {label} && distance <={n} ... ".center(100, '+'))
+            test_dataset_label_n_filtered, test_relations_label_n_filtered \
+                = filter_relations(test_dataset, test_relations,
+                                   lambda r: abs(r[ACTIVITY_1][0] - r[ACTIVITY_2][0]) <= n)
+            _, _, precision, recall = model.evaluate(test_dataset_label_n_filtered)
+            evaluation_entries.append({"label": label, "n": n, "precision": precision, "recall": recall,
+                                       "f1": metrics.f1(precision, recall),
+                                       "support": len(test_relations_label_n_filtered)})
 
     # 4) Write results
-    main_evaluation_df = pd.DataFrame.from_dict(main_evaluation)
+    evaluation_df = pd.DataFrame.from_dict(evaluation_entries)
 
     # write to excel
-    path = os.path.join(ROOT_DIR, "data/results_relation_approaches/relation_classification/brcnn_128_NEW",
-                        f'results-all.xlsx')
-    with pd.ExcelWriter(path) as writer:
-        main_evaluation_df.to_excel(writer, sheet_name='Summary', index=False)
+    path = os.path.join(ROOT_DIR, "data/results_relation_approaches/relation_classification/brcnn_128_NEW")
+    os.makedirs(path, exist_ok=True)
+    with pd.ExcelWriter(os.path.join(path, "results.xlsx")) as writer:
+        evaluation_df.to_excel(writer, sheet_name='Evaluation', index=False)
 
 
 def get_dummy_args(batch_size: int = 8):
@@ -378,4 +391,3 @@ if __name__ == '__main__':
     ensemble_path = "/home/japutz/master-thesis/data/final_models/RelationClassifier-2023-02-02_104323-a=brcnn,bs=8,cb=1,dse=False,d=0.0,e=True,e=10,fi=2,fss=32,f=5,hl=32,ks=3,lr=2e-05,ps=2,rb=False,rc=LSTM,ru=128,r=ft,sg=42,se=10-20,sw=True,td=True,ts=0.1,w=0"
     # evaluate_ensemble("brcnn_128", ensemble_path=ensemble_path)
     evaluate_ensemble_native(ensemble_path)
-
