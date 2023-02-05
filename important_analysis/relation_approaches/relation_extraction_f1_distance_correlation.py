@@ -23,6 +23,10 @@ from labels import *
 Ns = [1, 2, 5, 10, 30]
 
 
+# TODO: include all
+# TODO: equal visual distance between x ticks
+
+
 def plot_f1_nearest_n_correlation(results_folder: str, approach_name: str) -> None:
     """
     creates a graph that plots for each label on y f1 scores and on x the nearest n relations
@@ -31,20 +35,20 @@ def plot_f1_nearest_n_correlation(results_folder: str, approach_name: str) -> No
     :return: image output to directory
     """
     # load data
-    nearest_n_stats_dfs = {n: pd.read_excel(os.path.join(ROOT_DIR, results_folder, f"results-n={n}.xlsx"),
-                                            sheet_name="Label-wise metrics")
-    if n != 30 else pd.read_excel(os.path.join(ROOT_DIR, results_folder, f"results-all.xlsx"),
-                                  sheet_name="Label-wise metrics")
-                           for n in Ns}
-    graph_data = {DIRECTLY_FOLLOWING: [], EVENTUALLY_FOLLOWING: [], EXCLUSIVE: [], CONCURRENT: []}
-    for n, stats_df in nearest_n_stats_dfs.items():
-        for label in graph_data:
-            graph_data[label].append((n, stats_df[stats_df["label"] == label]["f1-score"]))
-        print(n)
-        print(stats_df.head(10))
+    evaluation_df = pd.read_excel(os.path.join(ROOT_DIR, results_folder, f"results.xlsx"), sheet_name="Evaluation")
+    evaluation_df.info()
+    print(evaluation_df.head(10))
+    graph_data = {DIRECTLY_FOLLOWING: [], EVENTUALLY_FOLLOWING: [], EXCLUSIVE: [], CONCURRENT: [],} #  "all": []
+    for label in graph_data:
+        for n in Ns:
+            print(evaluation_df[(evaluation_df["label"] == label) & (evaluation_df["n"] == n)]["f1"].values[0])
+            graph_data[label].append(
+                (n, evaluation_df[(evaluation_df["label"] == label) & (evaluation_df["n"] == n)]["f1"].values[0]))
 
     # config output
-    relation_type_data = [(DIRECTLY_FOLLOWING, "lightcoral", "Directly Following"),
+    relation_type_data = [
+        # ("all", "silver", "All"),
+                          (DIRECTLY_FOLLOWING, "lightcoral", "Directly Following"),
                           (EVENTUALLY_FOLLOWING, "khaki", "Eventually Following"),
                           (EXCLUSIVE, "cornflowerblue", "Exclusive"),
                           (CONCURRENT, "mediumseagreen", "Concurrent")]
@@ -59,15 +63,17 @@ def plot_f1_nearest_n_correlation(results_folder: str, approach_name: str) -> No
 
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
-    plt.xlabel("Activity order distance")
+    plt.xlabel("Activity pair distance <= n")
     plt.ylabel("Avg. F1 score")
     plt.xticks([1, 2, 5, 10, 30], [1, 2, 5, 10, "all"])
+    plt.yticks([.1, .2, .3, .4, .5, .6, .7, .8, .9], [.1, .2, .3, .4, .5, .6, .7, .8, .9])
 
     plt.legend(loc="center right")
     plt.savefig(os.path.join(ROOT_DIR,
-                             f"data/paper_stats/activity_relation/gateway_extraction/RC_nearest_n_plot_{approach_name}"))
+                             f"data/paper_stats/activity_relation/relation_classification/nearest_n_plot_{approach_name}"))
 
 
 if __name__ == '__main__':
-    plot_f1_nearest_n_correlation("data/results_relation_approaches/relation_classification/brcnn_128",
-                                  "brcnn128")
+    plot_f1_nearest_n_correlation(
+        "data/results_relation_approaches/relation_classification/brcnn_128_seed10",
+        "brcnn_128_seed10")

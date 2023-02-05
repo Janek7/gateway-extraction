@@ -43,6 +43,10 @@ class RelationClassificationBenchmarkNew:
 
 
 # READY TO USE
+
+ROUND_DIGITS = 2
+
+
 def evaluate_ensemble_native(approach_name: str, ensemble_path: str) -> None:
     """
     run native evaluation on test set by using one model of the loaded ensemble
@@ -86,11 +90,11 @@ def evaluate_ensemble_native(approach_name: str, ensemble_path: str) -> None:
 
     # 3) evaluations
     evaluation_entries = []
-    Ns = [1, 2, 5, 10, 1000]
+    Ns = [1, 2, 5, 10, 30]
 
     # 3a) evaluate whole test set
     _, _, precision, recall = model.evaluate(test_dataset.batch(8))
-    evaluation_entries.append({"label": "all", " n": "all", "precision": precision, "recall": recall,
+    evaluation_entries.append({"label": "all", "n": "all", "precision": precision, "recall": recall,
                                "f1": metrics.f1(precision, recall), "support": len(test_relations)})
 
     # 3b) create evaluations for filtered relation sets
@@ -100,8 +104,9 @@ def evaluate_ensemble_native(approach_name: str, ensemble_path: str) -> None:
         test_dataset_label_filtered, test_relations_label_filtered \
             = filter_relations(test_dataset, test_relations, lambda r: r[RELATION_TYPE] == label)
         _, _, precision, recall = model.evaluate(test_dataset_label_filtered.batch(8))
-        evaluation_entries.append({"label": label, "n": "all", "precision": precision, "recall": recall,
-                                   "f1": metrics.f1(precision, recall), "support": len(test_relations_label_filtered)})
+        evaluation_entries.append({"label": label, "n": "all", "precision": round(precision, ROUND_DIGITS),
+                                   "recall": round(recall, ROUND_DIGITS), "f1": round(metrics.f1(precision, recall)),
+                                   "support": len(test_relations_label_filtered)})
 
         # 3b2) evaluate label set splitted in n relations with activity order distance <= n
         for n in Ns:
@@ -111,13 +116,14 @@ def evaluate_ensemble_native(approach_name: str, ensemble_path: str) -> None:
                                    lambda r: abs(r[ACTIVITY_1][0] - r[ACTIVITY_2][0]) <= n)
             try:
                 _, _, precision, recall = model.evaluate(test_dataset_label_n_filtered.batch(8))
-                evaluation_entries.append({"label": label, "n": n, "precision": precision, "recall": recall,
-                                           "f1": metrics.f1(precision, recall),
+                evaluation_entries.append({"label": label, "n": n, "precision": round(precision, ROUND_DIGITS),
+                                           "recall": round(recall, ROUND_DIGITS),
+                                           "f1": round(metrics.f1(precision, recall)),
                                            "support": len(test_relations_label_n_filtered)})
             except OverflowError as e:
-                evaluation_entries.append({"label": label, "n": n, "precision": -1, "recall": -1,
-                                           "f1": -1,
-                                           "support": len(test_relations_label_n_filtered), "comment": "error"})
+                evaluation_entries.append({"label": label, "n": n, "precision": 0, "recall": 0, "f1": 0,
+                                           "support": len(test_relations_label_n_filtered),
+                                           "comment": "error (support == 0?)"})
 
 
     # 4) Write results
