@@ -17,6 +17,7 @@ import json
 import argparse
 
 import tensorflow as tf
+import pandas as pd
 
 from relation_approaches.AbstractClassificationBenchmark import AbstractClassificationBenchmark
 from relation_approaches.activity_relation_data_preparation import get_activity_relations, DOC_BLACK_LIST
@@ -286,18 +287,25 @@ def evaluate_ensemble_native(ensemble_path: str) -> None:
         filtered_input_ids = []
         filtered_attention_masks = []
         filtered_labels = []
-        for i, x in enumerate(dataset.as_numpy_iterator()):
+        for i, (x, y) in enumerate(dataset.as_numpy_iterator()):
             if i in label_filtered_indexes:
-                input_ids_tensor, attention_mask_tensor, label_tensor = tf.nest.flatten(x)
-                filtered_input_ids.append(input_ids_tensor)
-                filtered_attention_masks.append(attention_mask_tensor)
-                filtered_labels.append(label_tensor)
+                filtered_input_ids.append(x["input_ids"])
+                filtered_attention_masks.append(x["attention_mask"])
+                filtered_labels.append(y)
         filtered_dataset = _create_dataset(tf.constant(filtered_input_ids), tf.constant(filtered_attention_masks),
                                            tf.constant(filtered_labels))
-
+        filtered_dataset = filtered_dataset.batch(8)
         return filtered_dataset, relations_filtered
 
-    # 3) create evaluations for filtered relation sets
+    # 3) evaluations
+    main_evaluation = []
+
+    # 3a) evaluate whole test set
+    loss, accuracy, precision, recall = model.evaluate(test_dataset)
+    main_evaluation.append({"label": "all", "precision": precision, "recall": recall,
+                            "f1": metrics.f1(precision, recall), "support": len(test_relations)})
+
+    # 3b) create evaluations for filtered relation sets
     for label in [DIRECTLY_FOLLOWING, EVENTUALLY_FOLLOWING, EXCLUSIVE, CONCURRENT]:
         print(f" Evaluate {label} ... ".center(100, '+'))
         test_dataset_label_filtered, test_relations_label_filtered = filter_label(test_dataset, test_relations, label)
@@ -305,6 +313,17 @@ def evaluate_ensemble_native(ensemble_path: str) -> None:
         score = model.evaluate(test_dataset_label_filtered)
         print(score)
         loss, accuracy, precision, recall = score
+        main_evaluation.append({"label": label, "precision": precision, "recall": recall,
+                                "f1": metrics.f1(precision, recall), "support": len(test_relations_label_filtered)})
+
+    # 4) Write results
+    main_evaluation_df = pd.DataFrame.from_dict(main_evaluation)
+
+    # write to excel
+    path = os.path.join(ROOT_DIR, "data/results_relation_approaches/relation_classification/brcnn_128_NEW",
+                        f'results-all.xlsx')
+    with pd.ExcelWriter(path) as writer:
+        main_evaluation_df.to_excel(writer, sheet_name='Summary', index=False)
 
 
 def get_dummy_args(batch_size: int = 8):
