@@ -251,6 +251,22 @@ def evaluate_ensemble(approach_name: str, ensemble_path: str):
     b.evaluate_documents(TEST_DOCS, test_relations_predicted)
 
 
+def evaluate_ensemble_native(ensemble_path: str) -> None:
+    """
+    run native evaluation on test set
+    :param ensemble_path: path
+    :return:
+    """
+    logger.info(f"Run full training")
+    ensemble = NeuralRelationClassifierEnsemble(ensemble_path=ensemble_path, args=get_dummy_args())
+
+    _, test, _ = create_activity_relation_cls_dataset_full(get_dummy_args())
+
+    for model in ensemble.models:
+        score = model.evaluate(test)
+        print(score)
+
+
 def get_dummy_args():
     """
     necessary to pass arguments to ensemble and 'create_activity_relation_cls_dataset_full' call in evaluate_ensemble

@@ -249,6 +249,8 @@ if __name__ == '__main__':
     parser.add_argument("--seed_general", default=42, type=int, help="Random seed.")
     parser.add_argument("--batch_size", default=8, type=int, help="Batch size.")
     parser.add_argument("--folds", default=5, type=int, help="K folds.")
+    parser.add_argument("--test_docs", default=True, type=bool,
+                        help="Flag if predefined docs should be used as test set")
     parser.add_argument("--test_share", default=0.1, type=float, help="Share of test set")
     parser.add_argument("--down_sample_ef", default=True, type=bool,
                         help="Flag if eventually following samples should be"
