@@ -257,10 +257,9 @@ def evaluate_ensemble_native(ensemble_path: str) -> None:
     :param ensemble_path: path
     :return:
     """
-    logger.info(f"Run full training")
-    ensemble = NeuralRelationClassifierEnsemble(ensemble_path=ensemble_path, args=get_dummy_args())
-
-    _, test, _ = create_activity_relation_cls_dataset_full(get_dummy_args())
+    logger.info(f"Run evaluation native on each of the single models")
+    train, test, _ = create_activity_relation_cls_dataset_full(get_dummy_args())
+    ensemble = NeuralRelationClassifierEnsemble(ensemble_path=ensemble_path, args=get_dummy_args(), train_size=len(train))
 
     for model in ensemble.models:
         score = model.evaluate(test)
@@ -313,4 +312,8 @@ if __name__ == '__main__':
     # b.evaluate_documents(TEST_DOCS)
 
     # evaluate_ensemble("custom_random", ensemble_path=None)
-    evaluate_ensemble("brcnn_128", ensemble_path="/home/japutz/master-thesis/data/final_models/RelationClassifier-2023-02-02_104323-a=brcnn,bs=8,cb=1,dse=False,d=0.0,e=True,e=10,fi=2,fss=32,f=5,hl=32,ks=3,lr=2e-05,ps=2,rb=False,rc=LSTM,ru=128,r=ft,sg=42,se=10-20,sw=True,td=True,ts=0.1,w=0")
+
+    ensemble_path = "/home/japutz/master-thesis/data/final_models/RelationClassifier-2023-02-02_104323-a=brcnn,bs=8,cb=1,dse=False,d=0.0,e=True,e=10,fi=2,fss=32,f=5,hl=32,ks=3,lr=2e-05,ps=2,rb=False,rc=LSTM,ru=128,r=ft,sg=42,se=10-20,sw=True,td=True,ts=0.1,w=0"
+    # evaluate_ensemble("brcnn_128", ensemble_path=ensemble_path)
+    evaluate_ensemble_native(ensemble_path)
+
