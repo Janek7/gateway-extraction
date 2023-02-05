@@ -16,13 +16,15 @@ import logging
 import json
 import argparse
 
+import tensorflow as tf
+
 from relation_approaches.AbstractClassificationBenchmark import AbstractClassificationBenchmark
 from relation_approaches.activity_relation_data_preparation import get_activity_relations, DOC_BLACK_LIST
 from relation_approaches.RelationClassifier import RelationClassifier, classify_documents, \
     NeuralRelationClassifierEnsemble, create_relation_benchmark_format, DFBaselineRelationClassifier, \
     RandomBaselineRelationClassifier
 from relation_approaches.activity_relation_dataset_preparation import label_dict, \
-    create_activity_relation_cls_dataset_full, TEST_DOCS
+    create_activity_relation_cls_dataset_full, TEST_DOCS, _create_dataset
 from relation_approaches import metrics
 from utils import ROOT_DIR, GatewayExtractionException
 from PetReader import pet_reader
@@ -251,30 +253,71 @@ def evaluate_ensemble(approach_name: str, ensemble_path: str):
     b.evaluate_documents(TEST_DOCS, test_relations_predicted)
 
 
+# NATIVE EVALUATION WITH TENSORFLOW .evaluate()
+
+
 def evaluate_ensemble_native(ensemble_path: str) -> None:
     """
-    run native evaluation on test set
+    run native evaluation on test set by using one model of the loaded ensemble
+    evaluate on label and n-distance level
     :param ensemble_path: path
     :return:
     """
     logger.info(f"Run evaluation native on each of the single models")
-    train, test, _ = create_activity_relation_cls_dataset_full(get_dummy_args())
-    ensemble = NeuralRelationClassifierEnsemble(ensemble_path=ensemble_path, args=get_dummy_args(), train_size=len(train))
+    # 1a) load data
+    train, test_dataset, test_relations = create_activity_relation_cls_dataset_full(get_dummy_args(batch_size=None))
+    # 1b) load model
+    ensemble = NeuralRelationClassifierEnsemble(ensemble_path=ensemble_path, args=get_dummy_args(),
+                                                train_size=len(train), seeds=[10])
+    model = ensemble.models[0]
 
-    for model in ensemble.models:
-        score = model.evaluate(test)
+    # 2) helper method
+    def filter_label(dataset: tf.data.Dataset, relations: List, label: str) -> Tuple[tf.data.Dataset, List[Dict]]:
+        """
+        filter data (tensorflow dataset and relation list) for samples with target relation label
+        """
+        # 1) search for relevant indices
+        label_filtered_indexes = [i for i, relation in enumerate(test_relations) if
+                                  relation[RELATION_TYPE] == label]
+        # 2a) filter relations for indices
+        relations_filtered = [r for i, r in enumerate(relations) if i in label_filtered_indexes]
+
+        # 2b) filter dataset for indices
+        filtered_input_ids = []
+        filtered_attention_masks = []
+        filtered_labels = []
+        for i, x in enumerate(dataset.as_numpy_iterator()):
+            if i in label_filtered_indexes:
+                input_ids_tensor, attention_mask_tensor, label_tensor = tf.nest.flatten(x)
+                filtered_input_ids.append(input_ids_tensor)
+                filtered_attention_masks.append(attention_mask_tensor)
+                filtered_labels.append(label_tensor)
+        filtered_dataset = _create_dataset(tf.constant(filtered_input_ids), tf.constant(filtered_attention_masks),
+                                           tf.constant(filtered_labels))
+
+        return filtered_dataset, relations_filtered
+
+    # 3) create evaluations for filtered relation sets
+    for label in [DIRECTLY_FOLLOWING, EVENTUALLY_FOLLOWING, EXCLUSIVE, CONCURRENT]:
+        print(f" Evaluate {label} ... ".center(100, '+'))
+        test_dataset_label_filtered, test_relations_label_filtered = filter_label(test_dataset, test_relations, label)
+        print(f"Filtered {len(test_relations_label_filtered)} samples")
+        score = model.evaluate(test_dataset_label_filtered)
         print(score)
+        loss, accuracy, precision, recall = score
 
 
-def get_dummy_args():
+def get_dummy_args(batch_size: int = 8):
     """
     necessary to pass arguments to ensemble and 'create_activity_relation_cls_dataset_full' call in evaluate_ensemble
     IMPORTANT: argument values must match with the ones that were used during training of the ensemble
+    :param batch_size: batch_size
     :return:
     """
     parser = argparse.ArgumentParser()
     # Standard params
-    parser.add_argument("--batch_size", default=8, type=int, help="Batch size.")
+    parser.add_argument("--batch_size", default=batch_size, type=int, help="Batch size.")
+    parser.add_argument("--epochs", default=1, type=int, help="Epochs")
     parser.add_argument("--seed_general", default=42, type=int, help="Random seed.")
     parser.add_argument("--test_docs", default=True, type=bool,
                         help="Flag if predefined docs should be used as test set")
