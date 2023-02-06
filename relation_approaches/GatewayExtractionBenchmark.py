@@ -3,8 +3,6 @@ import os
 import sys
 
 # find recursively the project root dir
-from relation_approaches.RelationClassificationBenchmark import get_dummy_args
-
 parent_dir = str(os.getcwdb())
 while not os.path.exists(os.path.join(parent_dir, "README.md")):
     parent_dir = os.path.abspath(os.path.join(parent_dir, os.pardir))
@@ -14,9 +12,8 @@ from typing import Dict, List
 from copy import deepcopy
 import logging
 import json
-from abc import abstractmethod, ABC
+from abc import abstractmethod
 
-import pandas as pd
 from petreader.labels import *
 
 from relation_approaches.AbstractClassificationBenchmark import AbstractClassificationBenchmark
@@ -25,6 +22,7 @@ from relation_approaches.RelationClassifier import DFBaselineRelationClassifier,
     NeuralRelationClassifierEnsemble
 from relation_approaches.activity_relation_data_preparation import DOC_BLACK_LIST
 from relation_approaches.activity_relation_dataset_preparation import TEST_DOCS
+from relation_approaches.RelationClassificationBenchmark import get_dummy_args
 from relation_approaches import metrics
 from utils import ROOT_DIR, save_as_pickle, flatten_list
 from PetReader import pet_reader
