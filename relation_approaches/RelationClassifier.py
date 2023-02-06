@@ -359,15 +359,19 @@ class NeuralRelationClassifierEnsemble(Ensemble):
         super().__init__(architecture_dict[kwargs["args"].architecture], seeds, ensemble_path, es_monitor, seed_limit,
                          **kwargs)
 
-    def predict_test_set(self, test: tf.data.Dataset) -> np.ndarray:
+    def predict_test_set(self, test: tf.data.Dataset, one_model: bool = False) -> np.ndarray:
         """
         predict labels of given test set
         :param test: tensorflow data set
+        :param one_model: flag if only one model/seed should be used
         :return: numpy array with numeric labels
         """
-        predictions = [m.predict(test) for m in self.models]
-        predictions_averaged = np.mean(predictions, axis=0)
-        predictions_argmax = np.argmax(predictions_averaged, axis=-1)
+        if one_model:
+            predictions = self.models[0].predict(test)
+        else:
+            predictions = [m.predict(test) for m in self.models]
+            predictions = np.mean(predictions, axis=0)
+        predictions_argmax = np.argmax(predictions, axis=-1)
         return predictions_argmax
 
 

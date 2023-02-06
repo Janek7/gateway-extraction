@@ -16,7 +16,11 @@ from collections import Counter
 from petreader.labels import *
 
 from relation_approaches.RelationClassifier import RelationClassifier, GoldstandardRelationClassifier, \
-    RandomBaselineRelationClassifier, DFBaselineRelationClassifier
+    RandomBaselineRelationClassifier, DFBaselineRelationClassifier, NeuralRelationClassifierEnsemble, \
+    create_relation_benchmark_format
+from relation_approaches.activity_relation_dataset_preparation import TEST_DOCS, \
+    create_activity_relation_cls_dataset_full
+from relation_approaches.RelationClassificationBenchmark import get_dummy_args
 from PetReader import pet_reader
 from labels import *
 from utils import GatewayExtractionException, debugging, flatten_list
@@ -133,14 +137,27 @@ class GatewayExtractor:
     extracts Gateways in a rule-based manner using relations between activities provided by a RelationClassifier
     """
 
-    def __init__(self, relation_classifier: RelationClassifier, full_branch_vote: bool = True):
+    def __init__(self, relation_classifier, full_branch_vote: bool = True):
         """
         defines a new GatewayExtractor by passing the RelationClassifier
-        :param relation_classifier: RelationClassifier obj
+        :param relation_classifier: RelationClassifier or NeuralRelationClassifierEnsemble obj
         :param full_branch_vote: flag if full branches should be used for gateway type determination
         """
         self.relation_classifier = relation_classifier
         self.full_branch_vote = full_branch_vote
+
+        if isinstance(self.relation_classifier, NeuralRelationClassifierEnsemble):
+            self.pred_relations_per_doc = self._prepare_test_predictions()
+
+    def _prepare_test_predictions(self) -> Dict[str, List[Dict]]:
+        """
+        create predictions on test set
+        :return: predictions in ready to use format (tuple of a1, a2, relation_type) for each document
+        """
+        _, test_dataset, test_relations = create_activity_relation_cls_dataset_full(get_dummy_args())
+        predictions = self.relation_classifier.predict_test_set(test_dataset, one_model=True)
+        pred_relations_per_doc = create_relation_benchmark_format(predictions, test_relations)
+        return pred_relations_per_doc
 
     def extract_document_gateways(self, doc_name: str, doc_processing_number: int) -> List[Gateway]:
         """
@@ -150,11 +167,17 @@ class GatewayExtractor:
         :return: list of Gateway objects
         """
         logger.info(f" {doc_name} ({doc_processing_number}) ".center(150, "*"))
-        doc_activities = pet_reader.get_activities_in_relation_approach_format(doc_name)
 
         relations = []
-        for a1, a2 in itertools.combinations(doc_activities, 2):
-            relations.append([a1, a2, self.relation_classifier.predict_activity_pair(doc_name, a1, a2)])
+        if isinstance(self.relation_classifier, NeuralRelationClassifierEnsemble):
+            if doc_name in TEST_DOCS:
+                relations = self.pred_relations_per_doc[doc_name]
+            else:
+                raise GatewayExtractionException("NeuralRelationClassifierEnsemble can be only applied to test docs")
+        else:
+            doc_activities = pet_reader.get_activities_in_relation_approach_format(doc_name)
+            for a1, a2 in itertools.combinations(doc_activities, 2):
+                relations.append([a1, a2, self.relation_classifier.predict_activity_pair(doc_name, a1, a2)])
 
         split_points = self._detect_split_points(relations)
         merge_points = self._detect_merge_points(relations)
