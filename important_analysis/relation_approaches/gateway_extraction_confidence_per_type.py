@@ -38,8 +38,8 @@ def average_confidence_scores(gateway_extractions_file: str) -> Dict[str, float]
 
 
 if __name__ == '__main__':
-    full_vote = average_confidence_scores("data/results_relation_approaches/gateway_extraction/ge=standard_rc=goldstandard_vote=full_TESTDOCS/predictions.json")
+    full_vote = average_confidence_scores("data/results_relation_approaches/gateway_extraction/ge=standard_rc=brcnn128_vote=full/predictions.json")
     print(f"full_vote: {full_vote}")
 
-    limited_vote = average_confidence_scores("data/results_relation_approaches/gateway_extraction/ge=standard_rc=goldstandard_vote=limited_TESTDOCS/predictions.json")
+    limited_vote = average_confidence_scores("data/results_relation_approaches/gateway_extraction/ge=standard_rc=brcnn128_vote=limited/predictions.json")
     print(f"limited_vote: {limited_vote}")

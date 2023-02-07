@@ -9,11 +9,6 @@ while not os.path.exists(os.path.join(parent_dir, "README.md")):
     parent_dir = os.path.abspath(os.path.join(parent_dir, os.pardir))
 sys.path.insert(0, parent_dir)
 
-import json
-from typing import List, Tuple
-
-from petreader.labels import *
-import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
@@ -21,10 +16,6 @@ from utils import ROOT_DIR
 from labels import *
 
 Ns = [1, 2, 5, 10, 30]
-
-
-# TODO: include all
-# TODO: equal visual distance between x ticks
 
 
 def plot_f1_nearest_n_correlation(results_folder: str, approach_name: str) -> None:
@@ -75,5 +66,5 @@ def plot_f1_nearest_n_correlation(results_folder: str, approach_name: str) -> No
 
 if __name__ == '__main__':
     plot_f1_nearest_n_correlation(
-        "data/results_relation_approaches/relation_classification/brcnn_128_seed10",
-        "brcnn_128_seed10")
+        "data/results_relation_approaches/relation_classification/brcnn_128",
+        "brcnn_128")

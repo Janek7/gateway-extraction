@@ -70,7 +70,7 @@ def plot_confidence_size_correlation(gateway_extractions_file: str, plot_name: s
 
 
 if __name__ == '__main__':
-    plot_confidence_size_correlation("data/results_relation_approaches/gateway_extraction/ge=standard_rc=goldstandard_vote=full/predictions.json",
-                                     "rc=goldstandard_confidence_plot")
+    plot_confidence_size_correlation("data/results_relation_approaches/gateway_extraction/ge=standard_rc=brcnn128_vote=full/predictions.json",
+                                     "rc=brcnn_confidence_plot")
 
 
