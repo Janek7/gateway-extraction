@@ -121,20 +121,22 @@ if __name__ == '__main__':
 
     # two cases to evaluate with sg classification model
     test_cases = [#(KeywordsSGCApproach, 'literature', LITERATURE),
-                  #(KeywordsSGCApproach, 'custom', CUSTOM),
+                  (KeywordsSGCApproach, 'custom', CUSTOM),
                   # keywords here only dummy -> overwritten by filter_gateways
-                  (GoldGatewaysSGCApproach, 'custom', CUSTOM)]
+                  # (GoldGatewaysSGCApproach, 'custom', CUSTOM)
+        ]
 
     for approach_class, approach_name, keywords in test_cases:
         keyword_filtered_approach = approach_class(
             # params of keyword approach
-            approach_name=f'key_words_{approach_name}_sg_classified_rules_[e5_context_text_labels_ngram_c1_n0_syn]',
+            approach_name=f'key_words_{approach_name}_sg_classified_rules_[e5_context_text_labels_ngram_c1_n0_syn]_s1',
             keywords=keywords,
             # if commented -> with rules, if not commented and params active -> without rules
             #blacklist_or=False,
             #distance_threshold=None,
             # params of same gateway ensemble model
-            ensemble_path="/home/japutz/master-thesis/data/final_models/SameGatewayClassifier-2023-01-05_091133-am=not,bs=8,cs=1,d=0.2,e=True,e=5,f=2,g=XOR Gateway,hl=32,lr=2e-05,m=context_text_and_labels_n_gram,ng=0,r=ft,sg=42,se=10-20,sw=True,us=True,w=0"
+            ensemble_path="/home/japutz/master-thesis/data/final_models/SameGatewayClassifier-2023-01-05_091133-am=not,bs=8,cs=1,d=0.2,e=True,e=5,f=2,g=XOR Gateway,hl=32,lr=2e-05,m=context_text_and_labels_n_gram,ng=0,r=ft,sg=42,se=10-20,sw=True,us=True,w=0",
+            seed_limit=1
         )
         keyword_filtered_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
         keyword_filtered_approach.same_gateway_classifier.save_prediction_logs()
