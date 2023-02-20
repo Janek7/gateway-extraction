@@ -13,7 +13,7 @@ from collections import Counter
 
 from utils import ROOT_DIR
 
-with open(os.path.join(ROOT_DIR, "data/paper_stats/activity_relation/labels_from_longer_512.txt"), "r") as file:
+with open(os.path.join(ROOT_DIR, "data/paper_stats/activity_relation/data_stats/labels_from_longer_512.txt"), "r") as file:
     labels = [int(line) for line in file.readlines()]
     print(len(labels))
     print(Counter(labels))

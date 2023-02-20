@@ -46,8 +46,15 @@ def average_metrics(metric_list: List[Dict], round_digits: int = 2, support_weig
 
 if __name__ == '__main__':
     data = [
-        [0.45,	0.62],
+        [0.018,    0.004],
+        [0.006,    0.000],
+        [0.010,    0.000],
+        [0.01 ,   0.001],
+        [0.000,    0.001],
+
+        [0.001 ,   0.026],
+        [0.002 ,   0.092],
     ]
     for p, r in data:
-        print(round(f1(p, r), 4))
+        print(round(f1(p, r), 3))
 

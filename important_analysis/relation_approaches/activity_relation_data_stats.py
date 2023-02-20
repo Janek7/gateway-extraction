@@ -44,7 +44,7 @@ def _create_statistics():
     doc_stats = df.groupby(DOC_NAME).count().describe()
     print(doc_stats)
 
-    with pd.ExcelWriter(os.path.join(ROOT_DIR, 'data/paper_stats/activity_relation/activity_relation_data_stats.xlsx')) \
+    with pd.ExcelWriter(os.path.join(ROOT_DIR, 'data/paper_stats/activity_relation/data_stats/activity_relation_data_stats.xlsx')) \
             as writer:
         relation_type_count.to_excel(writer, sheet_name='Relation Type Count')
         relation_type_same_sentence_count.to_excel(writer, sheet_name='Same Sentence Count')
@@ -54,7 +54,7 @@ def _create_statistics():
 
 
 def _analyze_nested_gateways():
-    with open(os.path.join(ROOT_DIR, "data/paper_stats/activity_relation/nested_gateways.json"), 'r') as file:
+    with open(os.path.join(ROOT_DIR, "data/paper_stats/activity_relation/data_stats/nested_gateways.json"), 'r') as file:
         nested_gateways = json.load(file)["nested_gateways"]
     df = pd.DataFrame.from_dict(nested_gateways)
 
@@ -67,20 +67,20 @@ def _analyze_nested_gateways():
 
     print("-" * 100)
 
-    with pd.ExcelWriter(os.path.join(ROOT_DIR, 'data/paper_stats/activity_relation/nested_gateways.xlsx')) as writer:
+    with pd.ExcelWriter(os.path.join(ROOT_DIR, 'data/paper_stats/activity_relation/data_stats/nested_gateways.xlsx')) as writer:
         df.to_excel(writer, sheet_name='Nested Gateways', index=False)
         parent_stats.to_excel(writer, sheet_name='Nested Gateways Grouped')
 
 
 def _analyze_branch_lengths():
-    with open(os.path.join(ROOT_DIR, "data/paper_stats/activity_relation/branch_lengths.json"),'r') as file:
+    with open(os.path.join(ROOT_DIR, "data/paper_stats/activity_relation/data_stats/branch_lengths.json"),'r') as file:
         branch_lengths = json.load(file)["branch_lengths"]
     df = pd.DataFrame.from_dict(branch_lengths)
 
     stats = df.describe()
     print(stats)
 
-    with pd.ExcelWriter(os.path.join(ROOT_DIR, 'data/paper_stats/activity_relation/branch_lengths.xlsx')) as writer:
+    with pd.ExcelWriter(os.path.join(ROOT_DIR, 'data/paper_stats/activity_relation/data_stats/branch_lengths.xlsx')) as writer:
         df.to_excel(writer, sheet_name='Branch lengths', index=False)
         stats.to_excel(writer, sheet_name='Branch lengths stats')
 
