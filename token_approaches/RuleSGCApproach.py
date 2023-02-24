@@ -135,8 +135,8 @@ if __name__ == '__main__':
             # blacklist_or=False,
             # distance_threshold=None,
             # params of same gateway ensemble model
-            ensemble_path="/home/japutz/master-thesis/data/final_models/SameGatewayClassifier-2023-01-05_091133-am=not,bs=8,cs=1,d=0.2,e=True,e=5,f=2,g=XOR Gateway,hl=32,lr=2e-05,m=context_text_and_labels_n_gram,ng=0,r=ft,sg=42,se=10-20,sw=True,us=True,w=0",
-            seed_limit=1
+            ensemble_path=config[MODELS][SAME_GATEWAY_CLASSIFIER],
+            # seed_limit=1  # enable in case of memory issues
         )
         rule_sgc_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
         rule_sgc_approach.same_gateway_classifier.save_prediction_logs()

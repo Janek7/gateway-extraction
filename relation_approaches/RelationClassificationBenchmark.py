@@ -21,7 +21,7 @@ from relation_approaches.RelationClassifier import RelationClassifier, NeuralRel
 from relation_approaches.activity_relation_dataset_preparation import create_activity_relation_cls_dataset_full,\
     _create_dataset
 from relation_approaches import metrics
-from utils import ROOT_DIR
+from utils import ROOT_DIR, config
 from labels import *
 
 logger = logging.getLogger('Relation Classification Benchmark')
@@ -178,8 +178,4 @@ def get_dummy_args(batch_size: int = 8):
 
 
 if __name__ == '__main__':
-    ensemble_path_normal = "/home/japutz/master-thesis/data/final_models/RelationClassifier-2023-02-02_104323-a=brcnn,bs=8,cb=1,dse=False,d=0.0,e=True,e=10,fi=2,fss=32,f=5,hl=32,ks=3,lr=2e-05,ps=2,rb=False,rc=LSTM,ru=128,r=ft,sg=42,se=10-20,sw=True,td=True,ts=0.1,w=0"
-    evaluate_ensemble_native("brcnn_128_seed10", ensemble_path_normal)
-
-    ensemble_path_downsampled = "/home/japutz/master-thesis/data/final_models/RelationClassifier-2023-02-04_072611-a=brcnn,bs=8,cb=1,dse=True,d=0.0,e=True,e=10,fi=2,fss=32,f=5,hl=32,ks=3,lr=2e-05,ps=2,rb=False,rc=LSTM,ru=128,r=ft,sg=42,se=10-20,sw=True,td=True,ts=0.1,w=0"
-    evaluate_ensemble_native("brcnn_128_seed10_downsampled", ensemble_path_downsampled)
+    evaluate_ensemble_native("brcnn_128_seed10", config[MODELS][ACTIVITY_RELATION_CLASSIFIER])

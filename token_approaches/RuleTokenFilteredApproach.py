@@ -169,9 +169,8 @@ if __name__ == '__main__':
             # params of rule based approach
             approach_name=f'rule-based_{approach_name}_tc_filtered_[all_0.1_og]_fixed',
             **params,
-            # params of sg cls model
-            ensemble_path="/home/japutz/master-thesis/data/final_models/GatewayTokenClassifier-2023-01-05_075214-am=not,bs=8,e=True,e=1,f=2,l=all,olw=0.1,r=ft,ss=og,sg=42,se=0-20,sw=True,us=False",
-            mode=DROP, filtering_log_level=FILE)
+            # params of token cls model
+            ensemble_path=config[MODELS][TOKEN_CLASSIFIER], mode=DROP, filtering_log_level=FILE)
 
         rule_token_filtered_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
 

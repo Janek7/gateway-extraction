@@ -502,18 +502,3 @@ if __name__ == '__main__':
 
     # test one
     gateway_extractor.extract_document_gateways_debug(doc_name="doc-3.2")
-
-    # simple one
-    # gateway_extractor.extract_document_gateways(doc_name="doc-3.8")
-
-    # not closing gateway at the beginning;optional gateway at the end;nested gateways opening behind each other
-    # gateway_extractor.extract_document_gateways(doc_name="doc-1.2")
-
-    # not closing gateway at the beginning;optional gateway at the end;nested gateways closing behind each other
-    # gateway_extractor.extract_document_gateways(doc_name="doc-1.1")
-
-    # includes gateway at start
-    # gateway_extractor.extract_document_gateways(doc_name="doc-10.14")
-
-    # includes gateways directly following -> split point is other gateways merge point
-    # gateway_extractor.extract_document_gateways(doc_name="doc-3.2")

@@ -467,16 +467,5 @@ if __name__ == '__main__':
     # this seed is used by default (only overwritten in case of ensemble)
     set_seeds(args.seed_general, "args - used for dataset split/shuffling")
 
-    # goldstandard_classifier = GoldstandardRelationClassifier()
-    # relations = classify_documents(goldstandard_classifier, ["doc-9.5"])
-    #
-    # for doc_name, doc_relations in relations.items():
-    #     print(doc_name.center(100, '-'))
-    #     for r in doc_relations:
-    #         print(r)
-
     train_routine(args)
 
-    # train, test, test_relations = create_activity_relation_cls_dataset_full(args)
-
-    # ensemble = NeuralRelationClassifierEnsemble(log_folder="TEST", seeds=[1,2], args=args)

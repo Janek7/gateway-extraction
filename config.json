@@ -13,5 +13,10 @@
   "activity-relation-classifier": {
     "eventually-follows-sample-limit": 500
   },
-  "es_patience": 1
+  "es-patience": 1,
+  "final-models": {
+    "token-classifier": "/home/japutz/master-thesis/data/final_models/SameGatewayClassifier-2023-01-05_091133-am=not,bs=8,cs=1,d=0.2,e=True,e=5,f=2,g=XOR Gateway,hl=32,lr=2e-05,m=context_text_and_labels_n_gram,ng=0,r=ft,sg=42,se=10-20,sw=True,us=True,w=0",
+    "same-gateway-classifier": "/home/japutz/master-thesis/data/final_models/SameGatewayClassifier-2023-01-05_091133-am=not,bs=8,cs=1,d=0.2,e=True,e=5,f=2,g=XOR Gateway,hl=32,lr=2e-05,m=context_text_and_labels_n_gram,ng=0,r=ft,sg=42,se=10-20,sw=True,us=True,w=0",
+    "activity-relation-classifier": "/home/japutz/master-thesis/data/final_models/RelationClassifier-2023-02-02_104323-a=brcnn,bs=8,cb=1,dse=False,d=0.0,e=True,e=10,fi=2,fss=32,f=5,hl=32,ks=3,lr=2e-05,ps=2,rb=False,rc=LSTM,ru=128,r=ft,sg=42,se=10-20,sw=True,td=True,ts=0.1,w=0"
+  }
 }

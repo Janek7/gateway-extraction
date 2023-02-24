@@ -6,12 +6,14 @@ BERT_MODEL_NAME = 'bert-model-name'
 LABEL_SET = 'label-set'
 LABEL_NUMBER = 'label-number'
 NUM_LABELS = 'num-labels'
+TOKEN_CLASSIFIER = 'token-classifier'
 SAME_GATEWAY_CLASSIFIER = 'same-gateway-classifier'
 ACTIVITY_RELATION_CLASSIFIER = 'activity-relation-classifier'
 CONTEXT_LABEL_LENGTH = 'context-label-length'
 SYNONYM_SAMPLES_START_NUMBER = 'synonym-samples-start-number'
 EVENTUALLY_FOLLOWS_SAMPLE_LIMIT = 'eventually-follows-sample-limit'
-ES_PATIENCE = 'es_patience'
+ES_PATIENCE = 'es-patience'
+MODELS = 'final-models'
 
 # B) LABELS FOR KEYWORDSAPPROACH
 

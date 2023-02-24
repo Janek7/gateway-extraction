@@ -18,13 +18,12 @@ from petreader.labels import *
 
 from relation_approaches.AbstractClassificationBenchmark import AbstractClassificationBenchmark
 from relation_approaches.GatewayExtractor import GatewayExtractor, Gateway
-from relation_approaches.RelationClassifier import DFBaselineRelationClassifier, GoldstandardRelationClassifier, \
-    NeuralRelationClassifierEnsemble
+from relation_approaches.RelationClassifier import NeuralRelationClassifierEnsemble
 from relation_approaches.activity_relation_data_preparation import DOC_BLACK_LIST
 from relation_approaches.activity_relation_dataset_preparation import TEST_DOCS
 from relation_approaches.RelationClassificationBenchmark import get_dummy_args
 from relation_approaches import metrics
-from utils import ROOT_DIR, save_as_pickle, flatten_list
+from utils import ROOT_DIR, save_as_pickle, flatten_list, config
 from PetReader import pet_reader
 from labels import *
 
@@ -191,12 +190,15 @@ if __name__ == '__main__':
 
     # C) evaluate with BRCNN predicted relations
     brcnn_ensemble = NeuralRelationClassifierEnsemble(
-        ensemble_path="/home/japutz/master-thesis/data/final_models/RelationClassifier-2023-02-02_104323-a=brcnn,bs=8,cb=1,dse=False,d=0.0,e=True,e=10,fi=2,fss=32,f=5,hl=32,ks=3,lr=2e-05,ps=2,rb=False,rc=LSTM,ru=128,r=ft,sg=42,se=10-20,sw=True,td=True,ts=0.1,w=0",
-        args=get_dummy_args(), train_size=100, seeds=[10]
+        ensemble_path=config[MODELS][ACTIVITY_RELATION_CLASSIFIER],
+        args=get_dummy_args(),
+        train_size=100, # only dummy value, not used
+        # activate in case of memory issues
+        # seeds=[10]
     )
 
     for name, full_branch_vote in [("full", True), ("limited", False)]:
-        geb_full = SimpleGatewayTypeAndNumberBenchmark(approach_name=f"ge=standard_rc=brcnn128seed10_vote={name}",
+        geb_full = SimpleGatewayTypeAndNumberBenchmark(approach_name=f"ge=standard_rc=brcnn128_vote={name}",
                                                        gateway_extractor=GatewayExtractor(brcnn_ensemble,
                                                                                           full_branch_vote=full_branch_vote))
         geb_full.evaluate_documents(TEST_DOCS)
