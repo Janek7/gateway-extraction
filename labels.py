@@ -12,10 +12,11 @@ ACTIVITY_RELATION_CLASSIFIER = 'activity-relation-classifier'
 CONTEXT_LABEL_LENGTH = 'context-label-length'
 SYNONYM_SAMPLES_START_NUMBER = 'synonym-samples-start-number'
 EVENTUALLY_FOLLOWS_SAMPLE_LIMIT = 'eventually-follows-sample-limit'
+MAX_LENGTH_RELATION_TEXT = 'max-length-relation-text'
 ES_PATIENCE = 'es-patience'
 MODELS = 'final-models'
 
-# B) LABELS FOR KEYWORDSAPPROACH
+# B) LABELS FOR RULE APPROACH
 
 # available sets of keywords and contradictory keywords
 LITERATURE = 'literature'  # only keyword

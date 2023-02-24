@@ -35,7 +35,7 @@ label_dict = {
 }
 
 # maximal length of relation text (concatenation of text between activities and activity entities)
-MAX_LENGTH = 512
+MAX_LENGTH = config[ACTIVITY_RELATION_CLASSIFIER][MAX_LENGTH_RELATION_TEXT]
 
 # load predefined test set docs here once for the whole activity relation module
 TEST_DOCS = load_activity_relation_test_docs()
