@@ -192,7 +192,7 @@ if __name__ == '__main__':
     brcnn_ensemble = NeuralRelationClassifierEnsemble(
         ensemble_path=config[MODELS][ACTIVITY_RELATION_CLASSIFIER],
         args=get_dummy_args(),
-        train_size=100, # only dummy value, not used
+        train_size=100,  # only dummy value, not used
         # activate in case of memory issues
         # seeds=[10]
     )

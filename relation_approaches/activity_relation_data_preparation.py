@@ -18,11 +18,13 @@ from petreader.labels import *
 
 from labels import *
 from PetReader import pet_reader
-from utils import config, GatewayExtractionException, ROOT_DIR, load_pickle, save_as_pickle, get_loop_flows
+from utils import  GatewayExtractionException, ROOT_DIR, load_pickle, save_as_pickle, load_loop_flows, \
+    load_activity_relation_black_list_docs
 
 logger = logging.getLogger('Data Generation [Activity Relations]')
-DOC_BLACK_LIST = ['doc-6.4']# , 'doc-6.1']
-loop_flows = get_loop_flows()
+# load predefined black list docs here once for the whole activity relation module
+DOC_BLACK_LIST = load_activity_relation_black_list_docs()
+loop_flows = load_loop_flows()
 
 # lists for stats counting of nested gateways & branch lengths
 nested_gateways = []

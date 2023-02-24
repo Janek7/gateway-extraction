@@ -21,7 +21,7 @@ import transformers
 
 from PetReader import pet_reader
 from relation_approaches.activity_relation_data_preparation import get_activity_relations
-from utils import set_seeds, config, ROOT_DIR, load_pickle, save_as_pickle
+from utils import set_seeds, config, ROOT_DIR, load_pickle, save_as_pickle, load_activity_relation_test_docs
 from labels import *
 
 logger = logging.getLogger('Data Preparation [Activity Relations]')
@@ -37,8 +37,8 @@ label_dict = {
 # maximal length of relation text (concatenation of text between activities and activity entities)
 MAX_LENGTH = 512
 
-# predefined test set of random docs (about 10% of relations of the whole set)
-TEST_DOCS = ["doc-1.3", "doc-10.2", "doc-10.9", "doc-3.6", "doc-5.3", "doc-7.1"]
+# load predefined test set docs here once for the whole activity relation module
+TEST_DOCS = load_activity_relation_test_docs()
 
 
 _tokenizer = transformers.AutoTokenizer.from_pretrained(config[KEYWORDS_FILTERED_APPROACH][BERT_MODEL_NAME])

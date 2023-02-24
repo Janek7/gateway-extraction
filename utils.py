@@ -178,7 +178,7 @@ def write_gold_contradictory_keywords_to_files() -> None:
         return contradictory_gateways
 
 
-def get_loop_flows() -> Dict[str, Dict]:
+def load_loop_flows() -> Dict[str, Dict]:
     """
     load flows that cause loops from file
     :return: dictionary with sequence flow that causes loop for each document where a loop is contained
@@ -189,6 +189,26 @@ def get_loop_flows() -> Dict[str, Dict]:
             loop_flows[doc_name][SOURCE] = tuple(loop_flows[doc_name][SOURCE])
             loop_flows[doc_name][TARGET] = tuple(loop_flows[doc_name][TARGET])
         return loop_flows
+
+
+def load_activity_relation_test_docs() -> List[str]:
+    """
+    reads list of test docs stored in json file
+    predefined test set of random docs (about 10% of relations of the whole set)
+    :return: list of doc names
+    """
+    with open(os.path.join(ROOT_DIR, "data/activity_relation/test_docs.json", "r")) as file:
+        return json.load(file)["test_docs"]
+
+
+def load_activity_relation_black_list_docs() -> List[str]:
+    """
+    reads list of black list stored in json file
+    documents contain black list with very complicated nested structures where data generation fails
+    :return: list of doc names
+    """
+    with open(os.path.join(ROOT_DIR, "data/activity_relation/black_list.json"), "r") as file:
+        return json.load(file)["black_list_docs"]
 
 
 def format_json_file(filename: str, indent: int = 4) -> None:
@@ -367,8 +387,3 @@ def get_seed_list(seed_param_str: str):
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    # goldstandards_to_json()
-
-    # xor_keywords, and_keywords = read_keywords(CUSTOM)
-    # print(xor_keywords)
-    # print(and_keywords)
