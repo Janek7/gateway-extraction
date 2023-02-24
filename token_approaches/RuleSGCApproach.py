@@ -24,16 +24,16 @@ tf.compat.v1.keras.backend.set_session(session)
 
 from PetReader import pet_reader
 from token_approaches.SameGatewayClassifier import SGCEnsemble
-from token_approaches.KeywordsApproach import KeywordsApproach
+from token_approaches.RuleApproach import RuleApproach
 from utils import config, set_seeds
 from labels import *
 
-logger = logging.getLogger('Keywords Same Gateway Filtered Approach')
+logger = logging.getLogger('Rule Same Gateway Classified Approach')
 
 
-class KeywordsSGCApproach(KeywordsApproach):
+class RuleSGCApproach(RuleApproach):
     """
-    extend KeywordsApproach by evaluating same gateway relations with model
+    extend RuleApproach by evaluating same gateway relations with model
     """
 
     def __init__(self, approach_name: str = None, blacklist_or: bool = True, distance_threshold: int = 3,
@@ -98,9 +98,9 @@ class KeywordsSGCApproach(KeywordsApproach):
         return same_gateway_pairs
 
 
-class GoldGatewaysSGCApproach(KeywordsSGCApproach):
+class GoldGatewaysSGCApproach(RuleSGCApproach):
     """
-    extend KeywordsSGCApproach by using gold data for gateway tokens to see what would be possible with trained SGC
+    extend RuleSGCApproach by using gold data for gateway tokens to see what would be possible with trained SGC
     when it is based on gold token/gateway data
     """
 
@@ -120,30 +120,30 @@ if __name__ == '__main__':
     set_seeds(config[SEED], "Set first seed")
 
     # two cases to evaluate with sg classification model
-    test_cases = [#(KeywordsSGCApproach, 'literature', LITERATURE),
-                  (KeywordsSGCApproach, 'custom', CUSTOM),
-                  # keywords here only dummy -> overwritten by filter_gateways
-                  # (GoldGatewaysSGCApproach, 'custom', CUSTOM)
-        ]
+    test_cases = [  # (RuleSGCApproach, 'literature', LITERATURE),
+        (RuleSGCApproach, 'custom', CUSTOM),
+        # keywords here only dummy -> overwritten by filter_gateways
+        # (GoldGatewaysSGCApproach, 'gold', 'custom')
+    ]
 
     for approach_class, approach_name, keywords in test_cases:
-        keyword_filtered_approach = approach_class(
+        rule_sgc_approach = approach_class(
             # params of keyword approach
             approach_name=f'key_words_{approach_name}_sg_classified_rules_[e5_context_text_labels_ngram_c1_n0_syn]_s1',
             keywords=keywords,
             # if commented -> with rules, if not commented and params active -> without rules
-            #blacklist_or=False,
-            #distance_threshold=None,
+            # blacklist_or=False,
+            # distance_threshold=None,
             # params of same gateway ensemble model
             ensemble_path="/home/japutz/master-thesis/data/final_models/SameGatewayClassifier-2023-01-05_091133-am=not,bs=8,cs=1,d=0.2,e=True,e=5,f=2,g=XOR Gateway,hl=32,lr=2e-05,m=context_text_and_labels_n_gram,ng=0,r=ft,sg=42,se=10-20,sw=True,us=True,w=0",
             seed_limit=1
         )
-        keyword_filtered_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
-        keyword_filtered_approach.same_gateway_classifier.save_prediction_logs()
+        rule_sgc_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
+        rule_sgc_approach.same_gateway_classifier.save_prediction_logs()
 
     if False:
         doc_name = 'doc-3.2'
-        xor_gateways, and_gateways, doc_flows, same_gateway_relations = keyword_filtered_approach.process_document(
+        xor_gateways, and_gateways, doc_flows, same_gateway_relations = rule_sgc_approach.process_document(
             doc_name)
 
         print(" Concurrent gateways ".center(50, '-'))

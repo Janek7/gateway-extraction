@@ -3,6 +3,7 @@
 # add parent dir to sys path for import of modules
 import os
 import sys
+
 # find recursively the project root dir
 parent_dir = str(os.getcwdb())
 while not os.path.exists(os.path.join(parent_dir, "README.md")):
@@ -16,6 +17,7 @@ from typing import List, Tuple
 
 from petreader.labels import *
 import tensorflow as tf
+
 # fix for exception "Attempting to perform BLAS operation using StreamExecutor without BLAS support"
 config = tf.compat.v1.ConfigProto(gpu_options=tf.compat.v1.GPUOptions(per_process_gpu_memory_fraction=0.8))
 config.gpu_options.allow_growth = True
@@ -23,18 +25,18 @@ session = tf.compat.v1.Session(config=config)
 tf.compat.v1.keras.backend.set_session(session)
 
 from token_approaches.GatewayTokenClassifier import GTCEnsemble, convert_predictions_into_labels
-from token_approaches.KeywordsApproach import KeywordsApproach
+from token_approaches.RuleApproach import RuleApproach
 from PetReader import pet_reader
 from token_data_preparation import prepare_token_cls_data
 from utils import config, set_seeds, NumpyEncoder
 from labels import *
 
-logger = logging.getLogger('Keywords Filtered Approach')
+logger = logging.getLogger('Rule Token Filtered Approach')
 
 
-class KeywordsFilteredApproach(KeywordsApproach):
+class RuleTokenFilteredApproach(RuleApproach):
     """
-    extend KeywordsApproach by filtering with GatewayTokenClassifier
+    extend RuleApproach by filtering with GatewayTokenClassifier
     """
 
     def __init__(self, approach_name: str = None, keywords: str = LITERATURE, contradictory_keywords: str = GOLD,
@@ -44,7 +46,7 @@ class KeywordsFilteredApproach(KeywordsApproach):
                  # class / ensemble specific params:
                  ensemble_path: str = None, seed_limit: int = None, mode: str = DROP, filtering_log_level: str = FILE):
         """
-        creates new instance of the advanced keywords filtered approach
+        creates new instance of the advanced rule approach with filtered tokens
         ---- super class params ----
         :param approach_name: description of approach to use in result folder name; if not set use key word variant
         :param keywords: flag/variant which keywords to use; available: literature, gold, own
@@ -163,19 +165,20 @@ if __name__ == '__main__':
     ]
 
     for approach_name, params in test_cases:
-        keyword_filtered_approach = KeywordsFilteredApproach(
-            # params of keyword approach
-            approach_name=f'key_words_{approach_name}_tc_filtered_[all_0.1_og]_fixed',
+        rule_token_filtered_approach = RuleTokenFilteredApproach(
+            # params of rule based approach
+            approach_name=f'rule-based_{approach_name}_tc_filtered_[all_0.1_og]_fixed',
             **params,
             # params of sg cls model
             ensemble_path="/home/japutz/master-thesis/data/final_models/GatewayTokenClassifier-2023-01-05_075214-am=not,bs=8,e=True,e=1,f=2,l=all,olw=0.1,r=ft,ss=og,sg=42,se=0-20,sw=True,us=False",
             mode=DROP, filtering_log_level=FILE)
 
-        keyword_filtered_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
+        rule_token_filtered_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
 
     if False:
         doc_name = 'doc-3.2'
-        xor_gateways, and_gateways, doc_flows, same_gateway_relations = keyword_filtered_approach.process_document(doc_name)
+        xor_gateways, and_gateways, doc_flows, same_gateway_relations = rule_token_filtered_approach.process_document(
+            doc_name)
 
         print(" Concurrent gateways ".center(50, '-'))
         for gateway in and_gateways:

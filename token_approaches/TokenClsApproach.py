@@ -15,7 +15,7 @@ from typing import List, Tuple
 from petreader.labels import *
 
 from GatewayTokenClassifier import GatewayTokenClassifier, convert_predictions_into_labels, GTCEnsemble
-from KeywordsApproach import KeywordsApproach
+from RuleApproach import RuleApproach
 from PetReader import pet_reader
 from token_approaches.token_data_preparation import preprocess_tokenization_data
 from utils import config, set_seeds
@@ -24,7 +24,7 @@ from labels import *
 logger = logging.getLogger('Token Classification Approach')
 
 
-class TokenClsApproach(KeywordsApproach):
+class TokenClsApproach(RuleApproach):
     """
     TODO: rewrite class structure for appropriate inheritance
     use token classification results for gateway extraction -> do not use keyword extraction
