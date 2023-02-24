@@ -6,7 +6,7 @@ Title: *Extraction of Gateways in Process Model Generation from Text*
 
 Author: Janek Putz
 
-Supervisor: Prof. Dr. Han van der Aa (Data and Web Science Group, University of Mannheim)
+Supervisor: [Prof. Dr. Han van der Aa](https://hanvanderaa.com/) ([Data and Web Science Group](https://www.uni-mannheim.de/dws/), University of Mannheim)
 
 Date: Sep 2022 - Feb 2023
 
