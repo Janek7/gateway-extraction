@@ -20,7 +20,7 @@ from relation_approaches.RelationClassifier import RelationClassifier, Goldstand
     create_relation_benchmark_format
 from relation_approaches.activity_relation_dataset_preparation import TEST_DOCS, \
     create_activity_relation_cls_dataset_full
-from relation_approaches.RelationClassificationBenchmark import get_dummy_args
+from relation_approaches.RelationClassificationBenchmark import get_static_args
 from PetReader import pet_reader
 from labels import *
 from utils import GatewayExtractionException, debugging, flatten_list
@@ -154,7 +154,7 @@ class GatewayExtractor:
         create predictions on test set
         :return: predictions in ready to use format (tuple of a1, a2, relation_type) for each document
         """
-        _, test_dataset, test_relations = create_activity_relation_cls_dataset_full(get_dummy_args())
+        _, test_dataset, test_relations = create_activity_relation_cls_dataset_full(get_static_args())
         predictions = self.relation_classifier.predict_test_set(test_dataset, one_model=True)
         pred_relations_per_doc = create_relation_benchmark_format(predictions, test_relations)
         return pred_relations_per_doc

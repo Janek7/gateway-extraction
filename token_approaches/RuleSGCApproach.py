@@ -119,6 +119,21 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     set_seeds(config[SEED], "Set first seed")
 
+    # test single docs
+    if False:
+        doc_name = 'doc-3.2'
+        # necessary to initialize rule_token_filtered_approach with saved model
+        xor_gateways, and_gateways, doc_flows, same_gateway_relations = rule_sgc_approach.process_document(
+            doc_name)
+
+        print(" Concurrent gateways ".center(50, '-'))
+        for gateway in and_gateways:
+            print(gateway)
+
+        print(" Exclusive gateways ".center(50, '-'))
+        for gateway in xor_gateways:
+            print(gateway)
+
     # two cases to evaluate with sg classification model
     test_cases = [  # (RuleSGCApproach, 'literature', LITERATURE),
         (RuleSGCApproach, 'custom', CUSTOM),
@@ -141,15 +156,3 @@ if __name__ == '__main__':
         rule_sgc_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
         rule_sgc_approach.same_gateway_classifier.save_prediction_logs()
 
-    if False:
-        doc_name = 'doc-3.2'
-        xor_gateways, and_gateways, doc_flows, same_gateway_relations = rule_sgc_approach.process_document(
-            doc_name)
-
-        print(" Concurrent gateways ".center(50, '-'))
-        for gateway in and_gateways:
-            print(gateway)
-
-        print(" Exclusive gateways ".center(50, '-'))
-        for gateway in xor_gateways:
-            print(gateway)

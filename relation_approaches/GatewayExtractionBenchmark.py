@@ -21,7 +21,7 @@ from relation_approaches.GatewayExtractor import GatewayExtractor, Gateway
 from relation_approaches.RelationClassifier import NeuralRelationClassifierEnsemble
 from relation_approaches.activity_relation_data_preparation import DOC_BLACK_LIST
 from relation_approaches.activity_relation_dataset_preparation import TEST_DOCS
-from relation_approaches.RelationClassificationBenchmark import get_dummy_args
+from relation_approaches.RelationClassificationBenchmark import get_static_args
 from relation_approaches import metrics
 from utils import ROOT_DIR, save_as_pickle, flatten_list, config
 from PetReader import pet_reader
@@ -172,10 +172,7 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
     logger.setLevel(logging.DEBUG)
 
-    # A) evaluate single documents
-    # geb.evaluate_documents(["doc-1.1", "doc-1.2"])
-
-    # B) evaluate with gold standard relations
+    # A) evaluate with gold standard relations
 
     # geb_full = SimpleGatewayTypeAndNumberBenchmark(approach_name="ge=standard_rc=goldstandard_vote=full_TESTDOCS",
     #                                                gateway_extractor=GatewayExtractor(GoldstandardRelationClassifier(),
@@ -188,10 +185,10 @@ if __name__ == '__main__':
     #                                                       full_branch_vote=False))
     # geb_limited.evaluate_documents(TEST_DOCS)
 
-    # C) evaluate with BRCNN predicted relations
+    # B) evaluate with BRCNN predicted relations
     brcnn_ensemble = NeuralRelationClassifierEnsemble(
         ensemble_path=config[MODELS][ACTIVITY_RELATION_CLASSIFIER],
-        args=get_dummy_args(),
+        args=get_static_args(),
         train_size=100,  # only dummy value, not used
         # activate in case of memory issues
         # seeds=[10]

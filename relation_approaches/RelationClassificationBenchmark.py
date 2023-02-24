@@ -57,9 +57,9 @@ def evaluate_ensemble_native(approach_name: str, ensemble_path: str) -> None:
     """
     logger.info(f"Run evaluation native on each of the single models")
     # 1a) load data
-    train, test_dataset, test_relations = create_activity_relation_cls_dataset_full(get_dummy_args(batch_size=None))
+    train, test_dataset, test_relations = create_activity_relation_cls_dataset_full(get_static_args(batch_size=None))
     # 1b) load model
-    ensemble = NeuralRelationClassifierEnsemble(ensemble_path=ensemble_path, args=get_dummy_args(),
+    ensemble = NeuralRelationClassifierEnsemble(ensemble_path=ensemble_path, args=get_static_args(),
                                                 train_size=len(train), seeds=[10])
     model = ensemble.models[0]
 
@@ -134,7 +134,7 @@ def evaluate_ensemble_native(approach_name: str, ensemble_path: str) -> None:
         evaluation_df.to_excel(writer, sheet_name='Evaluation', index=False)
 
 
-def get_dummy_args(batch_size: int = 8):
+def get_static_args(batch_size: int = 8):
     """
     necessary to pass arguments to ensemble and 'create_activity_relation_cls_dataset_full' call in evaluate_ensemble
     IMPORTANT: argument values must match with the ones that were used during training of the ensemble
@@ -178,4 +178,4 @@ def get_dummy_args(batch_size: int = 8):
 
 
 if __name__ == '__main__':
-    evaluate_ensemble_native("brcnn_128_seed10", config[MODELS][ACTIVITY_RELATION_CLASSIFIER])
+    evaluate_ensemble_native("brcnn_128", config[MODELS][ACTIVITY_RELATION_CLASSIFIER])

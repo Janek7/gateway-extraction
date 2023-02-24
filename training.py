@@ -8,7 +8,7 @@ import tensorflow as tf
 import numpy as np
 
 from Ensemble import Ensemble
-from metrics import f1_normal
+from token_approaches.metrics import f1_normal
 from utils import get_seed_list, save_args_to_file, config
 from labels import *
 

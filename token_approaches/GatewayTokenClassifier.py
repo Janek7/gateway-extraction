@@ -13,14 +13,13 @@ import argparse
 import logging
 from typing import List
 
-import tensorflow as tf
 import transformers
 import numpy as np
 
 from Ensemble import Ensemble
 from token_approaches.token_data_preparation import create_token_cls_dataset_full, create_token_cls_dataset_cv
 from training import cross_validation, full_training
-from metrics import *
+from token_approaches.metrics import *
 from utils import config, generate_args_logdir, set_seeds
 
 logger = logging.getLogger('Gateway Token Classifier')

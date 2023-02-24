@@ -156,6 +156,21 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     set_seeds(config[SEED], "Set first seed")
 
+    # test single doc
+    if False:
+        doc_name = 'doc-3.2'
+        # necessary to initialize rule_token_filtered_approach with saved model
+        xor_gateways, and_gateways, doc_flows, same_gateway_relations = rule_token_filtered_approach.process_document(
+            doc_name)
+
+        print(" Concurrent gateways ".center(50, '-'))
+        for gateway in and_gateways:
+            print(gateway)
+
+        print(" Exclusive gateways ".center(50, '-'))
+        for gateway in xor_gateways:
+            print(gateway)
+
     # three cases to evaluate with filter model
     test_cases = [
         ('literature', {"keywords": LITERATURE}),
@@ -172,17 +187,5 @@ if __name__ == '__main__':
             # params of token cls model
             ensemble_path=config[MODELS][TOKEN_CLASSIFIER], mode=DROP, filtering_log_level=FILE)
 
-        rule_token_filtered_approach.evaluate_documents(evaluate_token_cls=True, evaluate_relation_extraction=True)
-
-    if False:
-        doc_name = 'doc-3.2'
-        xor_gateways, and_gateways, doc_flows, same_gateway_relations = rule_token_filtered_approach.process_document(
-            doc_name)
-
-        print(" Concurrent gateways ".center(50, '-'))
-        for gateway in and_gateways:
-            print(gateway)
-
-        print(" Exclusive gateways ".center(50, '-'))
-        for gateway in xor_gateways:
-            print(gateway)
+        rule_token_filtered_approach.evaluate_documents(doc_names=None,
+                                                        evaluate_token_cls=True, evaluate_relation_extraction=True)
